@@ -1,0 +1,15 @@
+/* Always dark — matches wicksburglawnservice.com */
+.wrap {
+  --q-bg:            #0a0a0a;
+  --q-surface:       rgba(255,255,255,0.03);
+  --q-surface-solid: #111111;
+  --q-border:        rgba(255,255,255,0.1);
+  --q-border-light:  rgba(255,255,255,0.06);
+  --q-text:          #f5f5f5;
+  --q-text-muted:    #d4d4d4;
+  --q-text-subtle:   #a3a3a3;
+  --q-field-bg:      rgba(255,255,255,0.03);
+  --q-label:         #34d399;
+  --q-readonly-bg:   rgba(255,255,255,0.05);
+  --q-readonly-text: #f5f5f5;
+}
