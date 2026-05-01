@@ -21,7 +21,7 @@ export default async function PropertiesPage({
 
   // Client-side filter by customer status
   const filtered = (properties ?? []).filter((p) => {
-    const cust = p.customers as { status: string } | null
+    const cust = (Array.isArray(p.customers) ? p.customers[0] : p.customers) as { status: string } | null
     if (filter === 'leads')  return cust?.status === 'lead'
     if (filter === 'active') return cust?.status === 'active' || cust?.status === 'inactive'
     return true
@@ -72,7 +72,7 @@ export default async function PropertiesPage({
         </div>
       ) : (
         filtered.map((p) => {
-          const customer = p.customers as { id: string; first_name: string; last_name: string | null; status: string } | null
+          const customer = (Array.isArray(p.customers) ? p.customers[0] : p.customers) as { id: string; first_name: string; last_name: string | null; status: string } | null
           return (
             <Link key={p.id} href={`/properties/${p.id}`} style={{ display: 'block' }}>
               <div className="card">

@@ -114,8 +114,8 @@ export default async function TodayPage() {
           </div>
         ) : (
           todayJobs.map((job) => {
-            const customer = job.customers as { first_name: string; last_name: string | null; phone: string | null } | null
-            const property = job.properties as { service_address: string; city: string | null; pet_warning: string | null; gate_code: string | null; access_notes: string | null; obstacle_notes: string | null } | null
+            const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null; phone: string | null } | null
+            const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null; pet_warning: string | null; gate_code: string | null; access_notes: string | null; obstacle_notes: string | null } | null
             const warnings = [property?.pet_warning, property?.gate_code ? `Gate: ${property.gate_code}` : null, property?.access_notes, property?.obstacle_notes].filter(Boolean)
 
             return (
@@ -176,8 +176,8 @@ export default async function TodayPage() {
             Overdue ({overdueJobs!.length})
           </div>
           {overdueJobs!.map((job) => {
-            const customer = job.customers as { first_name: string; last_name: string | null } | null
-            const property = job.properties as { service_address: string; city: string | null } | null
+            const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null } | null
+            const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
             const daysLate = Math.floor((Date.now() - new Date(job.scheduled_date + 'T00:00:00').getTime()) / 86400000)
             return (
               <Link key={job.id} href={`/jobs/${job.id}`} style={{ display: 'block' }}>
@@ -206,7 +206,7 @@ export default async function TodayPage() {
             Unpaid ({unpaidJobs!.length}) — ${unpaidTotal.toFixed(0)} owed
           </div>
           {unpaidJobs!.map((job) => {
-            const customer = job.customers as { first_name: string; last_name: string | null; phone: string | null } | null
+            const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null; phone: string | null } | null
             const balance = (job.price ?? 0) - (job.amount_paid ?? 0)
             return (
               <div key={job.id} className="card">
