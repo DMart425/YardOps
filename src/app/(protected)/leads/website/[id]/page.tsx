@@ -49,7 +49,7 @@ export default async function WebsiteLeadDetailPage({
   const parcelAcres     = parcel?.lot_sqft ? parcel.lot_sqft / 43560 : null
   const timberAcres     = toNum(attrs['TimberAcres'])
   const effectiveTimber = (timberAcres != null && timberAcres > 0 && parcelAcres != null && timberAcres < parcelAcres) ? timberAcres : 0
-  const mowableAcres    = parcelAcres != null ? estimateMowableAcres(parcelAcres, effectiveTimber, parcel.land_use) : null
+  const mowableAcres    = parcelAcres != null && parcel ? estimateMowableAcres(parcelAcres, effectiveTimber, parcel.land_use) : null
   const subdivision     = attrs['SubDivision'] as string | null | undefined
   const homesteadCode   = attrs['HomesteadCode'] as string | null | undefined
   const salePrice       = toNum(attrs['SalePrice'])
