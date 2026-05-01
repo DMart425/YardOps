@@ -55,7 +55,7 @@ export default async function PropertyDetailPage({
   const parcelAcres     = parcel?.lot_sqft ? parcel.lot_sqft / 43560 : null
   const timberAcres     = toNum(pAttrs['TimberAcres'])
   const effectiveTimber = (timberAcres != null && timberAcres > 0 && parcelAcres != null && timberAcres < parcelAcres) ? timberAcres : 0
-  const mowableAcres    = parcelAcres != null ? estimateMowableAcres(parcelAcres, effectiveTimber, parcel.land_use) : null
+  const mowableAcres    = parcelAcres != null && parcel ? estimateMowableAcres(parcelAcres, effectiveTimber, parcel.land_use) : null
   const subdivision     = pAttrs['SubDivision'] as string | null | undefined
   const homesteadCode   = pAttrs['HomesteadCode'] as string | null | undefined
   const salePrice       = toNum(pAttrs['SalePrice'])
