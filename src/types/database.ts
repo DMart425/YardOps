@@ -107,6 +107,8 @@ export interface Job {
   next_job_created_id: string | null
   day_before_reminder_sent: boolean
   day_before_reminder_sent_at: string | null
+  started_at: string | null
+  actual_minutes: number | null
   created_at: string
   updated_at: string
 }

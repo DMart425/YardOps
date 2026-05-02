@@ -5,7 +5,7 @@ import type { FormState, Job } from '@/types/database'
 import { completeJob, markInProgress, skipJob, cancelJob, markPaid } from '@/app/(protected)/jobs/actions'
 import { Toast } from '@/components/Toast'
 
-export function JobActions({ job }: { job: Job }) {
+export function JobActions({ job, venmoHandle, customerPhone, customerFirstName }: { job: Job; venmoHandle?: string | null; customerPhone?: string | null; customerFirstName?: string | null }) {
   const [panel,      setPanel]      = useState<'complete' | 'skip' | 'paid' | null>(null)
   const [markAsPaid, setMarkAsPaid] = useState(false)
 
@@ -68,6 +68,19 @@ export function JobActions({ job }: { job: Job }) {
                         placeholder="0.00"
                       />
                     </div>
+                    <div className="form-field">
+                      <label className="form-label">Minutes Worked</label>
+                      <input
+                        name="actual_minutes"
+                        type="number"
+                        min="1"
+                        step="1"
+                        className="form-input"
+                        placeholder={job.started_at ? 'auto-calc' : '30'}
+                      />
+                    </div>
+                  </div>
+                  <div className="form-row">
                     <div className="form-field">
                       <label className="form-label">Payment</label>
                       <select
@@ -140,6 +153,14 @@ export function JobActions({ job }: { job: Job }) {
       {/* ── Mark Paid (completed + unpaid) ── */}
       {isCompleted && job.payment_status === 'unpaid' && (
         <>
+          {venmoHandle && customerPhone && job.price && (
+            <a
+              href={`sms:${customerPhone}?&body=${encodeURIComponent(`Hi ${customerFirstName ?? ''}, friendly reminder for $${Number(job.price).toFixed(0)} for the lawn service. Pay via Venmo: https://venmo.com/${venmoHandle}?txn=pay&amount=${Number(job.price).toFixed(0)}&note=${encodeURIComponent('Lawn service')}\n\nThanks!`)}`}
+              className="btn btn-secondary btn-full"
+            >
+              📲 Send Pay Reminder
+            </a>
+          )}
           <button
             type="button"
             className="btn btn-primary btn-full"

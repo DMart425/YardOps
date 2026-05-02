@@ -30,6 +30,12 @@ export default async function JobDetailPage({
 
   if (!job) notFound()
 
+  const { data: settings } = await supabase
+    .from('pricing_settings')
+    .select('venmo_handle')
+    .single()
+  const venmoHandle = (settings?.venmo_handle as string | null) ?? null
+
   const customer = job.customers as { first_name: string; last_name: string | null; phone: string | null }
   const property = job.properties as {
     service_address: string; city: string | null; state: string | null
@@ -125,17 +131,36 @@ export default async function JobDetailPage({
       )}
 
       {/* Completion notes */}
-      {job.status === 'completed' && job.completion_notes && (
+      {job.status === 'completed' && (
         <div className="card" style={{ marginBottom: '1rem' }}>
-          <div className="section-heading">Completion Notes</div>
-          <p className="text-small">{job.completion_notes}</p>
+          <div className="section-heading" style={{ marginBottom: '0.5rem' }}>Job Summary</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.875rem' }}>
+            {job.actual_minutes != null && (
+              <div className="card-row">
+                <span className="text-small text-muted">⏱️ Time worked</span>
+                <span className="text-small">{job.actual_minutes} min</span>
+              </div>
+            )}
+            {job.completed_at && (
+              <div className="card-row">
+                <span className="text-small text-muted">✅ Completed</span>
+                <span className="text-small">{new Date(job.completed_at).toLocaleString()}</span>
+              </div>
+            )}
+            {job.completion_notes && (
+              <div style={{ paddingTop: '4px' }}>
+                <span className="text-small text-muted">Notes</span>
+                <p className="text-small" style={{ marginTop: '4px' }}>{job.completion_notes}</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
       {/* Actions */}
       <div className="card">
         <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Actions</div>
-        <JobActions job={job as unknown as Job} />
+        <JobActions job={job as unknown as Job} venmoHandle={venmoHandle} customerPhone={customer.phone} customerFirstName={customer.first_name} />
       </div>
 
       {/* Nav links */}

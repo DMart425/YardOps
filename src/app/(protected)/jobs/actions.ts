@@ -69,11 +69,23 @@ export async function completeJob(
   const priceRaw = formData.get('price') as string
   const price    = priceRaw ? parseFloat(priceRaw) : existing.price
 
+  // Compute actual minutes: prefer manual override, else compute from started_at
+  const minutesRaw = formData.get('actual_minutes') as string
+  let actualMinutes: number | null = null
+  if (minutesRaw) {
+    const m = parseInt(minutesRaw, 10)
+    if (!isNaN(m) && m >= 0) actualMinutes = m
+  } else if (existing.started_at) {
+    const elapsedMs = Date.now() - new Date(existing.started_at).getTime()
+    actualMinutes = Math.max(1, Math.round(elapsedMs / 60000))
+  }
+
   const { error } = await supabase
     .from('jobs')
     .update({
       status:           'completed',
       completed_at:     new Date().toISOString(),
+      actual_minutes:   actualMinutes,
       completion_notes: (formData.get('completion_notes') as string)?.trim() || null,
       payment_status:   (formData.get('payment_status') as string) || 'unpaid',
       payment_method:   (formData.get('payment_method') as string) || null,
@@ -137,7 +149,7 @@ export async function markInProgress(
 
   const { error } = await supabase
     .from('jobs')
-    .update({ status: 'in_progress' })
+    .update({ status: 'in_progress', started_at: new Date().toISOString() })
     .eq('id', id)
     .eq('created_by', user.id)
 
