@@ -14,6 +14,7 @@ export default async function SettingsPage() {
     minimum_price:         settings?.minimum_price         ?? DEFAULT_SETTINGS.minimumServicePrice,
     round_to_nearest:      settings?.round_to_nearest      ?? DEFAULT_SETTINGS.roundToNearest,
     default_setup_minutes: settings?.default_setup_minutes ?? DEFAULT_SETTINGS.defaultSetupMinutes,
+    venmo_handle:          settings?.venmo_handle          ?? '',
   }
 
   return (

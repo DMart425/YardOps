@@ -10,6 +10,7 @@ interface Defaults {
   minimum_price:         number
   round_to_nearest:      number
   default_setup_minutes: number
+  venmo_handle:          string
 }
 
 export function SettingsForm({ defaults }: { defaults: Defaults }) {
@@ -81,6 +82,20 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
           />
           <p className="form-hint">Load/unload time added to every job</p>
         </div>
+      </div>
+
+      <div className="form-section-label">Payment</div>
+      <div className="form-field">
+        <label className="form-label" htmlFor="s_venmo">Venmo Handle</label>
+        <input
+          id="s_venmo"
+          name="venmo_handle"
+          type="text"
+          className="form-input"
+          placeholder="WicksburgLS"
+          defaultValue={defaults.venmo_handle}
+        />
+        <p className="form-hint">Included as a payment link in invoices/estimates. Don&apos;t include the @ symbol.</p>
       </div>
 
       <div className="card" style={{ background: 'var(--color-bg-subtle)', marginBottom: '8px' }}>

@@ -32,6 +32,12 @@ export default async function EstimateDetailPage({
 
   if (!estimate) notFound()
 
+  const { data: settings } = await supabase
+    .from('pricing_settings')
+    .select('venmo_handle')
+    .single()
+  const venmoHandle = (settings?.venmo_handle as string | null) ?? null
+
   const customer = estimate.customers as { first_name: string; last_name: string | null; phone: string | null }
   const property = estimate.properties as { service_address: string; city: string | null; state: string | null; estimated_mowable_acres: number | null }
   const customerName = customer.first_name + (customer.last_name ? ' ' + customer.last_name : '')
@@ -74,6 +80,11 @@ export default async function EstimateDetailPage({
     smsLines.push('')
     smsLines.push('View & accept your estimate online:')
     smsLines.push(quoteUrl)
+  }
+  if (venmoHandle) {
+    const venmoUrl = `https://venmo.com/${venmoHandle}?txn=pay&amount=${Number(estimate.total).toFixed(0)}&note=${encodeURIComponent('Lawn service - ' + customer.first_name)}`
+    smsLines.push('')
+    smsLines.push('Pay via Venmo: ' + venmoUrl)
   }
   smsLines.push('')
   smsLines.push('Questions? Call or text (334) 320-7514')
