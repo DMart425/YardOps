@@ -228,7 +228,9 @@ export default async function JobsPage({
                     {job.scheduled_date ? fmtDate(job.scheduled_date) : 'No date'}
                     {job.scheduled_time_window ? ` · ${job.scheduled_time_window}` : ''}
                   </span>
-                  <span className={`pill pill-${job.payment_status}`}>{job.payment_status.replace(/_/g, ' ')}</span>
+                  {job.status === 'completed' && (
+                    <span className={`pill pill-${job.payment_status}`}>{job.payment_status.replace(/_/g, ' ')}</span>
+                  )}
                 </div>
               </Link>
             )

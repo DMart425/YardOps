@@ -183,7 +183,6 @@ export default async function TodayPage() {
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     {job.price != null && <div style={{ fontWeight: 700, fontSize: '1.0625rem' }}>${job.price}</div>}
-                    <span className={`pill pill-${job.payment_status}`}>{job.payment_status}</span>
                   </div>
                 </div>
 
