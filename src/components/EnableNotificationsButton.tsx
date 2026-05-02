@@ -3,13 +3,13 @@
 import { useEffect, useState } from 'react'
 import { savePushSubscription, deletePushSubscription } from '@/app/(protected)/settings/push-actions'
 
-// Convert the base64 VAPID public key into a Uint8Array, which is what
-// pushManager.subscribe() requires.
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
+// Convert the base64 VAPID public key into a Uint8Array<ArrayBuffer>.
+function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
   const raw = window.atob(base64)
-  const out = new Uint8Array(new ArrayBuffer(raw.length))
+  const buf = new ArrayBuffer(raw.length)
+  const out = new Uint8Array(buf)
   for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i)
   return out
 }
