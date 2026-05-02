@@ -129,12 +129,14 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   flex-shrink: 0;
 }
 
-.page-header *:not(.btn):not(.btn *) { color: #000 !important; }
-html body .page-header .btn-header { color: #fff !important; }
-html body .page-header .page-title,
-html body .page-header h1 { color: #000 !important; }
-html body .page-header .page-subtitle,
-html body .page-header p { color: #111 !important; }
+.page-header h1,
+.page-header h2,
+.page-header p,
+.page-header span,
+.page-header .page-title,
+.page-header .page-subtitle { color: #000 !important; }
+html body .page-header .btn-header,
+html body .page-header .btn-header * { color: #fff !important; }
 .page-title   { font-size: 1.375rem; font-weight: 700; line-height: 1.2; }
 .page-subtitle { font-size: 0.875rem; opacity: 0.7; margin-top: var(--sp-1); }
 
@@ -567,6 +569,8 @@ html body .page-header p { color: #111 !important; }
 }
 .filter-tab:hover { background: var(--color-border); color: var(--color-text); }
 .filter-tab.active { background: var(--color-primary); color: #000 !important; border-color: var(--color-primary-dark); }
+html body .filter-tab.active,
+html body .filter-tab.active * { color: #000 !important; }
 
 /* Estimate form */
 .estimate-item-row { display: flex; flex-direction: column; gap: var(--sp-3); }
