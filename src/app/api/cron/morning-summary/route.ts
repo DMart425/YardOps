@@ -25,7 +25,16 @@ export async function GET(req: NextRequest) {
     .neq('status', 'cancelled')
     .order('created_at', { ascending: true })
 
-  if (!jobs || jobs.length === 0) {
+  // Today's estimate visits
+  const { data: visitRows } = await admin
+    .from('estimates')
+    .select('id, visit_scheduled_time, customers ( first_name, last_name )')
+    .eq('visit_scheduled_date', today)
+    .not('status', 'in', '("converted","declined")')
+
+  const visits = visitRows ?? []
+
+  if ((!jobs || jobs.length === 0) && visits.length === 0) {
     // No jobs today — still send a ping so you know it's running
     await notifyAllUsers(admin, {
       title: '☀️ YardOps — No jobs today',
@@ -36,26 +45,39 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ sent: true, jobs: 0 })
   }
 
-  const total = jobs.reduce((s, j) => s + Number(j.price ?? 0), 0)
-  const names = jobs.map((j) => {
+  const safeJobs = jobs ?? []
+  const total = safeJobs.reduce((s, j) => s + Number(j.price ?? 0), 0)
+  const names = safeJobs.map((j) => {
     const raw = j.customers
     const c = (Array.isArray(raw) ? raw[0] : raw) as { first_name: string; last_name: string | null } | null
     return c ? c.first_name : 'Job'
   })
 
-  const body =
-    jobs.length === 1
-      ? `1 job: ${names[0]} · $${total.toFixed(2)}`
-      : `${jobs.length} jobs: ${names.slice(0, 3).join(', ')}${jobs.length > 3 ? ` +${jobs.length - 3} more` : ''} · $${total.toFixed(2)}`
+  const jobPart =
+    safeJobs.length === 1
+      ? `1 job: ${names[0]}`
+      : safeJobs.length > 1
+        ? `${safeJobs.length} jobs: ${names.slice(0, 3).join(', ')}${safeJobs.length > 3 ? ` +${safeJobs.length - 3} more` : ''}`
+        : ''
+
+  const visitPart = visits.length > 0
+    ? `${visits.length} estimate visit${visits.length === 1 ? '' : 's'}`
+    : ''
+
+  const body = [jobPart ? `${jobPart} · $${total.toFixed(2)}` : null, visitPart].filter(Boolean).join(' · ')
+
+  const titleParts: string[] = []
+  if (safeJobs.length > 0) titleParts.push(`${safeJobs.length} job${safeJobs.length === 1 ? '' : 's'}`)
+  if (visits.length > 0) titleParts.push(`${visits.length} estimate visit${visits.length === 1 ? '' : 's'}`)
 
   await notifyAllUsers(admin, {
-    title: `☀️ Good morning — ${jobs.length} job${jobs.length === 1 ? '' : 's'} today`,
+    title: `☀️ Good morning — ${titleParts.join(' + ')} today`,
     body,
     url: '/today',
     tag: 'morning-summary',
   })
 
-  return NextResponse.json({ sent: true, jobs: jobs.length, total })
+  return NextResponse.json({ sent: true, jobs: safeJobs.length, visits: visits.length, total })
 }
 
 async function notifyAllUsers(

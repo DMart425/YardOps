@@ -5,6 +5,7 @@ import { EstimateStatusActions } from '@/components/EstimateStatusActions'
 import { calculateEstimate, formatMinutes, DEFAULT_SETTINGS } from '@/lib/pricing'
 import type { EstimateInputs } from '@/lib/pricing'
 import SendSmsButton from './SendSmsButton'
+import ScheduleVisitForm from './ScheduleVisitForm'
 
 function fmtDate(d: string) {
   return new Date(d + 'T12:00:00').toLocaleDateString('en-US', {
@@ -132,6 +133,26 @@ export default async function EstimateDetailPage({
             </div>
           )}
         </div>
+      </div>
+
+      {/* Schedule Visit */}
+      <div className="card" style={{ marginBottom: '1rem' }}>
+        <div className="section-heading" style={{ marginBottom: '0.75rem' }}>
+          {estimate.visit_scheduled_date ? '📅 Visit Scheduled' : '📅 Schedule Visit'}
+        </div>
+        {estimate.visit_scheduled_date && (
+          <div style={{ marginBottom: '10px', padding: '8px 10px', background: 'var(--color-success-bg, #f0fdf4)', borderRadius: '8px', border: '1px solid var(--color-success-border, #bbf7d0)' }}>
+            <span className="text-small" style={{ fontWeight: 600 }}>{fmtDate(estimate.visit_scheduled_date)}</span>
+            {estimate.visit_scheduled_time && (
+              <span className="text-small text-muted"> · {estimate.visit_scheduled_time}</span>
+            )}
+          </div>
+        )}
+        <ScheduleVisitForm
+          estimateId={estimate.id}
+          currentDate={estimate.visit_scheduled_date ?? null}
+          currentTime={estimate.visit_scheduled_time ?? null}
+        />
       </div>
 
       {/* Full breakdown */}

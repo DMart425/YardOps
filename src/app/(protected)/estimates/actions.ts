@@ -149,3 +149,32 @@ export async function updateEstimateStatus(
   revalidatePath(`/estimates/${estimateId}`)
   return { error: null, success: `Marked as ${status}.` }
 }
+
+// ── scheduleEstimateVisit ────────────────────────────────────────────────────
+export async function scheduleEstimateVisit(
+  estimateId: string,
+  prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const visitDate = str(formData, 'visit_date')
+  const visitTime = str(formData, 'visit_time')
+
+  if (!visitDate) return { error: 'Please select a date.' }
+
+  const { error } = await supabase
+    .from('estimates')
+    .update({ visit_scheduled_date: visitDate, visit_scheduled_time: visitTime })
+    .eq('id', estimateId)
+    .eq('created_by', user.id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/estimates')
+  revalidatePath(`/estimates/${estimateId}`)
+  revalidatePath('/today')
+  return { error: null, success: 'Visit scheduled.' }
+}

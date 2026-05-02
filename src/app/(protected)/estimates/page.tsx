@@ -24,7 +24,7 @@ export default async function EstimatesPage({
 
   let query = supabase
     .from('estimates')
-    .select('id, status, total, valid_until, created_at, customers(first_name, last_name), properties(service_address, city)')
+    .select('id, status, total, valid_until, created_at, visit_scheduled_date, visit_scheduled_time, customers(first_name, last_name), properties(service_address, city)')
     .order('created_at', { ascending: false })
 
   if (filter !== 'all') {
@@ -76,6 +76,9 @@ export default async function EstimatesPage({
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
                     <span className={`pill pill-${est.status}`}>{est.status}</span>
+                    {est.visit_scheduled_date && (
+                      <span className="pill pill-draft" style={{ fontSize: '0.7rem' }}>📅 Visit {fmtDate(est.visit_scheduled_date)}</span>
+                    )}
                     <span className="font-bold text-small">${Number(est.total).toFixed(2)}</span>
                   </div>
                 </div>

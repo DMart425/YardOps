@@ -79,6 +79,18 @@ export default async function TodayPage() {
     .in('status', ['scheduled', 'in_progress'])
     .order('scheduled_date')
 
+  // Today's estimate visits
+  const { data: estimateVisits } = await supabase
+    .from('estimates')
+    .select(`
+      id, visit_scheduled_time, total,
+      customers ( first_name, last_name, phone ),
+      properties ( service_address, city )
+    `)
+    .eq('visit_scheduled_date', today)
+    .not('status', 'in', '("converted","declined")')
+    .order('visit_scheduled_time')
+
   const todayTotal = (todayJobs ?? []).reduce((s, j) => s + (j.price ?? 0), 0)
   const unpaidTotal = (unpaidJobs ?? []).reduce((s, j) => s + ((j.price ?? 0) - (j.amount_paid ?? 0)), 0)
 
@@ -222,6 +234,55 @@ export default async function TodayPage() {
           })
         )}
       </div>
+
+      {/* Estimate Visits */}
+      {(estimateVisits?.length ?? 0) > 0 && (
+        <div className="detail-section">
+          <div className="section-heading">📋 Estimate Visits ({estimateVisits!.length})</div>
+          {estimateVisits!.map((visit) => {
+            const customer = (Array.isArray(visit.customers) ? visit.customers[0] : visit.customers) as { first_name: string; last_name: string | null; phone: string | null } | null
+            const property = (Array.isArray(visit.properties) ? visit.properties[0] : visit.properties) as { service_address: string; city: string | null } | null
+            return (
+              <div key={visit.id} className="card">
+                <div className="card-row">
+                  <div>
+                    <div className="card-title">{customer?.first_name} {customer?.last_name}</div>
+                    <div className="card-meta">{property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
+                    {visit.visit_scheduled_time && (
+                      <div className="card-meta">{visit.visit_scheduled_time}</div>
+                    )}
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <span className="pill pill-draft">Estimate Visit</span>
+                    {visit.total != null && <div className="text-small text-muted" style={{ marginTop: '4px' }}>~${Number(visit.total).toFixed(0)}</div>}
+                  </div>
+                </div>
+                <div className="card-actions">
+                  {property?.service_address && (
+                    <a
+                      href={`https://maps.google.com/?q=${encodeURIComponent([property.service_address, property.city].filter(Boolean).join(', '))}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-sm btn-secondary"
+                    >
+                      Open Maps
+                    </a>
+                  )}
+                  {customer?.phone && (
+                    <a
+                      href={`sms:${customer.phone}?body=${encodeURIComponent(`Hi ${customer?.first_name ?? 'there'}, just a reminder that I have an estimate visit scheduled at your property today. I'll be in touch with your quote shortly!`)}`}
+                      className="btn btn-sm btn-secondary"
+                    >
+                      📱 Remind
+                    </a>
+                  )}
+                  <Link href={`/estimates/${visit.id}`} className="btn btn-sm btn-primary">View Estimate</Link>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Overdue */}
       {(overdueJobs?.length ?? 0) > 0 && (
