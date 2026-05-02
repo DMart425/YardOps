@@ -52,7 +52,7 @@ export default async function PropertiesPage({
             className="btn btn-sm"
             style={{
               background: filter === t.key ? 'var(--color-primary)' : 'var(--color-bg-secondary)',
-              color: filter === t.key ? '#fff' : 'var(--color-text)',
+              color: filter === t.key ? '#000' : 'var(--color-text)',
               border: '1px solid',
               borderColor: filter === t.key ? 'var(--color-primary)' : 'var(--color-border)',
             }}

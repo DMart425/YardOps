@@ -168,7 +168,7 @@ export default async function FinancesPage({
                 fontSize: '0.75rem',
                 fontWeight: isSelected ? 700 : 400,
                 background: isSelected ? 'var(--color-primary)' : 'var(--color-surface)',
-                color: isSelected ? '#fff' : 'var(--color-text)',
+                color: isSelected ? '#000' : 'var(--color-text)',
                 border: '1px solid',
                 borderColor: isSelected ? 'var(--color-primary)' : 'var(--color-border)',
                 textDecoration: 'none',
@@ -177,7 +177,7 @@ export default async function FinancesPage({
             >
               <div>{m}</div>
               {incomeByMonth[i] > 0 || expensesByMonth[i] > 0 ? (
-                <div style={{ fontSize: '0.65rem', color: isSelected ? 'rgba(255,255,255,0.8)' : net >= 0 ? 'var(--color-primary)' : 'var(--color-danger, #dc2626)' }}>
+                <div style={{ fontSize: '0.65rem', color: isSelected ? 'rgba(0,0,0,0.7)' : net >= 0 ? 'var(--color-primary)' : 'var(--color-danger, #dc2626)' }}>
                   {fmt$(net)}
                 </div>
               ) : null}
