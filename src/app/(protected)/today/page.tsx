@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import { getTodayForecastForCoords, coordKey } from '@/lib/weather'
 
 function getTodayLocal() {
   return new Date().toLocaleDateString('en-CA') // YYYY-MM-DD
@@ -21,11 +22,22 @@ export default async function TodayPage() {
     .select(`
       id, title, service_package, price, payment_status, status, scheduled_date,
       customers ( first_name, last_name, phone ),
-      properties ( service_address, city, pet_warning, gate_code, access_notes, obstacle_notes )
+      properties ( service_address, city, pet_warning, gate_code, access_notes, obstacle_notes, latitude, longitude )
     `)
     .eq('scheduled_date', today)
     .not('status', 'in', '("completed","cancelled","skipped")')
     .order('scheduled_date')
+
+  // Fetch weather for unique property coordinates
+  const coords: Array<{ lat: number; lon: number }> = []
+  for (const j of todayJobs ?? []) {
+    const p = (Array.isArray(j.properties) ? j.properties[0] : j.properties) as { latitude: number | null; longitude: number | null } | null
+    if (p?.latitude != null && p.longitude != null) {
+      coords.push({ lat: p.latitude, lon: p.longitude })
+    }
+  }
+  const weatherMap = coords.length > 0 ? await getTodayForecastForCoords(coords) : new Map()
+  const anyRainToday = Array.from(weatherMap.values()).some(fc => fc.precipChance >= 40 || fc.precipInches >= 0.05)
 
   // Overdue jobs
   const { data: overdueJobs } = await supabase
@@ -72,6 +84,19 @@ export default async function TodayPage() {
         </div>
       </div>
 
+      {/* Rain warning banner */}
+      {anyRainToday && (
+        <div className="card" style={{ marginBottom: '1rem', background: 'rgba(80,140,255,0.12)', borderLeft: '3px solid #4a90e2' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '1.5rem' }}>🌧</span>
+            <div>
+              <div className="font-bold">Rain expected today</div>
+              <div className="text-small text-muted">Consider rescheduling jobs at higher-risk locations.</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stats */}
       <div className="stat-grid" style={{ marginBottom: '1.5rem' }}>
         <div className="stat-card">
@@ -115,8 +140,12 @@ export default async function TodayPage() {
         ) : (
           todayJobs.map((job) => {
             const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null; phone: string | null } | null
-            const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null; pet_warning: string | null; gate_code: string | null; access_notes: string | null; obstacle_notes: string | null } | null
+            const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null; pet_warning: string | null; gate_code: string | null; access_notes: string | null; obstacle_notes: string | null; latitude: number | null; longitude: number | null } | null
             const warnings = [property?.pet_warning, property?.gate_code ? `Gate: ${property.gate_code}` : null, property?.access_notes, property?.obstacle_notes].filter(Boolean)
+            const fc = property?.latitude != null && property.longitude != null
+              ? weatherMap.get(coordKey(property.latitude, property.longitude))
+              : null
+            const wetRisk = fc && (fc.precipChance >= 40 || fc.precipInches >= 0.05)
 
             return (
               <div key={job.id} className="card">
@@ -125,6 +154,17 @@ export default async function TodayPage() {
                     <div className="card-title">{customer?.first_name} {customer?.last_name}</div>
                     <div className="card-subtitle">{property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
                     {job.service_package && <div className="card-meta">{job.service_package.replace(/_/g, ' ')}</div>}
+                    {fc && (
+                      <div className="card-meta" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                        <span>{fc.emoji}</span>
+                        <span>{fc.tempHi}° / {fc.tempLo}° · {fc.summary}</span>
+                        {fc.precipChance > 0 && (
+                          <span style={{ color: wetRisk ? 'var(--color-overdue)' : undefined, fontWeight: wetRisk ? 600 : undefined }}>
+                            · {fc.precipChance}% rain
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     {job.price != null && <div style={{ fontWeight: 700, fontSize: '1.0625rem' }}>${job.price}</div>}
