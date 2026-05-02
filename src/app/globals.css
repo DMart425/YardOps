@@ -118,14 +118,15 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 60px;
+  height: 72px;
   gap: var(--sp-3);
   background: var(--color-primary);
   margin-left: calc(-1 * var(--sp-4));
   margin-right: calc(-1 * var(--sp-4));
   margin-bottom: var(--sp-5);
-  padding: var(--sp-3) var(--sp-4);
+  padding: 0 var(--sp-4);
   border-radius: 0;
+  flex-shrink: 0;
 }
 
 .page-header * { color: #000 !important; }
