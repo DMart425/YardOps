@@ -49,6 +49,7 @@ export async function updateCustomer(
       preferred_contact_method: (formData.get('preferred_contact_method') as string) || null,
       notes: (formData.get('notes') as string)?.trim() || null,
       status: (formData.get('status') as string) || 'lead',
+      tags: (formData.getAll('tags') as string[]).filter(Boolean),
     })
     .eq('id', id)
     .eq('created_by', user.id)

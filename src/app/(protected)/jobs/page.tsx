@@ -160,6 +160,8 @@ export default async function JobsPage({
               .filter(Boolean)
             const url = routeUrl(addresses)
             const dayTotal = dayJobs.reduce((s, j) => s + (j.price ?? 0), 0)
+            const anyPriced = dayJobs.some(j => j.price != null)
+            const dayTotalLabel = anyPriced ? `$${dayTotal.toFixed(0)}` : '—'
 
             return (
               <div key={day} style={{ marginBottom: '1.25rem' }}>
@@ -169,7 +171,7 @@ export default async function JobsPage({
                   </div>
                   {url && (
                     <a href={url} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-secondary">
-                      🗺 Route · ${dayTotal.toFixed(0)}
+                      🗺 Route · {dayTotalLabel}
                     </a>
                   )}
                 </div>

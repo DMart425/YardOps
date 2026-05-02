@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useState, useRef } from 'react'
 import type { FormState, Job } from '@/types/database'
 import { completeJob, markInProgress, skipJob, cancelJob, markPaid, rescheduleJob } from '@/app/(protected)/jobs/actions'
 import { Toast } from '@/components/Toast'
@@ -8,6 +8,15 @@ import { Toast } from '@/components/Toast'
 export function JobActions({ job, venmoHandle, customerPhone, customerFirstName }: { job: Job; venmoHandle?: string | null; customerPhone?: string | null; customerFirstName?: string | null }) {
   const [panel,      setPanel]      = useState<'complete' | 'skip' | 'paid' | 'reschedule' | null>(null)
   const [markAsPaid, setMarkAsPaid] = useState(false)
+  const notesRef = useRef<HTMLTextAreaElement>(null)
+
+  const NOTE_TEMPLATES = [
+    'Mowed, edged, blown',
+    'Mowed only',
+    'Mowed, edged, blown, trimmed shrubs',
+    'Full service complete',
+    'Gate locked — mowed front only',
+  ]
 
   const [startState,    startAction,    startPending]    = useActionState<FormState, FormData>(markInProgress.bind(null, job.id), { error: null })
   const [completeState, completeAction, completePending] = useActionState<FormState, FormData>(completeJob.bind(null, job.id),    { error: null })
@@ -69,7 +78,20 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
                 <form action={completeAction} className="form action-panel">
                   <div className="form-field">
                     <label className="form-label">Completion Notes</label>
-                    <textarea name="completion_notes" className="form-textarea" rows={2} placeholder="Any notes about this visit…" />
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '6px' }}>
+                      {NOTE_TEMPLATES.map(t => (
+                        <button
+                          key={t}
+                          type="button"
+                          className="pill pill-draft"
+                          style={{ cursor: 'pointer', fontSize: '0.7rem', border: '1px solid var(--color-border)' }}
+                          onClick={() => { if (notesRef.current) notesRef.current.value = t }}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                    <textarea ref={notesRef} name="completion_notes" className="form-textarea" rows={2} placeholder="Any notes about this visit…" />
                   </div>
                   <div className="form-row">
                     <div className="form-field">

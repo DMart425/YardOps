@@ -59,7 +59,12 @@ export default async function CustomerDetailPage({
           <h1 className="page-title">
             {customer.first_name}{customer.last_name ? ` ${customer.last_name}` : ''}
           </h1>
-          <span className={`pill pill-${customer.status}`}>{customer.status}</span>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+            <span className={`pill pill-${customer.status}`}>{customer.status}</span>
+            {((customer as any).tags as string[] ?? []).map((tag: string) => (
+              <span key={tag} className="pill pill-draft">{tag}</span>
+            ))}
+          </div>
         </div>
       </div>
 

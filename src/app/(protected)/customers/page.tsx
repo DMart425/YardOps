@@ -42,7 +42,12 @@ export default async function CustomersPage() {
                   {c.phone && <div className="contact-row">📞 {c.phone}</div>}
                   {c.email && <div className="contact-row">✉ {c.email}</div>}
                 </div>
-                <span className={`pill pill-${c.status}`}>{c.status}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
+                  <span className={`pill pill-${c.status}`}>{c.status}</span>
+                  {((c as any).tags as string[] ?? []).map((tag: string) => (
+                    <span key={tag} className="pill pill-draft" style={{ fontSize: '0.7rem' }}>{tag}</span>
+                  ))}
+                </div>
               </div>
               {c.notes && <div className="card-meta" style={{ marginTop: '8px' }}>{c.notes}</div>}
             </div>

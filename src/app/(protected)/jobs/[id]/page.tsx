@@ -87,7 +87,9 @@ export default async function JobDetailPage({
           <h1 className="page-title">{customerName}</h1>
           <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
             <span className={`pill pill-${job.status}`}>{job.status.replace(/_/g, ' ')}</span>
-            <span className={`pill pill-${job.payment_status}`}>{job.payment_status.replace(/_/g, ' ')}</span>
+            {job.status !== 'cancelled' && job.status !== 'skipped' && (
+              <span className={`pill pill-${job.payment_status}`}>{job.payment_status.replace(/_/g, ' ')}</span>
+            )}
           </div>
         </div>
         {job.price != null && (

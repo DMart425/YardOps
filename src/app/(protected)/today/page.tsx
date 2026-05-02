@@ -91,6 +91,48 @@ export default async function TodayPage() {
     .not('status', 'in', '("converted","declined")')
     .order('visit_scheduled_time')
 
+  // Recurring gap detection — customers with a recurring job in the past 60 days
+  // but nothing scheduled in the next 14 days
+  const twoWeeksOut = new Date()
+  twoWeeksOut.setDate(twoWeeksOut.getDate() + 14)
+  const twoWeeksStr = twoWeeksOut.toLocaleDateString('en-CA')
+  const sixtyDaysAgo = new Date()
+  sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
+  const sixtyDaysAgoStr = sixtyDaysAgo.toLocaleDateString('en-CA')
+
+  const { data: recentRecurring } = await supabase
+    .from('jobs')
+    .select('customer_id, customers(first_name, last_name)')
+    .eq('job_type', 'recurring')
+    .gte('scheduled_date', sixtyDaysAgoStr)
+    .not('status', 'in', '("cancelled","skipped")')
+
+  let gapCustomers: { id: string; name: string }[] = []
+  if (recentRecurring && recentRecurring.length > 0) {
+    // Deduplicate to unique customers
+    const uniqueMap = new Map<string, string>()
+    for (const row of recentRecurring) {
+      const cid = row.customer_id as string
+      if (!uniqueMap.has(cid)) {
+        const raw = row.customers
+        const c = (Array.isArray(raw) ? raw[0] : raw) as { first_name: string; last_name: string | null } | null
+        uniqueMap.set(cid, c ? `${c.first_name}${c.last_name ? ' ' + c.last_name : ''}` : 'Customer')
+      }
+    }
+    const recurringIds = [...uniqueMap.keys()]
+    const { data: upcomingJobs } = await supabase
+      .from('jobs')
+      .select('customer_id')
+      .in('customer_id', recurringIds)
+      .gte('scheduled_date', today)
+      .lte('scheduled_date', twoWeeksStr)
+      .in('status', ['scheduled', 'in_progress'])
+    const coveredIds = new Set((upcomingJobs ?? []).map(j => j.customer_id as string))
+    gapCustomers = recurringIds
+      .filter(id => !coveredIds.has(id))
+      .map(id => ({ id, name: uniqueMap.get(id)! }))
+  }
+
   const todayTotal = (todayJobs ?? []).reduce((s, j) => s + (j.price ?? 0), 0)
   const unpaidTotal = (unpaidJobs ?? []).reduce((s, j) => s + ((j.price ?? 0) - (j.amount_paid ?? 0)), 0)
 
@@ -119,6 +161,24 @@ export default async function TodayPage() {
             <div>
               <div className="font-bold">Rain expected today</div>
               <div className="text-small text-muted">Consider rescheduling jobs at higher-risk locations.</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recurring gap alert */}
+      {gapCustomers.length > 0 && (
+        <div className="card" style={{ marginBottom: '1rem', borderLeft: '3px solid var(--color-warning, #f59e0b)', background: 'rgba(245,158,11,0.08)' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+            <span style={{ fontSize: '1.25rem', flexShrink: 0 }}>🔁</span>
+            <div>
+              <div className="font-bold" style={{ marginBottom: '4px' }}>Recurring customers with no upcoming job</div>
+              <div className="text-small text-muted" style={{ marginBottom: '6px' }}>No job scheduled in the next 14 days:</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {gapCustomers.map(c => (
+                  <Link key={c.id} href={`/customers/${c.id}`} className="pill pill-lead" style={{ textDecoration: 'none' }}>{c.name}</Link>
+                ))}
+              </div>
             </div>
           </div>
         </div>

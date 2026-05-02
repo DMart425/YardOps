@@ -6,7 +6,10 @@ import Link from 'next/link'
 import type { Customer, FormState } from '@/types/database'
 import { Toast } from '@/components/Toast'
 
+const CUSTOMER_TAGS = ['Seasonal', 'Commercial', 'Priority', 'Cash Only', 'Key Holder', 'HOA']
+
 export function CustomerEditForm({ customer }: { customer: Customer }) {
+  const currentTags: string[] = (customer as any).tags ?? []
   const [state, action, pending] = useActionState<FormState, FormData>(
     updateCustomer.bind(null, customer.id),
     { error: null }
@@ -85,6 +88,23 @@ export function CustomerEditForm({ customer }: { customer: Customer }) {
           defaultValue={customer.notes ?? ''}
           rows={3}
         />
+      </div>
+
+      <div className="form-field">
+        <label className="form-label">Tags</label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+          {CUSTOMER_TAGS.map(tag => (
+            <label key={tag} style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontSize: '0.875rem' }}>
+              <input
+                type="checkbox"
+                name="tags"
+                value={tag}
+                defaultChecked={currentTags.includes(tag)}
+              />
+              {tag}
+            </label>
+          ))}
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: '12px' }}>
