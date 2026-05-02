@@ -4,6 +4,7 @@ import { SettingsForm } from '@/components/forms/SettingsForm'
 import { BackfillCoordinatesButton } from '@/components/BackfillCoordinatesButton'
 import { DataExportSection } from '@/components/DataExportSection'
 import { EnableNotificationsButton } from '@/components/EnableNotificationsButton'
+import { BlackoutDatesForm } from '@/components/BlackoutDatesForm'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -20,12 +21,15 @@ export default async function SettingsPage() {
     venmo_handle:          settings?.venmo_handle          ?? '',
   }
 
+  const blackoutDates: string[] = (settings?.blackout_dates as string[] | null) ?? []
+
   return (
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">Settings</h1>
       </div>
       <SettingsForm defaults={defaults} />
+      <BlackoutDatesForm dates={blackoutDates} />
       <EnableNotificationsButton />
       <BackfillCoordinatesButton />
       <DataExportSection />

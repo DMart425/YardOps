@@ -1,8 +1,8 @@
 'use client'
 
 import { useActionState, useState } from 'react'
-import { acceptEstimate } from './actions'
-import type { AcceptState } from './actions'
+import { acceptEstimate, declineEstimate } from './actions'
+import type { AcceptState, DeclineState } from './actions'
 
 interface Props {
   token: string
@@ -23,7 +23,9 @@ export default function QuoteConfirmForm({
   token, firstName, lastName, phone, email, address, frequency, accessNotes,
 }: Props) {
   const [state, action, pending] = useActionState<AcceptState, FormData>(acceptEstimate, {})
+  const [declineState, declineAction, declinePending] = useActionState<DeclineState, FormData>(declineEstimate, {})
   const [editing, setEditing] = useState(false)
+  const [showDecline, setShowDecline] = useState(false)
 
   if (state.success) {
     return (
@@ -39,6 +41,64 @@ export default function QuoteConfirmForm({
           Questions? Call or text us at{' '}
           <a href="tel:3343207514" style={{ color: '#34d399' }}>(334) 320-7514</a>.
         </p>
+      </div>
+    )
+  }
+
+  if (declineState.success) {
+    return (
+      <div style={{
+        background: 'rgba(239,68,68,0.08)', border: '2px solid #ef4444', borderRadius: '12px',
+        padding: '2rem', textAlign: 'center',
+      }}>
+        <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>👋</div>
+        <h2 style={{ color: '#f87171', margin: '0 0 0.5rem' }}>Estimate Declined</h2>
+        <p style={{ color: '#d4d4d4', margin: 0 }}>
+          We understand — no problem at all. If you change your mind, just give us a call.
+          <br />
+          <a href="tel:3343207514" style={{ color: '#f87171' }}>(334) 320-7514</a>
+        </p>
+      </div>
+    )
+  }
+
+  // Decline confirmation prompt
+  if (showDecline) {
+    return (
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>🤔</div>
+        <h2 style={{ color: 'var(--q-text)', fontSize: '1.125rem', marginBottom: '0.5rem' }}>Decline this estimate?</h2>
+        <p style={{ color: 'var(--q-text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
+          We'll mark it as declined. You can always call us if you change your mind.
+        </p>
+        <form action={declineAction} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <input type="hidden" name="token" value={token} />
+          <button
+            type="submit"
+            disabled={declinePending}
+            style={{
+              background: '#ef4444', color: '#fff', border: 'none',
+              borderRadius: '10px', padding: '12px', fontSize: '0.9375rem',
+              fontWeight: 600, cursor: declinePending ? 'not-allowed' : 'pointer',
+              opacity: declinePending ? 0.7 : 1,
+            }}
+          >
+            {declinePending ? 'Submitting…' : 'Yes, decline'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowDecline(false)}
+            style={{
+              background: 'none', border: '1px solid var(--q-border)', color: 'var(--q-text-muted)',
+              borderRadius: '10px', padding: '12px', fontSize: '0.9375rem', cursor: 'pointer',
+            }}
+          >
+            ← Go back
+          </button>
+        </form>
+        {declineState.error && (
+          <p style={{ color: '#f87171', fontSize: '0.875rem', marginTop: '8px' }}>{declineState.error}</p>
+        )}
       </div>
     )
   }
@@ -153,6 +213,19 @@ export default function QuoteConfirmForm({
       <p style={{ textAlign: 'center', fontSize: '0.8125rem', color: 'var(--q-text-subtle)', marginTop: '12px' }}>
         By accepting, you agree to the quoted price and service details above.
       </p>
+
+      <div style={{ textAlign: 'center', marginTop: '1.25rem' }}>
+        <button
+          type="button"
+          onClick={() => setShowDecline(true)}
+          style={{
+            background: 'none', border: 'none', color: 'var(--q-text-subtle)',
+            fontSize: '0.8125rem', cursor: 'pointer', textDecoration: 'underline',
+          }}
+        >
+          No thanks, decline this estimate
+        </button>
+      </div>
     </form>
   )
 }

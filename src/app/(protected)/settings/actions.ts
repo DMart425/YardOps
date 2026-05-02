@@ -40,3 +40,54 @@ export async function saveSettings(
   revalidatePath('/settings')
   return { error: null, success: 'Settings saved.' }
 }
+
+export async function addBlackoutDate(date: string): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated.' }
+
+  // Validate date format
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: 'Invalid date.' }
+
+  const { data: existing } = await supabase
+    .from('pricing_settings')
+    .select('blackout_dates')
+    .eq('user_id', user.id)
+    .single()
+
+  const current: string[] = (existing?.blackout_dates as string[] | null) ?? []
+  if (current.includes(date)) return {}
+
+  const { error } = await supabase
+    .from('pricing_settings')
+    .upsert({ user_id: user.id, blackout_dates: [...current, date] }, { onConflict: 'user_id' })
+
+  if (error) return { error: error.message }
+  revalidatePath('/settings')
+  revalidatePath('/jobs')
+  return {}
+}
+
+export async function removeBlackoutDate(date: string): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated.' }
+
+  const { data: existing } = await supabase
+    .from('pricing_settings')
+    .select('blackout_dates')
+    .eq('user_id', user.id)
+    .single()
+
+  const current: string[] = (existing?.blackout_dates as string[] | null) ?? []
+  const updated = current.filter(d => d !== date)
+
+  const { error } = await supabase
+    .from('pricing_settings')
+    .upsert({ user_id: user.id, blackout_dates: updated }, { onConflict: 'user_id' })
+
+  if (error) return { error: error.message }
+  revalidatePath('/settings')
+  revalidatePath('/jobs')
+  return {}
+}

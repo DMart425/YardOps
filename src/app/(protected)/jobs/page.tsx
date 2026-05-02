@@ -54,6 +54,13 @@ export default async function JobsPage({
 
   const { data: jobs } = await query
 
+  // ── Blackout dates ──
+  const { data: pricingSettings } = await supabase
+    .from('pricing_settings')
+    .select('blackout_dates')
+    .single()
+  const blackoutDates: string[] = (pricingSettings?.blackout_dates as string[] | null) ?? []
+
   // ── Overdue unpaid count (completed + unpaid + >7 days old) ──
   const sevenDaysAgo = new Date()
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
@@ -151,6 +158,28 @@ export default async function JobsPage({
         </div>
       ) : filter === 'week' ? (
         <div>
+          {/* Blackout days with no jobs (otherwise they'd be invisible) */}
+          {blackoutDates
+            .filter(d => d >= today && d <= weekEndStr && !groupedByDay.has(d))
+            .sort()
+            .map(d => (
+              <div key={d} style={{
+                marginBottom: '1rem', padding: '10px 12px',
+                background: 'rgba(239,68,68,0.06)',
+                border: '1px dashed rgba(239,68,68,0.4)',
+                borderRadius: 'var(--r-sm)',
+              }}>
+                <span className="section-heading" style={{ marginBottom: 0 }}>
+                  {fmtDate(d)}{' '}
+                  <span style={{
+                    fontSize: '0.7rem', fontWeight: 600,
+                    background: 'rgba(239,68,68,0.15)', color: '#dc2626',
+                    borderRadius: '4px', padding: '2px 6px',
+                  }}>🚫 Day Off</span>
+                </span>
+              </div>
+            ))
+          }
           {Array.from(groupedByDay.entries()).map(([day, dayJobs]) => {
             const addresses = dayJobs
               .map(j => {
@@ -162,12 +191,22 @@ export default async function JobsPage({
             const dayTotal = dayJobs.reduce((s, j) => s + (j.price ?? 0), 0)
             const anyPriced = dayJobs.some(j => j.price != null)
             const dayTotalLabel = anyPriced ? `$${dayTotal.toFixed(0)}` : '—'
+            const isBlackout = day !== 'unscheduled' && blackoutDates.includes(day)
 
             return (
               <div key={day} style={{ marginBottom: '1.25rem' }}>
                 <div className="card-row" style={{ marginBottom: '8px' }}>
                   <div className="section-heading" style={{ marginBottom: 0 }}>
                     {day === 'unscheduled' ? 'Unscheduled' : fmtDate(day)} ({dayJobs.length})
+                    {isBlackout && (
+                      <span style={{
+                        marginLeft: '8px', fontSize: '0.7rem', fontWeight: 600,
+                        background: 'rgba(239,68,68,0.15)', color: '#dc2626',
+                        borderRadius: '4px', padding: '2px 6px', verticalAlign: 'middle',
+                      }}>
+                        🚫 Day Off
+                      </span>
+                    )}
                   </div>
                   {url && (
                     <a href={url} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-secondary">

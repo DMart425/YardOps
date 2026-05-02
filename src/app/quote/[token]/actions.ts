@@ -111,3 +111,55 @@ export async function acceptEstimate(
 
   return { success: true }
 }
+
+export interface DeclineState {
+  success?: boolean
+  error?: string
+}
+
+export async function declineEstimate(
+  prevState: DeclineState,
+  formData: FormData,
+): Promise<DeclineState> {
+  const token = (formData.get('token') as string)?.trim()
+  if (!token) return { error: 'Invalid link.' }
+
+  const supabase = createAdminClient()
+
+  const { data: estimate } = await supabase
+    .from('estimates')
+    .select('id, status, created_by, customer_id, customers(first_name, last_name)')
+    .eq('public_token', token)
+    .single()
+
+  if (!estimate) return { error: 'Estimate not found.' }
+  if (estimate.status === 'approved' || estimate.status === 'converted') {
+    return { error: 'This estimate was already accepted.' }
+  }
+  if (estimate.status === 'declined') {
+    return { success: true } // idempotent
+  }
+
+  await supabase
+    .from('estimates')
+    .update({ status: 'declined' })
+    .eq('id', estimate.id)
+
+  // Notify owner
+  if (estimate.created_by) {
+    const raw = estimate.customers
+    const c = (Array.isArray(raw) ? raw[0] : raw) as { first_name: string; last_name: string | null } | null
+    const name = c ? `${c.first_name}${c.last_name ? ' ' + c.last_name : ''}` : 'A customer'
+    await sendPushToUser(estimate.created_by, {
+      title: '❌ Quote declined',
+      body:  `${name} declined their estimate.`,
+      url:   `/estimates/${estimate.id}`,
+      tag:   `quote-declined-${estimate.id}`,
+    }).catch(() => {})
+  }
+
+  revalidatePath('/estimates')
+  revalidatePath('/leads')
+
+  return { success: true }
+}

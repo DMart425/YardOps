@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState, useRef } from 'react'
+import { useActionState, useState, useRef, useEffect } from 'react'
 import type { FormState, Job } from '@/types/database'
 import { completeJob, markInProgress, skipJob, cancelJob, markPaid, rescheduleJob } from '@/app/(protected)/jobs/actions'
 import { Toast } from '@/components/Toast'
@@ -32,22 +32,31 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
   const isActive    = job.status === 'scheduled' || job.status === 'in_progress'
   const isCompleted = job.status === 'completed'
 
+  // Build invoice SMS body (used both for auto-launch and manual button)
+  const invoiceSmsBody = customerPhone
+    ? buildInvoiceSms(customerFirstName, job, venmoHandle)
+    : null
+
+  // Auto-launch SMS compose when job is first marked complete
+  useEffect(() => {
+    if (justCompleted && customerPhone && invoiceSmsBody) {
+      window.location.href = `sms:${customerPhone}?&body=${encodeURIComponent(invoiceSmsBody)}`
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [justCompleted])
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       <Toast message={anySuccess} />
       {anyError && <div className="alert alert-error">{anyError}</div>}
 
-      {/* ── Completion SMS prompt ── */}
-      {justCompleted && customerPhone && (
+      {/* ── Completion SMS prompt (fallback / re-send) ── */}
+      {justCompleted && customerPhone && invoiceSmsBody && (
         <a
-          href={`sms:${customerPhone}?&body=${encodeURIComponent(
-            `Hi ${customerFirstName ?? 'there'}, your lawn service is complete today!` +
-            (job.price != null ? ` Total: $${Number(job.price).toFixed(0)}.` : '') +
-            `\n\nThank you for your business!`
-          )}`}
+          href={`sms:${customerPhone}?&body=${encodeURIComponent(invoiceSmsBody)}`}
           className="btn btn-primary btn-full"
         >
-          📱 Text Completion to Customer
+          📱 Send Invoice to Customer
         </a>
       )}
 
@@ -261,4 +270,32 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
       )}
     </div>
   )
+}
+
+function buildInvoiceSms(
+  firstName: string | null | undefined,
+  job: Job,
+  venmoHandle: string | null | undefined,
+): string {
+  const name = firstName ?? 'there'
+  const lines: string[] = [
+    `Hi ${name}, your lawn service is complete! ✅`,
+    '',
+  ]
+  if (job.service_package) {
+    lines.push(`Service: ${job.service_package.replace(/_/g, ' ')}`)
+  }
+  if (job.completed_at) {
+    const d = new Date(job.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    lines.push(`Date: ${d}`)
+  }
+  if (job.price != null) {
+    lines.push(`Total: $${Number(job.price).toFixed(0)}`)
+  }
+  if (venmoHandle && job.price != null) {
+    const venmoUrl = `https://venmo.com/${venmoHandle}?txn=pay&amount=${Number(job.price).toFixed(0)}&note=${encodeURIComponent('Lawn service')}`
+    lines.push('', `Pay via Venmo: ${venmoUrl}`)
+  }
+  lines.push('', 'Thank you for your business! 🌿')
+  return lines.join('\n')
 }
