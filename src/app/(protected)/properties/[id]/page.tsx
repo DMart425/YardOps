@@ -26,6 +26,22 @@ export default async function PropertyDetailPage({
 
   if (!property) notFound()
 
+  // Revenue stats for this property
+  const { data: propJobs } = await supabase
+    .from('jobs')
+    .select('id, status, price, amount_paid, completed_at')
+    .eq('property_id', id)
+
+  const completedPropJobs = (propJobs ?? []).filter(j => j.status === 'completed')
+  const propRevenue  = completedPropJobs.reduce((s, j) => s + Number(j.price ?? 0), 0)
+  const propPaid     = completedPropJobs.reduce((s, j) => s + Number(j.amount_paid ?? 0), 0)
+  const propUnpaid   = propRevenue - propPaid
+  const lastPropVisit = completedPropJobs
+    .map(j => j.completed_at)
+    .filter((d): d is string => !!d)
+    .sort()
+    .pop()
+
   const p = property as Property
 
   // Parcel lookup
@@ -82,6 +98,34 @@ export default async function PropertyDetailPage({
           <span className={`pill pill-${p.status}`}>{p.status}</span>
         </div>
       </div>
+
+      {/* Revenue stats */}
+      {completedPropJobs.length > 0 && (
+        <div className="stat-grid" style={{ marginBottom: '1.25rem' }}>
+          <div className="stat-card">
+            <div className="stat-value">{completedPropJobs.length}</div>
+            <div className="stat-label">Jobs done</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-value">${propRevenue.toFixed(0)}</div>
+            <div className="stat-label">Total revenue</div>
+          </div>
+          {propUnpaid > 0 && (
+            <div className="stat-card">
+              <div className="stat-value" style={{ color: 'var(--color-unpaid)' }}>${propUnpaid.toFixed(0)}</div>
+              <div className="stat-label">Unpaid</div>
+            </div>
+          )}
+          {lastPropVisit && (
+            <div className="stat-card">
+              <div className="stat-value" style={{ fontSize: '1rem' }}>
+                {new Date(lastPropVisit).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </div>
+              <div className="stat-label">Last service</div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Address + service info */}
       <div className="card" style={{ marginBottom: '1.5rem' }}>

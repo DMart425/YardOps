@@ -133,6 +133,35 @@ export default async function TodayPage() {
       .map(id => ({ id, name: uniqueMap.get(id)! }))
   }
 
+  // Customer retention — active customers with last completed job > 60 days ago
+  const { data: recentCompletedJobs } = await supabase
+    .from('jobs')
+    .select('customer_id, completed_at, customers(id, first_name, last_name)')
+    .eq('status', 'completed')
+    .not('customer_id', 'is', null)
+
+  let dormantCustomers: { id: string; name: string; daysSince: number }[] = []
+  if (recentCompletedJobs && recentCompletedJobs.length > 0) {
+    const lastVisitMap = new Map<string, { name: string; date: Date }>()
+    for (const row of recentCompletedJobs) {
+      const cid = row.customer_id as string
+      const raw = row.customers
+      const c = (Array.isArray(raw) ? raw[0] : raw) as { id: string; first_name: string; last_name: string | null } | null
+      if (!c || !row.completed_at) continue
+      const d = new Date(row.completed_at)
+      const existing = lastVisitMap.get(cid)
+      if (!existing || d > existing.date) {
+        lastVisitMap.set(cid, { name: `${c.first_name}${c.last_name ? ' ' + c.last_name : ''}`, date: d })
+      }
+    }
+    const now = Date.now()
+    dormantCustomers = [...lastVisitMap.entries()]
+      .map(([id, { name, date }]) => ({ id, name, daysSince: Math.floor((now - date.getTime()) / 86400000) }))
+      .filter(c => c.daysSince >= 60)
+      .sort((a, b) => b.daysSince - a.daysSince)
+      .slice(0, 5) // cap at 5 to avoid wall of text
+  }
+
   const todayTotal = (todayJobs ?? []).reduce((s, j) => s + (j.price ?? 0), 0)
   const unpaidTotal = (unpaidJobs ?? []).reduce((s, j) => s + ((j.price ?? 0) - (j.amount_paid ?? 0)), 0)
 
@@ -177,6 +206,27 @@ export default async function TodayPage() {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                 {gapCustomers.map(c => (
                   <Link key={c.id} href={`/customers/${c.id}`} className="pill pill-lead" style={{ textDecoration: 'none' }}>{c.name}</Link>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Retention alert */}
+      {dormantCustomers.length > 0 && (
+        <div className="card" style={{ marginBottom: '1rem', borderLeft: '3px solid var(--color-unpaid, #f97316)', background: 'rgba(249,115,22,0.07)' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+            <span style={{ fontSize: '1.25rem', flexShrink: 0 }}>💤</span>
+            <div>
+              <div className="font-bold" style={{ marginBottom: '4px' }}>Customers you haven&apos;t visited recently</div>
+              <div className="text-small text-muted" style={{ marginBottom: '6px' }}>No completed job in 60+ days:</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {dormantCustomers.map(c => (
+                  <Link key={c.id} href={`/customers/${c.id}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', textDecoration: 'none' }}>
+                    <span className="text-small">{c.name}</span>
+                    <span className="pill pill-overdue" style={{ fontSize: '0.7rem' }}>{c.daysSince}d ago</span>
+                  </Link>
                 ))}
               </div>
             </div>

@@ -49,6 +49,8 @@ export function JobPhotos({ jobId, photos }: { jobId: string; photos: Photo[] })
   const before = photos.filter(p => p.kind === 'before')
   const after = photos.filter(p => p.kind === 'after')
   const other = photos.filter(p => p.kind !== 'before' && p.kind !== 'after')
+  const [compareMode, setCompareMode] = useState(false)
+  const canCompare = before.length > 0 && after.length > 0
 
   return (
     <div>
@@ -87,9 +89,41 @@ export function JobPhotos({ jobId, photos }: { jobId: string; photos: Photo[] })
         </p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {before.length > 0 && <PhotoGrid title="Before" photos={before} onDelete={handleDelete} onOpen={setLightbox} />}
-          {after.length > 0 && <PhotoGrid title="After" photos={after} onDelete={handleDelete} onOpen={setLightbox} />}
-          {other.length > 0 && <PhotoGrid title="Other" photos={other} onDelete={handleDelete} onOpen={setLightbox} />}
+          {canCompare && (
+            <button
+              type="button"
+              onClick={() => setCompareMode(m => !m)}
+              className="btn btn-sm btn-secondary"
+            >
+              {compareMode ? '↩ Show All' : '⇔ Compare Before / After'}
+            </button>
+          )}
+
+          {compareMode && canCompare ? (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+              {(['Before', 'After'] as const).map(label => {
+                const photo = label === 'Before' ? before[before.length - 1] : after[after.length - 1]
+                return (
+                  <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div className="text-small text-muted" style={{ textAlign: 'center', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</div>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={photo.signed_url}
+                      alt={label}
+                      onClick={() => setLightbox(photo)}
+                      style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 'var(--r-sm)', cursor: 'pointer' }}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <>
+              {before.length > 0 && <PhotoGrid title="Before" photos={before} onDelete={handleDelete} onOpen={setLightbox} />}
+              {after.length > 0 && <PhotoGrid title="After" photos={after} onDelete={handleDelete} onOpen={setLightbox} />}
+              {other.length > 0 && <PhotoGrid title="Other" photos={other} onDelete={handleDelete} onOpen={setLightbox} />}
+            </>
+          )}
         </div>
       )}
 
