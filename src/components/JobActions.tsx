@@ -33,7 +33,6 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
           href={`sms:${customerPhone}?&body=${encodeURIComponent(
             `Hi ${customerFirstName ?? 'there'}, your lawn service is complete today!` +
             (job.price != null ? ` Total: $${Number(job.price).toFixed(0)}.` : '') +
-            (venmoHandle ? ` Pay via Venmo: https://venmo.com/${venmoHandle}` : '') +
             `\n\nThank you for your business!`
           )}`}
           className="btn btn-primary btn-full"
