@@ -125,10 +125,11 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   margin-right: calc(-1 * var(--sp-4));
   padding: var(--sp-3) var(--sp-4);
   border-radius: 0;
+  color: #111;
 }
 
 .page-title   { font-size: 1.375rem; font-weight: 700; line-height: 1.2; color: #111 !important; }
-.page-subtitle { font-size: 0.875rem; color: rgba(0,0,0,0.65) !important; margin-top: var(--sp-1); }
+.page-subtitle { font-size: 0.875rem; color: #333 !important; margin-top: var(--sp-1); }
 
 /* -----------------------------------------------------------------------
    Cards
@@ -179,8 +180,8 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 .btn-primary   { background: var(--color-primary); color: #fff; }
 .btn-primary:hover { background: var(--color-primary-dark); }
 
-.btn-header   { background: var(--color-surface); color: var(--color-primary); border: 1.5px solid var(--color-primary); }
-.btn-header:hover { background: var(--color-surface); border-color: #000; box-shadow: 0 0 0 3px rgba(0,0,0,0.5); }
+.btn-header   { background: #484848; color: var(--color-primary); border: 1.5px solid var(--color-primary); }
+.btn-header:hover { background: #484848; border-color: #000; box-shadow: 0 0 0 3px rgba(0,0,0,0.5); }
 
 .btn-secondary { background: var(--color-surface); color: var(--color-text); border: 1.5px solid var(--color-border); }
 .btn-secondary:hover { background: var(--color-border-light); }
@@ -285,12 +286,12 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 
 .pill-scheduled         { background: var(--color-scheduled-bg);  color: var(--color-scheduled);  }
 .pill-in_progress       { background: var(--color-inprogress-bg); color: var(--color-inprogress); }
-.pill-completed         { background: var(--color-completed-bg);  color: var(--color-completed);  }
+.pill-completed         { background: var(--color-primary); color: #000; }
 .pill-overdue           { background: var(--color-overdue-bg);    color: var(--color-overdue);    }
 .pill-unpaid            { background: var(--color-unpaid-bg);     color: var(--color-unpaid);     }
-.pill-paid              { background: var(--color-paid-bg);       color: var(--color-paid);       }
+.pill-paid              { background: var(--color-primary); color: #000; }
 .pill-lead              { background: var(--color-lead-bg);       color: var(--color-lead);       }
-.pill-active            { background: var(--color-completed-bg);  color: var(--color-completed);  }
+.pill-active            { background: var(--color-primary); color: #000; }
 .pill-inactive          { background: #f1f5f9;                    color: var(--color-text-muted); }
 .pill-archived          { background: #f1f5f9;                    color: var(--color-text-light); }
 .pill-draft             { background: #f1f5f9;                    color: var(--color-text-muted); }
@@ -303,7 +304,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 .pill-recurring         { background: var(--color-scheduled-bg);  color: var(--color-scheduled);  }
 .pill-draft             { background: #f1f5f9;                    color: var(--color-text-muted); }
 .pill-sent              { background: var(--color-scheduled-bg);  color: var(--color-scheduled);  }
-.pill-approved          { background: var(--color-completed-bg);  color: var(--color-completed);  }
+.pill-approved          { background: var(--color-primary); color: #000; }
 .pill-declined          { background: var(--color-danger-bg);     color: var(--color-danger);     }
 .pill-expired           { background: #f1f5f9;                    color: var(--color-text-light); }
 .pill-converted         { background: var(--color-lead-bg);       color: var(--color-lead);       }
