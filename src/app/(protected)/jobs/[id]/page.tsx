@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { JobActions } from '@/components/JobActions'
 import { JobPhotos } from '@/components/JobPhotos'
+import { DownloadInvoiceButton } from '@/components/DownloadInvoiceButton'
 import type { Job } from '@/types/database'
 
 function fmtDate(d: string) {
@@ -23,13 +24,19 @@ export default async function JobDetailPage({
     .from('jobs')
     .select(`
       *,
-      customers ( first_name, last_name, phone ),
+      customers ( first_name, last_name, phone, email ),
       properties ( service_address, city, state, pet_warning, gate_code, access_notes, obstacle_notes, parking_notes )
     `)
     .eq('id', id)
     .single()
 
   if (!job) notFound()
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('business_name, business_phone, business_email')
+    .eq('id', (await supabase.auth.getUser()).data.user?.id ?? '')
+    .single()
 
   const { data: settings } = await supabase
     .from('pricing_settings')
@@ -49,7 +56,7 @@ export default async function JobDetailPage({
     .eq('job_id', id)
     .order('purchased_at', { ascending: false })
 
-  const customer = job.customers as { first_name: string; last_name: string | null; phone: string | null }
+  const customer = job.customers as { first_name: string; last_name: string | null; phone: string | null; email: string | null }
   const property = job.properties as {
     service_address: string; city: string | null; state: string | null
     pet_warning: string | null; gate_code: string | null; access_notes: string | null
@@ -210,6 +217,33 @@ export default async function JobDetailPage({
           </div>
         )}
       </div>
+
+      {/* Invoice download (completed jobs only) */}
+      {job.status === 'completed' && job.price != null && (
+        <div style={{ marginTop: '1rem' }}>
+          <DownloadInvoiceButton
+            data={{
+              businessName:   profile?.business_name ?? 'Wicksburg Lawn Service',
+              businessPhone:  profile?.business_phone ?? null,
+              businessEmail:  profile?.business_email ?? null,
+              customerName,
+              customerPhone:  customer.phone,
+              customerEmail:  customer.email,
+              serviceAddress: address,
+              jobTitle:       job.title ?? 'Lawn Service',
+              jobDate:        job.completed_at ?? job.scheduled_date,
+              servicePackage: job.service_package,
+              price:          Number(job.price),
+              amountPaid:     Number(job.amount_paid ?? 0),
+              paymentStatus:  job.payment_status,
+              paymentMethod:  job.payment_method,
+              notes:          job.completion_notes,
+              venmoHandle,
+              invoiceNumber:  job.id.slice(0, 8).toUpperCase(),
+            }}
+          />
+        </div>
+      )}
 
       {/* Nav links */}
       <div style={{ display: 'flex', gap: '8px', marginTop: '1rem' }}>
