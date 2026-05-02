@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
+import { sendPushToUser } from '@/lib/push'
 
 export interface AcceptState {
   success?: boolean
@@ -27,7 +28,7 @@ export async function acceptEstimate(
   // 1. Fetch estimate by token
   const { data: estimate } = await supabase
     .from('estimates')
-    .select('id, status, valid_until, customer_id, property_id')
+    .select('id, status, valid_until, customer_id, property_id, created_by')
     .eq('public_token', token)
     .single()
 
@@ -92,6 +93,17 @@ export async function acceptEstimate(
     .from('estimates')
     .update({ status: 'approved', accepted_at: new Date().toISOString() })
     .eq('id', estimate.id)
+
+  // 6. Push notification to the owner
+  if (estimate.created_by) {
+    const customerName = `${firstName}${lastName ? ' ' + lastName : ''}`
+    await sendPushToUser(estimate.created_by, {
+      title: '✅ Quote accepted',
+      body:  `${customerName} approved their estimate.`,
+      url:   `/estimates/${estimate.id}`,
+      tag:   `quote-accepted-${estimate.id}`,
+    }).catch(() => { /* don't fail the request if push errors */ })
+  }
 
   revalidatePath('/estimates')
   revalidatePath('/leads')
