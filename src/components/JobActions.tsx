@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from 'react'
 import type { FormState, Job } from '@/types/database'
-import { completeJob, markInProgress, skipJob, cancelJob, markPaid } from '@/app/(protected)/jobs/actions'
+import { completeJob, markInProgress, skipJob, cancelJob, markPaid, rescheduleJob } from '@/app/(protected)/jobs/actions'
 import { Toast } from '@/components/Toast'
 
 export function JobActions({ job, venmoHandle, customerPhone, customerFirstName }: { job: Job; venmoHandle?: string | null; customerPhone?: string | null; customerFirstName?: string | null }) {
@@ -13,10 +13,11 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
   const [completeState, completeAction, completePending] = useActionState<FormState, FormData>(completeJob.bind(null, job.id),    { error: null })
   const [skipState,     skipAction,     skipPending]     = useActionState<FormState, FormData>(skipJob.bind(null, job.id),        { error: null })
   const [cancelState,   cancelAction,   cancelPending]   = useActionState<FormState, FormData>(cancelJob.bind(null, job.id),      { error: null })
-  const [paidState,     paidAction,     paidPending]     = useActionState<FormState, FormData>(markPaid.bind(null, job.id),       { error: null })
+  const [paidState,       paidAction,       paidPending]       = useActionState<FormState, FormData>(markPaid.bind(null, job.id),        { error: null })
+  const [reschedState,   reschedAction,   reschedPending]   = useActionState<FormState, FormData>(rescheduleJob.bind(null, job.id), { error: null })
 
-  const anyError      = completeState.error ?? skipState.error ?? paidState.error ?? startState.error ?? cancelState.error
-  const anySuccess    = completeState.success ?? skipState.success ?? paidState.success ?? startState.success ?? cancelState.success
+  const anyError      = completeState.error ?? skipState.error ?? paidState.error ?? startState.error ?? cancelState.error ?? reschedState.error
+  const anySuccess    = completeState.success ?? skipState.success ?? paidState.success ?? startState.success ?? cancelState.success ?? reschedState.success
   const justCompleted = !!completeState.success
 
   const isActive    = job.status === 'scheduled' || job.status === 'in_progress'
@@ -131,6 +132,31 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
                 </form>
               )}
             </>
+          )}
+
+          {/* Rain Reschedule */}
+          <button
+            type="button"
+            className="btn btn-sm btn-secondary btn-full"
+            onClick={() => setPanel(panel === 'reschedule' ? null : 'reschedule')}
+          >
+            🌧 Rain Reschedule
+          </button>
+
+          {panel === 'reschedule' && (
+            <form action={reschedAction} className="form action-panel">
+              <div className="form-field">
+                <label className="form-label">New Date</label>
+                <input name="new_date" type="date" className="form-input" required />
+              </div>
+              <div className="form-field">
+                <label className="form-label">Notes (optional)</label>
+                <input name="internal_notes" className="form-input" placeholder="Rained out — rescheduled" defaultValue="Rained out — rescheduled" />
+              </div>
+              <button type="submit" disabled={reschedPending} className="btn btn-secondary btn-full">
+                {reschedPending ? 'Saving…' : 'Confirm Reschedule'}
+              </button>
+            </form>
           )}
 
           {/* Skip + Cancel row */}

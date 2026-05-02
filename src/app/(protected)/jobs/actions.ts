@@ -236,3 +236,34 @@ export async function markPaid(
   revalidatePath('/today')
   return { error: null, success: 'Marked as paid.' }
 }
+
+export async function rescheduleJob(
+  id: string,
+  prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const newDate = (formData.get('new_date') as string)?.trim()
+  if (!newDate) return { error: 'Please pick a new date.' }
+
+  const { error } = await supabase
+    .from('jobs')
+    .update({
+      status:         'scheduled',
+      scheduled_date: newDate,
+      started_at:     null,
+      internal_notes: (formData.get('internal_notes') as string)?.trim() || null,
+    })
+    .eq('id', id)
+    .eq('created_by', user.id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/jobs')
+  revalidatePath(`/jobs/${id}`)
+  revalidatePath('/today')
+  return { error: null, success: `Rescheduled to ${newDate}.` }
+}

@@ -54,7 +54,15 @@ export default async function JobsPage({
 
   const { data: jobs } = await query
 
-  // Build a multi-stop Google Maps URL from a list of addresses
+  // ── Overdue unpaid count (completed + unpaid + >7 days old) ──
+  const sevenDaysAgo = new Date()
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+  const { count: overdueCount } = await supabase
+    .from('jobs')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'completed')
+    .eq('payment_status', 'unpaid')
+    .lt('completed_at', sevenDaysAgo.toISOString())
   function routeUrl(addresses: string[]): string | null {
     if (addresses.length === 0) return null
     if (addresses.length === 1) {
@@ -98,10 +106,16 @@ export default async function JobsPage({
             href={`/jobs?filter=${key}`}
             className={`filter-tab${filter === key ? ' active' : ''}`}
           >
-            {label}
+            {label}{key === 'unpaid' && overdueCount ? <span style={{ marginLeft: 4, background: '#dc2626', color: '#fff', borderRadius: '999px', padding: '1px 6px', fontSize: '0.65rem', fontWeight: 700, verticalAlign: 'middle' }}>{overdueCount}</span> : null}
           </Link>
         ))}
       </div>
+
+      {filter === 'unpaid' && overdueCount != null && overdueCount > 0 && (
+        <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+          ⚠️ {overdueCount} job{overdueCount !== 1 ? 's' : ''} unpaid for 7+ days
+        </div>
+      )}
 
       {!jobs || jobs.length === 0 ? (
         <div className="empty-state">
