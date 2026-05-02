@@ -130,14 +130,32 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   flex-shrink: 0;
 }
 
+/* Force black on EVERYTHING inside the green page header (except buttons) */
+.page-header,
+.page-header div,
+.page-header span,
 .page-header h1,
 .page-header h2,
+.page-header h3,
 .page-header p,
-.page-header span,
+.page-header a,
 .page-header .page-title,
-.page-header .page-subtitle { color: #000 !important; }
+.page-header .page-subtitle,
+.page-header .stat-value,
+.page-header .text-small,
+.page-header .text-muted { color: #000 !important; }
+
+/* Buttons stay white text */
+html body .page-header .btn,
 html body .page-header .btn-header,
-html body .page-header .btn-header * { color: #fff !important; }
+html body .page-header .btn * { color: #fff !important; }
+
+/* Pills inside the green header: high-contrast translucent black background */
+.page-header .pill {
+  background: rgba(0, 0, 0, 0.78) !important;
+  color: #fff !important;
+  border: none !important;
+}
 .page-title   { font-size: 1.375rem; font-weight: 700; line-height: 1.2; }
 .page-subtitle { font-size: 0.875rem; opacity: 0.7; margin-top: var(--sp-1); }
 
