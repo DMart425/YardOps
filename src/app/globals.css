@@ -127,7 +127,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   border-radius: 0;
 }
 
-.page-title   { font-size: 1.375rem; font-weight: 700; line-height: 1.2; color: #000; }
+.page-title   { font-size: 1.375rem; font-weight: 700; line-height: 1.2; color: #1a1a1a; }
 .page-subtitle { font-size: 0.875rem; color: rgba(0,0,0,0.6); margin-top: var(--sp-1); }
 
 /* -----------------------------------------------------------------------
@@ -180,7 +180,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 .btn-primary:hover { background: var(--color-primary-dark); }
 
 .btn-header   { background: var(--color-surface); color: var(--color-primary); border: 1.5px solid var(--color-primary); }
-.btn-header:hover { background: var(--color-bg-secondary); }
+.btn-header:hover { background: var(--color-surface); box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.35); }
 
 .btn-secondary { background: var(--color-surface); color: var(--color-text); border: 1.5px solid var(--color-border); }
 .btn-secondary:hover { background: var(--color-border-light); }
