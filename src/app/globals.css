@@ -129,7 +129,8 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   flex-shrink: 0;
 }
 
-.page-header * { color: #000 !important; }
+.page-header *:not(.btn):not(.btn *) { color: #000 !important; }
+html body .page-header .btn-header { color: #fff !important; }
 html body .page-header .page-title,
 html body .page-header h1 { color: #000 !important; }
 html body .page-header .page-subtitle,
