@@ -6,7 +6,7 @@ import { completeJob, markInProgress, skipJob, cancelJob, markPaid, rescheduleJo
 import { Toast } from '@/components/Toast'
 
 export function JobActions({ job, venmoHandle, customerPhone, customerFirstName }: { job: Job; venmoHandle?: string | null; customerPhone?: string | null; customerFirstName?: string | null }) {
-  const [panel,      setPanel]      = useState<'complete' | 'skip' | 'paid' | null>(null)
+  const [panel,      setPanel]      = useState<'complete' | 'skip' | 'paid' | 'reschedule' | null>(null)
   const [markAsPaid, setMarkAsPaid] = useState(false)
 
   const [startState,    startAction,    startPending]    = useActionState<FormState, FormData>(markInProgress.bind(null, job.id), { error: null })
