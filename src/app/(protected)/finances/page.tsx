@@ -215,7 +215,7 @@ export default async function FinancesPage({
       })()}
 
       {/* Month selector */}
-      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '4px', marginBottom: '1.25rem' }}>
         {MONTHS.map((m, i) => {
           const isSelected = i === selectedMonth
           const mPad = String(i + 1).padStart(2, '0')
