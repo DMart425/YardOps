@@ -45,21 +45,29 @@ export default async function FinancesPage({
     .order('purchased_at')
 
   // ── Aggregate YTD ──────────────────────────────────────────────
-  const totalIncome = (jobs ?? []).reduce((s, j) => s + Number(j.amount_paid ?? j.price ?? 0), 0)
+  const totalIncome   = (jobs ?? []).reduce((s, j) => s + Number(j.amount_paid ?? j.price ?? 0), 0)
   const totalExpenses = (expenses ?? []).reduce((s, e) => s + Number(e.amount ?? 0), 0)
+  const totalJobCount = (jobs ?? []).length
+  const avgJobValue   = totalJobCount > 0 ? totalIncome / totalJobCount : 0
 
   // ── Monthly breakdown ──────────────────────────────────────────
-  const incomeByMonth = Array(12).fill(0) as number[]
+  const incomeByMonth   = Array(12).fill(0) as number[]
   const expensesByMonth = Array(12).fill(0) as number[]
+  const jobCountByMonth = Array(12).fill(0) as number[]
 
   for (const j of jobs ?? []) {
     const m = new Date(j.completed_at).getMonth()
-    incomeByMonth[m] += Number(j.amount_paid ?? j.price ?? 0)
+    incomeByMonth[m]   += Number(j.amount_paid ?? j.price ?? 0)
+    jobCountByMonth[m] += 1
   }
   for (const e of expenses ?? []) {
     const m = new Date(e.purchased_at).getMonth()
     expensesByMonth[m] += Number(e.amount ?? 0)
   }
+
+  // ── Best month ────────────────────────────────────────────────
+  const bestMonthIdx = incomeByMonth.indexOf(Math.max(...incomeByMonth))
+  const bestMonthIncome = incomeByMonth[bestMonthIdx]
 
   // ── Selected month data ────────────────────────────────────────
   const monthJobs = (jobs ?? []).filter(j => new Date(j.completed_at).getMonth() === selectedMonth)
@@ -135,22 +143,76 @@ export default async function FinancesPage({
       </div>
 
       {/* YTD strip */}
-      <div className="card" style={{ marginBottom: '1.25rem', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', textAlign: 'center' }}>
-        <div>
-          <div className="text-small text-muted">YTD Income</div>
-          <div style={{ fontWeight: 700, color: 'var(--color-primary)', fontSize: '1.125rem' }}>{fmt$(totalIncome)}</div>
+      <div className="card" style={{ marginBottom: '1.25rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', textAlign: 'center', marginBottom: '0.75rem' }}>
+          <div>
+            <div className="text-small text-muted">YTD Income</div>
+            <div style={{ fontWeight: 700, color: 'var(--color-primary)', fontSize: '1.125rem' }}>{fmt$(totalIncome)}</div>
+          </div>
+          <div>
+            <div className="text-small text-muted">YTD Expenses</div>
+            <div style={{ fontWeight: 700, color: 'var(--color-danger, #dc2626)', fontSize: '1.125rem' }}>{fmt$(totalExpenses)}</div>
+          </div>
+          <div>
+            <div className="text-small text-muted">YTD Net</div>
+            <div style={{ fontWeight: 700, color: totalIncome - totalExpenses >= 0 ? 'var(--color-primary)' : 'var(--color-danger, #dc2626)', fontSize: '1.125rem' }}>
+              {fmt$(totalIncome - totalExpenses)}
+            </div>
+          </div>
         </div>
-        <div>
-          <div className="text-small text-muted">YTD Expenses</div>
-          <div style={{ fontWeight: 700, color: 'var(--color-danger, #dc2626)', fontSize: '1.125rem' }}>{fmt$(totalExpenses)}</div>
-        </div>
-        <div>
-          <div className="text-small text-muted">YTD Net</div>
-          <div style={{ fontWeight: 700, color: totalIncome - totalExpenses >= 0 ? 'var(--color-primary)' : 'var(--color-danger, #dc2626)', fontSize: '1.125rem' }}>
-            {fmt$(totalIncome - totalExpenses)}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', textAlign: 'center', borderTop: '1px solid var(--color-border)', paddingTop: '0.75rem' }}>
+          <div>
+            <div className="text-small text-muted">Jobs</div>
+            <div style={{ fontWeight: 700 }}>{totalJobCount}</div>
+          </div>
+          <div>
+            <div className="text-small text-muted">Avg Job</div>
+            <div style={{ fontWeight: 700 }}>{totalJobCount > 0 ? fmt$(avgJobValue) : '—'}</div>
+          </div>
+          <div>
+            <div className="text-small text-muted">Best Month</div>
+            <div style={{ fontWeight: 700 }}>{bestMonthIncome > 0 ? MONTHS[bestMonthIdx] : '—'}</div>
           </div>
         </div>
       </div>
+
+      {/* Monthly bar chart */}
+      {totalIncome > 0 && (() => {
+        const maxVal = Math.max(...incomeByMonth, ...expensesByMonth, 1)
+        const chartH = 80
+        const barW   = 10
+        const slotW  = 28
+        const svgW   = 12 * slotW
+        return (
+          <div className="card" style={{ marginBottom: '1.25rem', overflowX: 'auto' }}>
+            <div className="text-small text-muted" style={{ marginBottom: '6px', display: 'flex', gap: '12px' }}>
+              <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: 'var(--color-primary)', marginRight: 4 }} />Income</span>
+              <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: '#dc2626', marginRight: 4 }} />Expenses</span>
+            </div>
+            <svg viewBox={`0 0 ${svgW} ${chartH + 18}`} width="100%" style={{ display: 'block' }}>
+              {incomeByMonth.map((inc, i) => {
+                const exp     = expensesByMonth[i]
+                const incH    = Math.round((inc / maxVal) * chartH)
+                const expH    = Math.round((exp / maxVal) * chartH)
+                const x       = i * slotW
+                const isSelMo = i === selectedMonth
+                return (
+                  <g key={i}>
+                    {/* income bar */}
+                    <rect x={x + 2}        y={chartH - incH} width={barW} height={incH} fill={isSelMo ? '#16a34a' : 'var(--color-primary)'} rx="2" />
+                    {/* expense bar */}
+                    <rect x={x + 2 + barW + 2} y={chartH - expH} width={barW} height={expH} fill={isSelMo ? '#991b1b' : '#dc2626'} opacity="0.7" rx="2" />
+                    {/* month label */}
+                    <text x={x + slotW / 2} y={chartH + 14} textAnchor="middle" fontSize="8" fill={isSelMo ? 'var(--color-primary)' : 'var(--color-text-muted)'} fontWeight={isSelMo ? '700' : '400'}>
+                      {MONTHS[i]}
+                    </text>
+                  </g>
+                )
+              })}
+            </svg>
+          </div>
+        )
+      })()}
 
       {/* Month selector */}
       <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
