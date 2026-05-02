@@ -40,10 +40,16 @@ export async function createExpense(formData: FormData) {
     purchased_at: formData.get('purchased_at') as string,
     notes: (formData.get('notes') as string) || null,
     receipt_url: receiptUrl,
+    job_id: (formData.get('job_id') as string) || null,
   })
 
   if (error) throw new Error(error.message)
   revalidatePath('/finances')
+  const jobId = formData.get('job_id') as string
+  if (jobId) {
+    revalidatePath(`/jobs/${jobId}`)
+    redirect(`/jobs/${jobId}`)
+  }
   redirect('/finances')
 }
 
@@ -80,6 +86,7 @@ export async function updateExpense(id: string, formData: FormData) {
     amount: Number(formData.get('amount')),
     purchased_at: formData.get('purchased_at') as string,
     notes: (formData.get('notes') as string) || null,
+    job_id: (formData.get('job_id') as string) || null,
   }
   if (receiptUrl !== undefined) updates.receipt_url = receiptUrl
 

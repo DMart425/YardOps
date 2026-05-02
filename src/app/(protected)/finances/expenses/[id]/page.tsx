@@ -19,6 +19,16 @@ export default async function ExpenseDetailPage({ params }: { params: Promise<{ 
   const { data: expense } = await supabase.from('expenses').select('*').eq('id', id).single()
   if (!expense) notFound()
 
+  // Recent jobs for the picker
+  const since = new Date()
+  since.setDate(since.getDate() - 90)
+  const { data: jobs } = await supabase
+    .from('jobs')
+    .select('id, scheduled_date, customers(first_name, last_name), properties(service_address)')
+    .gte('scheduled_date', since.toISOString().split('T')[0])
+    .order('scheduled_date', { ascending: false })
+    .limit(50)
+
   const updateAction = updateExpense.bind(null, id)
   const deleteAction = deleteExpense.bind(null, id)
 
@@ -79,6 +89,20 @@ export default async function ExpenseDetailPage({ params }: { params: Promise<{ 
           <div className="form-group">
             <label className="form-label">Date *</label>
             <input name="purchased_at" type="date" defaultValue={expense.purchased_at} className="form-input" required />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Tag to job (optional)</label>
+            <select name="job_id" className="form-input" defaultValue={expense.job_id ?? ''}>
+              <option value="">— None (general overhead) —</option>
+              {(jobs ?? []).map((j) => {
+                const c = (Array.isArray(j.customers) ? j.customers[0] : j.customers) as { first_name: string; last_name: string | null } | null
+                const p = (Array.isArray(j.properties) ? j.properties[0] : j.properties) as { service_address: string } | null
+                const name = c ? `${c.first_name}${c.last_name ? ' ' + c.last_name : ''}` : '—'
+                const addr = p?.service_address ?? ''
+                return <option key={j.id} value={j.id}>{j.scheduled_date} · {name} · {addr}</option>
+              })}
+            </select>
           </div>
 
           <div className="form-group">

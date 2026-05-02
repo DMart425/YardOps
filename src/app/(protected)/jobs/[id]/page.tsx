@@ -43,6 +43,12 @@ export default async function JobDetailPage({
     .eq('job_id', id)
     .order('created_at', { ascending: true })
 
+  const { data: jobExpenses } = await supabase
+    .from('expenses')
+    .select('id, category, vendor, description, amount, purchased_at')
+    .eq('job_id', id)
+    .order('purchased_at', { ascending: false })
+
   const customer = job.customers as { first_name: string; last_name: string | null; phone: string | null }
   const property = job.properties as {
     service_address: string; city: string | null; state: string | null
@@ -174,6 +180,35 @@ export default async function JobDetailPage({
       <div className="card" style={{ marginTop: '1rem' }}>
         <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Photos</div>
         <JobPhotos jobId={job.id} photos={photos ?? []} />
+      </div>
+
+      {/* Job-tagged expenses */}
+      <div className="card" style={{ marginTop: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+          <div className="section-heading" style={{ marginBottom: 0 }}>
+            Expenses{(jobExpenses?.length ?? 0) > 0 ? ` ($${(jobExpenses ?? []).reduce((s, e) => s + Number(e.amount), 0).toFixed(2)})` : ''}
+          </div>
+          <Link href={`/finances/expenses/new?job_id=${job.id}`} className="btn btn-sm btn-secondary">
+            + Add
+          </Link>
+        </div>
+        {!jobExpenses || jobExpenses.length === 0 ? (
+          <p className="text-small text-muted" style={{ textAlign: 'center', padding: '8px 0' }}>
+            No expenses tagged to this job. Tap + Add for items bought specifically for this job.
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {jobExpenses.map((e) => (
+              <Link key={e.id} href={`/finances/expenses/${e.id}`} className="card-row" style={{ padding: '4px 0', textDecoration: 'none' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div className="text-small font-bold">{e.description ?? e.vendor ?? e.category}</div>
+                  <div className="card-meta">{e.category}{e.vendor ? ' · ' + e.vendor : ''}</div>
+                </div>
+                <div className="font-bold text-small" style={{ flexShrink: 0 }}>${Number(e.amount).toFixed(2)}</div>
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Nav links */}
