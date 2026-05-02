@@ -35,6 +35,7 @@ export default async function CustomerPortalPage({
     { data: customer },
     { data: profile },
     { data: jobs },
+    { data: pricing },
   ] = await Promise.all([
     supabase
       .from('customers')
@@ -52,6 +53,11 @@ export default async function CustomerPortalPage({
       .eq('customer_id', customer_id)
       .order('scheduled_date', { ascending: false })
       .limit(30),
+    supabase
+      .from('pricing_settings')
+      .select('venmo_handle')
+      .eq('created_by', created_by)
+      .single(),
   ])
 
   if (!customer) notFound()
@@ -59,6 +65,7 @@ export default async function CustomerPortalPage({
   const customerName  = `${customer.first_name}${customer.last_name ? ' ' + customer.last_name : ''}`
   const businessName  = profile?.business_name  ?? 'Your Lawn Service'
   const businessPhone = profile?.business_phone ?? null
+  const venmoHandle   = (pricing?.venmo_handle as string | null) ?? null
 
   const allJobs       = jobs ?? []
   const upcoming      = allJobs.filter(j => j.status === 'scheduled' || j.status === 'in_progress')
@@ -89,7 +96,17 @@ export default async function CustomerPortalPage({
       {totalUnpaid > 0 && (
         <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', padding: '1rem', marginBottom: '1.25rem', textAlign: 'center' }}>
           <div style={{ fontSize: '0.8125rem', color: '#991b1b', marginBottom: '4px' }}>Outstanding Balance</div>
-          <div style={{ fontWeight: 700, fontSize: '1.5rem', color: '#dc2626' }}>{fmt$(totalUnpaid)}</div>
+          <div style={{ fontWeight: 700, fontSize: '1.5rem', color: '#dc2626', marginBottom: '0.75rem' }}>{fmt$(totalUnpaid)}</div>
+          {venmoHandle && (
+            <a
+              href={`https://venmo.com/${venmoHandle}?txn=pay&amount=${totalUnpaid.toFixed(2)}&note=${encodeURIComponent('Lawn service')}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: 'inline-block', background: '#3d95ce', color: '#fff', fontWeight: 700, fontSize: '0.9375rem', borderRadius: '8px', padding: '10px 24px', textDecoration: 'none' }}
+            >
+              Pay Now with Venmo
+            </a>
+          )}
         </div>
       )}
 
@@ -146,6 +163,28 @@ export default async function CustomerPortalPage({
 
       {upcoming.length === 0 && history.length === 0 && (
         <div style={{ textAlign: 'center', opacity: 0.5, padding: '2rem 0' }}>No service history yet.</div>
+      )}
+
+      {/* Reschedule contact */}
+      {businessPhone && (
+        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '1rem', marginBottom: '1.25rem', textAlign: 'center' }}>
+          <div style={{ fontWeight: 600, fontSize: '0.9375rem', marginBottom: '4px' }}>Need to reschedule?</div>
+          <div style={{ fontSize: '0.8125rem', opacity: 0.6, marginBottom: '0.75rem' }}>Give us a call or send a text</div>
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+            <a
+              href={`tel:${businessPhone}`}
+              style={{ flex: 1, maxWidth: '160px', display: 'block', background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '10px', fontWeight: 600, fontSize: '0.875rem', textDecoration: 'none', textAlign: 'center' }}
+            >
+              📞 Call Us
+            </a>
+            <a
+              href={`sms:${businessPhone}`}
+              style={{ flex: 1, maxWidth: '160px', display: 'block', background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '10px', fontWeight: 600, fontSize: '0.875rem', textDecoration: 'none', textAlign: 'center' }}
+            >
+              💬 Text Us
+            </a>
+          </div>
+        </div>
       )}
 
       <div style={{ textAlign: 'center', fontSize: '0.75rem', opacity: 0.4, marginTop: '2rem' }}>
