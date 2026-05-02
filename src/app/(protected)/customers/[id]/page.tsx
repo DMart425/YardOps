@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Customer, Property } from '@/types/database'
 import { CustomerEditForm } from './_form'
+import { CopyPortalLinkButton } from '@/components/CopyPortalLinkButton'
 
 export default async function CustomerDetailPage({
   params,
@@ -177,6 +178,18 @@ export default async function CustomerDetailPage({
       )}
 
       {/* Edit form */}
+      {/* Portal link */}
+      <div className="detail-section">
+        <div className="section-heading">Customer Portal</div>
+        <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+          <div>
+            <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>Share with customer</div>
+            <div className="text-small text-muted">They can view upcoming jobs, history &amp; balance — no login needed</div>
+          </div>
+          <CopyPortalLinkButton customerId={customer.id} />
+        </div>
+      </div>
+
       <div className="detail-section">
         <div className="section-heading">Edit Customer Info</div>
         <div className="card">
