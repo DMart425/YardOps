@@ -96,12 +96,13 @@ export async function completeJob(
 
   if (error) return { error: error.message }
 
-  // Auto-create next recurring job
+  // Auto-create next recurring job (only if property has auto_schedule_next on)
   const freq      = existing.properties?.service_frequency
+  const autoOn    = existing.properties?.auto_schedule_next !== false
   const daysToAdd = freq === 'weekly' ? 7 : freq === 'biweekly' ? 14 : null
   let   nextScheduled = false
 
-  if (daysToAdd && existing.scheduled_date) {
+  if (autoOn && daysToAdd && existing.scheduled_date) {
     const nextDate = new Date(existing.scheduled_date + 'T12:00:00')
     nextDate.setDate(nextDate.getDate() + daysToAdd)
 

@@ -54,6 +54,36 @@ export default async function JobsPage({
 
   const { data: jobs } = await query
 
+  // Build a multi-stop Google Maps URL from a list of addresses
+  function routeUrl(addresses: string[]): string | null {
+    if (addresses.length === 0) return null
+    if (addresses.length === 1) {
+      return `https://maps.google.com/?q=${encodeURIComponent(addresses[0])}`
+    }
+    const dest = encodeURIComponent(addresses[addresses.length - 1])
+    const waypoints = addresses.slice(0, -1).map(encodeURIComponent).join('|')
+    return `https://www.google.com/maps/dir/?api=1&destination=${dest}&waypoints=${waypoints}&travelmode=driving`
+  }
+
+  // Group week jobs by date, sorted by address (rough route order)
+  type WeekJob = NonNullable<typeof jobs> extends (infer T)[] ? T : never
+  const groupedByDay: Map<string, WeekJob[]> = new Map()
+  if (filter === 'week' && jobs) {
+    const sorted = [...jobs].sort((a, b) => {
+      const da = a.scheduled_date ?? ''
+      const db = b.scheduled_date ?? ''
+      if (da !== db) return da.localeCompare(db)
+      const pa = (Array.isArray(a.properties) ? a.properties[0] : a.properties) as { service_address?: string } | null
+      const pb = (Array.isArray(b.properties) ? b.properties[0] : b.properties) as { service_address?: string } | null
+      return (pa?.service_address ?? '').localeCompare(pb?.service_address ?? '')
+    })
+    for (const j of sorted) {
+      const k = j.scheduled_date ?? 'unscheduled'
+      if (!groupedByDay.has(k)) groupedByDay.set(k, [])
+      groupedByDay.get(k)!.push(j)
+    }
+  }
+
   return (
     <div className="page">
       <div className="page-header">
@@ -79,6 +109,56 @@ export default async function JobsPage({
           <p style={{ marginTop: '8px', fontWeight: 600 }}>No jobs here</p>
           <p>Try a different filter or create a new job.</p>
           <Link href="/jobs/new" className="btn btn-primary" style={{ marginTop: '1rem' }}>+ New Job</Link>
+        </div>
+      ) : filter === 'week' ? (
+        <div>
+          {Array.from(groupedByDay.entries()).map(([day, dayJobs]) => {
+            const addresses = dayJobs
+              .map(j => {
+                const p = (Array.isArray(j.properties) ? j.properties[0] : j.properties) as { service_address: string; city: string | null } | null
+                return p ? `${p.service_address}${p.city ? ', ' + p.city : ''}` : ''
+              })
+              .filter(Boolean)
+            const url = routeUrl(addresses)
+            const dayTotal = dayJobs.reduce((s, j) => s + (j.price ?? 0), 0)
+
+            return (
+              <div key={day} style={{ marginBottom: '1.25rem' }}>
+                <div className="card-row" style={{ marginBottom: '8px' }}>
+                  <div className="section-heading" style={{ marginBottom: 0 }}>
+                    {day === 'unscheduled' ? 'Unscheduled' : fmtDate(day)} ({dayJobs.length})
+                  </div>
+                  {url && (
+                    <a href={url} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-secondary">
+                      🗺 Route · ${dayTotal.toFixed(0)}
+                    </a>
+                  )}
+                </div>
+                {dayJobs.map((job) => {
+                  const c    = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null } | null
+                  const p    = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
+                  const name = c ? `${c.first_name}${c.last_name ? ' ' + c.last_name : ''}` : '—'
+                  const addr = p ? `${p.service_address}${p.city ? ', ' + p.city : ''}` : '—'
+
+                  return (
+                    <Link key={job.id} href={`/jobs/${job.id}`} className="card card-link" style={{ display: 'block', marginBottom: '8px' }}>
+                      <div className="card-row">
+                        <div style={{ minWidth: 0 }}>
+                          <div className="card-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+                          <div className="card-meta">{addr}</div>
+                          {job.scheduled_time_window && <div className="card-meta">{job.scheduled_time_window}</div>}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
+                          <span className={`pill pill-${job.status}`}>{job.status.replace(/_/g, ' ')}</span>
+                          {job.price != null && <span className="font-bold text-small">${job.price}</span>}
+                        </div>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
+            )
+          })}
         </div>
       ) : (
         <div>
