@@ -183,6 +183,9 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 .btn-header   { background: #484848; color: var(--color-primary); border: 1.5px solid var(--color-primary); }
 .btn-header:hover { background: #484848; border-color: #000; box-shadow: 0 0 0 3px rgba(0,0,0,0.5); }
 
+/* Force consistent size for all header buttons */
+.page-header .btn { padding: var(--sp-2) var(--sp-3); font-size: 0.8125rem; min-height: 36px; }
+
 .btn-secondary { background: var(--color-surface); color: var(--color-text); border: 1.5px solid var(--color-border); }
 .btn-secondary:hover { background: var(--color-border-light); }
 
