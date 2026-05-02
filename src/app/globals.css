@@ -565,7 +565,7 @@ html body .page-header p { color: #111 !important; }
   min-height: 36px;
 }
 .filter-tab:hover { background: var(--color-border); color: var(--color-text); }
-.filter-tab.active { background: var(--color-primary); color: #fff !important; border-color: var(--color-primary-dark); }
+.filter-tab.active { background: var(--color-primary); color: #000 !important; border-color: var(--color-primary-dark); }
 
 /* Estimate form */
 .estimate-item-row { display: flex; flex-direction: column; gap: var(--sp-3); }
