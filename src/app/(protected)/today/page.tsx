@@ -64,6 +64,21 @@ export default async function TodayPage() {
     .order('completed_at', { ascending: false })
     .limit(10)
 
+  // Tomorrow's jobs for reminder SMS
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowStr = tomorrow.toLocaleDateString('en-CA')
+  const { data: tomorrowJobs } = await supabase
+    .from('jobs')
+    .select(`
+      id, title, service_package, price, scheduled_date,
+      customers ( first_name, last_name, phone ),
+      properties ( service_address, city )
+    `)
+    .eq('scheduled_date', tomorrowStr)
+    .in('status', ['scheduled', 'in_progress'])
+    .order('scheduled_date')
+
   const todayTotal = (todayJobs ?? []).reduce((s, j) => s + (j.price ?? 0), 0)
   const unpaidTotal = (unpaidJobs ?? []).reduce((s, j) => s + ((j.price ?? 0) - (j.amount_paid ?? 0)), 0)
 
@@ -234,6 +249,46 @@ export default async function TodayPage() {
                   </div>
                 </div>
               </Link>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Tomorrow's Jobs */}
+      {(tomorrowJobs?.length ?? 0) > 0 && (
+        <div className="detail-section">
+          <div className="section-heading">Tomorrow ({tomorrowJobs!.length})</div>
+          {tomorrowJobs!.map((job) => {
+            const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null; phone: string | null } | null
+            const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
+            const pkg = job.service_package ? job.service_package.replace(/_/g, ' ') : 'Lawn service'
+            const smsBody = `Hi ${customer?.first_name ?? 'there'}, just a reminder that we have you scheduled for ${pkg} tomorrow. See you then! — ${tomorrowStr}`
+            return (
+              <div key={job.id} className="card">
+                <div className="card-row">
+                  <div>
+                    <div className="card-title">{customer?.first_name} {customer?.last_name}</div>
+                    <div className="card-meta">{property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
+                    {job.price != null && <div className="card-meta">${job.price}</div>}
+                  </div>
+                </div>
+                <div className="card-actions">
+                  {customer?.phone && (
+                    <a
+                      href={`sms:${customer.phone}?&body=${encodeURIComponent(smsBody)}`}
+                      className="btn btn-sm btn-secondary"
+                    >
+                      📱 Send Reminder
+                    </a>
+                  )}
+                  <a
+                    href={`/jobs/${job.id}`}
+                    className="btn btn-sm btn-primary"
+                  >
+                    View Job
+                  </a>
+                </div>
+              </div>
             )
           })}
         </div>

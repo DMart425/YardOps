@@ -32,7 +32,7 @@ export default async function JobsPage({
 
   let query = supabase
     .from('jobs')
-    .select('id, status, payment_status, price, scheduled_date, scheduled_time_window, service_package, customers(first_name, last_name), properties(service_address, city)')
+    .select('id, status, payment_status, price, scheduled_date, scheduled_time_window, service_package, customers(first_name, last_name), properties(service_address, city, latitude, longitude)')
     .order('scheduled_date', { ascending: true })
 
   switch (filter) {
@@ -73,22 +73,47 @@ export default async function JobsPage({
     return `https://www.google.com/maps/dir/?api=1&destination=${dest}&waypoints=${waypoints}&travelmode=driving`
   }
 
-  // Group week jobs by date, sorted by address (rough route order)
+  // Group week jobs by date, optimized by nearest-neighbor route order
   type WeekJob = NonNullable<typeof jobs> extends (infer T)[] ? T : never
   const groupedByDay: Map<string, WeekJob[]> = new Map()
   if (filter === 'week' && jobs) {
-    const sorted = [...jobs].sort((a, b) => {
-      const da = a.scheduled_date ?? ''
-      const db = b.scheduled_date ?? ''
-      if (da !== db) return da.localeCompare(db)
-      const pa = (Array.isArray(a.properties) ? a.properties[0] : a.properties) as { service_address?: string } | null
-      const pb = (Array.isArray(b.properties) ? b.properties[0] : b.properties) as { service_address?: string } | null
-      return (pa?.service_address ?? '').localeCompare(pb?.service_address ?? '')
-    })
-    for (const j of sorted) {
+    // First group by day
+    for (const j of jobs) {
       const k = j.scheduled_date ?? 'unscheduled'
       if (!groupedByDay.has(k)) groupedByDay.set(k, [])
       groupedByDay.get(k)!.push(j)
+    }
+    // Then sort each day by nearest-neighbor using lat/lon
+    for (const [day, dayJobs] of groupedByDay) {
+      const withCoords = dayJobs.filter(j => {
+        const p = (Array.isArray(j.properties) ? j.properties[0] : j.properties) as { latitude?: number | null; longitude?: number | null } | null
+        return p?.latitude != null && p.longitude != null
+      })
+      const noCoords = dayJobs.filter(j => {
+        const p = (Array.isArray(j.properties) ? j.properties[0] : j.properties) as { latitude?: number | null; longitude?: number | null } | null
+        return !p?.latitude || !p.longitude
+      })
+      if (withCoords.length > 1) {
+        // Nearest-neighbor from the northernmost point
+        const getCoord = (j: WeekJob) => {
+          const p = (Array.isArray(j.properties) ? j.properties[0] : j.properties) as { latitude: number; longitude: number } | null
+          return p!
+        }
+        const dist = (a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }) =>
+          Math.hypot(a.latitude - b.latitude, a.longitude - b.longitude)
+        const remaining = [...withCoords]
+        const sorted: WeekJob[] = []
+        // Start from northernmost (highest lat)
+        let cur = remaining.splice(remaining.reduce((bi, j, i) => getCoord(j).latitude > getCoord(remaining[bi]).latitude ? i : bi, 0), 1)[0]
+        sorted.push(cur)
+        while (remaining.length > 0) {
+          const curCoord = getCoord(cur)
+          const nearestIdx = remaining.reduce((bi, j, i) => dist(getCoord(j), curCoord) < dist(getCoord(remaining[bi]), curCoord) ? i : bi, 0)
+          cur = remaining.splice(nearestIdx, 1)[0]
+          sorted.push(cur)
+        }
+        groupedByDay.set(day, [...sorted, ...noCoords])
+      }
     }
   }
 

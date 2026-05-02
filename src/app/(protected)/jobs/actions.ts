@@ -249,13 +249,32 @@ export async function rescheduleJob(
   const newDate = (formData.get('new_date') as string)?.trim()
   if (!newDate) return { error: 'Please pick a new date.' }
 
+  const notes = (formData.get('internal_notes') as string)?.trim() || null
+
+  // Fetch current reschedule_count and log to append
+  const { data: existing } = await supabase
+    .from('jobs')
+    .select('reschedule_count, reschedule_log, scheduled_date')
+    .eq('id', id)
+    .eq('created_by', user.id)
+    .single()
+
+  if (!existing) return { error: 'Job not found.' }
+
+  const today      = new Date().toISOString().split('T')[0]
+  const logEntry   = `${today}: ${notes ?? 'Rescheduled'} (from ${existing.scheduled_date ?? '?'} → ${newDate})`
+  const newLog     = existing.reschedule_log ? `${existing.reschedule_log}\n${logEntry}` : logEntry
+  const newCount   = (existing.reschedule_count ?? 0) + 1
+
   const { error } = await supabase
     .from('jobs')
     .update({
-      status:         'scheduled',
-      scheduled_date: newDate,
-      started_at:     null,
-      internal_notes: (formData.get('internal_notes') as string)?.trim() || null,
+      status:           'scheduled',
+      scheduled_date:   newDate,
+      started_at:       null,
+      internal_notes:   notes,
+      reschedule_count: newCount,
+      reschedule_log:   newLog,
     })
     .eq('id', id)
     .eq('created_by', user.id)

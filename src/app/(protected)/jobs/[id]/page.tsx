@@ -183,6 +183,24 @@ export default async function JobDetailPage({
         <JobActions job={job as unknown as Job} venmoHandle={venmoHandle} customerPhone={customer.phone} customerFirstName={customer.first_name} />
       </div>
 
+      {/* Reschedule history */}
+      {(job.reschedule_count ?? 0) > 0 && (
+        <div className="card" style={{ marginTop: '1rem' }}>
+          <div className="section-heading" style={{ marginBottom: '0.5rem' }}>
+            Reschedule History ({job.reschedule_count}x)
+          </div>
+          {job.reschedule_log && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {String(job.reschedule_log).split('\n').map((line, i) => (
+                <div key={i} className="text-small text-muted" style={{ borderLeft: '2px solid var(--color-border)', paddingLeft: '8px' }}>
+                  {line}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Photos */}
       <div className="card" style={{ marginTop: '1rem' }}>
         <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Photos</div>
