@@ -18,7 +18,7 @@ export default async function CustomersPage() {
           <h1 className="page-title">Customers</h1>
           <p className="page-subtitle">{customers?.length ?? 0} total</p>
         </div>
-        <Link href="/customers/new" className="btn btn-primary btn-sm">+ Add</Link>
+        <Link href="/customers/new" className="btn btn-header btn-sm">+ Add</Link>
       </div>
 
       {!customers?.length ? (

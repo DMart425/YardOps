@@ -32,7 +32,7 @@ export default async function LeadsPage() {
           <h1 className="page-title">Leads</h1>
           <p className="page-subtitle">{totalCount} pending</p>
         </div>
-        <Link href="/leads/new" className="btn btn-primary btn-sm">+ New Lead</Link>
+        <Link href="/leads/new" className="btn btn-header btn-sm">+ New Lead</Link>
       </div>
 
       {totalCount === 0 ? (

@@ -37,7 +37,7 @@ export default async function EstimatesPage({
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">Estimates</h1>
-        <Link href="/estimates/new" className="btn btn-primary btn-sm">+ New</Link>
+        <Link href="/estimates/new" className="btn btn-header btn-sm">+ New</Link>
       </div>
 
       <div className="filter-tabs">

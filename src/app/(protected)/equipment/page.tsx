@@ -108,7 +108,7 @@ export default async function EquipmentPage() {
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">Equipment</h1>
-        <Link href="/equipment/new" className="btn btn-primary">+ Add</Link>
+        <Link href="/equipment/new" className="btn btn-header">+ Add</Link>
       </div>
 
       {!equipment?.length ? (

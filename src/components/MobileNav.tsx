@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useRef, useState, useEffect, useCallback } from 'react'
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + '/')
@@ -9,9 +10,40 @@ function isActive(pathname: string, href: string) {
 
 export default function MobileNav() {
   const pathname = usePathname()
+  const scrollRef = useRef<HTMLElement>(null)
+  const [showLeft, setShowLeft] = useState(false)
+  const [showRight, setShowRight] = useState(false)
+
+  const updateArrows = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    setShowLeft(el.scrollLeft > 4)
+    setShowRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4)
+  }, [])
+
+  useEffect(() => {
+    updateArrows()
+    window.addEventListener('resize', updateArrows)
+    return () => window.removeEventListener('resize', updateArrows)
+  }, [updateArrows])
+
+  const scrollBy = (dx: number) => {
+    scrollRef.current?.scrollBy({ left: dx, behavior: 'smooth' })
+  }
 
   return (
-    <nav className="mobile-nav" aria-label="Main navigation">
+    <div className="mobile-nav-wrapper">
+      {showLeft && (
+        <button className="nav-scroll-arrow nav-scroll-arrow-left" onClick={() => scrollBy(-150)} aria-label="Scroll nav left">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+        </button>
+      )}
+      {showRight && (
+        <button className="nav-scroll-arrow nav-scroll-arrow-right" onClick={() => scrollBy(150)} aria-label="Scroll nav right">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+        </button>
+      )}
+    <nav className="mobile-nav" ref={scrollRef} onScroll={updateArrows} aria-label="Main navigation">
       <Link href="/today" className={isActive(pathname, '/today') ? 'active' : ''} aria-label="Today">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -90,6 +122,7 @@ export default function MobileNav() {
         </svg>
         Settings
       </Link>
-    </nav>
+      </nav>
+    </div>
   )
 }

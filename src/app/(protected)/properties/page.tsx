@@ -40,7 +40,7 @@ export default async function PropertiesPage({
           <h1 className="page-title">Properties</h1>
           <p className="page-subtitle">{filtered.length} shown</p>
         </div>
-        <Link href="/properties/new" className="btn btn-primary btn-sm">+ Add</Link>
+        <Link href="/properties/new" className="btn btn-header btn-sm">+ Add</Link>
       </div>
 
       {/* Filter tabs */}

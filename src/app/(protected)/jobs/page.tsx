@@ -58,7 +58,7 @@ export default async function JobsPage({
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">Jobs</h1>
-        <Link href="/jobs/new" className="btn btn-primary btn-sm">+ New</Link>
+        <Link href="/jobs/new" className="btn btn-header btn-sm">+ New</Link>
       </div>
 
       <div className="filter-tabs">

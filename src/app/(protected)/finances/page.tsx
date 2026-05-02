@@ -124,7 +124,7 @@ export default async function FinancesPage({
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">Finances</h1>
-        <Link href="/finances/expenses/new" className="btn btn-primary">+ Add Expense</Link>
+        <Link href="/finances/expenses/new" className="btn btn-header">+ Add Expense</Link>
       </div>
 
       {/* Year selector */}
