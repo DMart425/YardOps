@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { DEFAULT_SETTINGS } from '@/lib/pricing'
 import { SettingsForm } from '@/components/forms/SettingsForm'
 import { BackfillCoordinatesButton } from '@/components/BackfillCoordinatesButton'
+import { DataExportSection } from '@/components/DataExportSection'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -25,6 +26,7 @@ export default async function SettingsPage() {
       </div>
       <SettingsForm defaults={defaults} />
       <BackfillCoordinatesButton />
+      <DataExportSection />
     </div>
   )
 }
