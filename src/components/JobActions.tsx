@@ -15,8 +15,9 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
   const [cancelState,   cancelAction,   cancelPending]   = useActionState<FormState, FormData>(cancelJob.bind(null, job.id),      { error: null })
   const [paidState,     paidAction,     paidPending]     = useActionState<FormState, FormData>(markPaid.bind(null, job.id),       { error: null })
 
-  const anyError   = completeState.error ?? skipState.error ?? paidState.error ?? startState.error ?? cancelState.error
-  const anySuccess = completeState.success ?? skipState.success ?? paidState.success ?? startState.success ?? cancelState.success
+  const anyError      = completeState.error ?? skipState.error ?? paidState.error ?? startState.error ?? cancelState.error
+  const anySuccess    = completeState.success ?? skipState.success ?? paidState.success ?? startState.success ?? cancelState.success
+  const justCompleted = !!completeState.success
 
   const isActive    = job.status === 'scheduled' || job.status === 'in_progress'
   const isCompleted = job.status === 'completed'
@@ -25,6 +26,21 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       <Toast message={anySuccess} />
       {anyError && <div className="alert alert-error">{anyError}</div>}
+
+      {/* ── Completion SMS prompt ── */}
+      {justCompleted && customerPhone && (
+        <a
+          href={`sms:${customerPhone}?&body=${encodeURIComponent(
+            `Hi ${customerFirstName ?? 'there'}, your lawn service is complete today!` +
+            (job.price != null ? ` Total: $${Number(job.price).toFixed(0)}.` : '') +
+            (venmoHandle ? ` Pay via Venmo: https://venmo.com/${venmoHandle}` : '') +
+            `\n\nThank you for your business!`
+          )}`}
+          className="btn btn-primary btn-full"
+        >
+          📱 Text Completion to Customer
+        </a>
+      )}
 
       {/* ── Active job actions ── */}
       {isActive && (
