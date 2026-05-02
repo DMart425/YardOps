@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import type { FormState } from '@/types/database'
+import { geocodeAddress } from '@/lib/geocode'
 
 function str(formData: FormData, key: string): string | null {
   const v = (formData.get(key) as string)?.trim()
@@ -27,15 +28,25 @@ export async function createProperty(
   const customerId = str(formData, 'customer_id')
   if (!customerId) return { error: 'Please select a customer.' }
 
+  const address = (formData.get('service_address') as string).trim()
+  const city = str(formData, 'city')
+  const state = str(formData, 'state') ?? 'AL'
+  const postalCode = str(formData, 'postal_code')
+
+  // Geocode the address (best-effort, non-blocking on failure)
+  const geo = await geocodeAddress({ address, city, state, postalCode })
+
   const { data: property, error } = await supabase.from('properties').insert({
     created_by: user.id,
     customer_id: customerId,
     property_name: str(formData, 'property_name'),
-    service_address: (formData.get('service_address') as string).trim(),
-    city: str(formData, 'city'),
-    state: str(formData, 'state') ?? 'AL',
-    postal_code: str(formData, 'postal_code'),
+    service_address: address,
+    city,
+    state,
+    postal_code: postalCode,
     county: str(formData, 'county'),
+    latitude: geo?.latitude ?? null,
+    longitude: geo?.longitude ?? null,
     parcel_acres: num(formData, 'parcel_acres'),
     estimated_mowable_acres: num(formData, 'estimated_mowable_acres'),
     lot_size_source: str(formData, 'lot_size_source') ?? 'manual',
@@ -72,16 +83,34 @@ export async function updateProperty(
   const customerId = str(formData, 'customer_id')
   if (!customerId) return { error: 'Please select a customer.' }
 
+  const address = (formData.get('service_address') as string).trim()
+  const city = str(formData, 'city')
+  const state = str(formData, 'state') ?? 'AL'
+  const postalCode = str(formData, 'postal_code')
+
+  // If property has no lat/lon yet, geocode it now
+  const { data: existing } = await supabase
+    .from('properties')
+    .select('latitude, longitude')
+    .eq('id', id)
+    .single()
+  let geoUpdate: { latitude?: number; longitude?: number } = {}
+  if (!existing?.latitude || !existing?.longitude) {
+    const geo = await geocodeAddress({ address, city, state, postalCode })
+    if (geo) geoUpdate = { latitude: geo.latitude, longitude: geo.longitude }
+  }
+
   const { error } = await supabase
     .from('properties')
     .update({
       customer_id: customerId,
       property_name: str(formData, 'property_name'),
-      service_address: (formData.get('service_address') as string).trim(),
-      city: str(formData, 'city'),
-      state: str(formData, 'state') ?? 'AL',
-      postal_code: str(formData, 'postal_code'),
+      service_address: address,
+      city,
+      state,
+      postal_code: postalCode,
       county: str(formData, 'county'),
+      ...geoUpdate,
       parcel_acres: num(formData, 'parcel_acres'),
       estimated_mowable_acres: num(formData, 'estimated_mowable_acres'),
       lot_size_source: str(formData, 'lot_size_source'),
@@ -139,4 +168,60 @@ export async function applyParcelToProperty(
   revalidatePath(`/properties/${propertyId}`)
   revalidatePath('/leads')
   return { error: null, success: 'Parcel data applied.' }
+}
+
+/**
+ * Backfill latitude/longitude for all properties owned by the current user
+ * that are missing coordinates. Runs sequentially with a 1.1s pause between
+ * requests to respect Nominatim's 1 req/sec rate limit.
+ */
+export async function backfillPropertyCoordinates(
+  _prevState: FormState,
+  _formData: FormData
+): Promise<FormState> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: properties } = await supabase
+    .from('properties')
+    .select('id, service_address, city, state, postal_code')
+    .eq('created_by', user.id)
+    .or('latitude.is.null,longitude.is.null')
+
+  if (!properties || properties.length === 0) {
+    return { error: null, success: 'All properties already have coordinates.' }
+  }
+
+  let succeeded = 0
+  let failed = 0
+
+  for (const p of properties) {
+    if (!p.service_address) { failed++; continue }
+    const geo = await geocodeAddress({
+      address: p.service_address,
+      city: p.city,
+      state: p.state,
+      postalCode: p.postal_code,
+    })
+    if (geo) {
+      await supabase
+        .from('properties')
+        .update({ latitude: geo.latitude, longitude: geo.longitude })
+        .eq('id', p.id)
+        .eq('created_by', user.id)
+      succeeded++
+    } else {
+      failed++
+    }
+    // Respect Nominatim's 1 req/sec rate limit
+    await new Promise(r => setTimeout(r, 1100))
+  }
+
+  revalidatePath('/properties')
+  revalidatePath('/today')
+  return {
+    error: null,
+    success: `Geocoded ${succeeded} of ${properties.length} properties${failed > 0 ? ` (${failed} failed)` : ''}.`,
+  }
 }

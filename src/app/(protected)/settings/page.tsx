@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { DEFAULT_SETTINGS } from '@/lib/pricing'
 import { SettingsForm } from '@/components/forms/SettingsForm'
+import { BackfillCoordinatesButton } from '@/components/BackfillCoordinatesButton'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -23,6 +24,7 @@ export default async function SettingsPage() {
         <h1 className="page-title">Settings</h1>
       </div>
       <SettingsForm defaults={defaults} />
+      <BackfillCoordinatesButton />
     </div>
   )
 }
