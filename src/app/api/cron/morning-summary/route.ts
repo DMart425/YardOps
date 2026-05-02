@@ -38,7 +38,8 @@ export async function GET(req: NextRequest) {
 
   const total = jobs.reduce((s, j) => s + Number(j.price ?? 0), 0)
   const names = jobs.map((j) => {
-    const c = j.customers as { first_name: string; last_name: string | null } | null
+    const raw = j.customers
+    const c = (Array.isArray(raw) ? raw[0] : raw) as { first_name: string; last_name: string | null } | null
     return c ? c.first_name : 'Job'
   })
 
