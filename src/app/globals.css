@@ -5,32 +5,32 @@
 
 :root {
   /* Brand — Wicksburg green */
-  --color-primary:       #16a34a;
-  --color-primary-dark:  #15803d;
-  --color-primary-light: #dcfce7;
+  --color-primary:       #3dd68c;
+  --color-primary-dark:  #2ec47d;
+  --color-primary-light: #0b2418;
 
   /* Surface */
-  --color-bg:           #f8fafc;
-  --color-surface:      #ffffff;
-  --color-border:       #e2e8f0;
-  --color-border-light: #f1f5f9;
+  --color-bg:           #0c0c0c;
+  --color-surface:      #1a1a1a;
+  --color-border:       #2e2e2e;
+  --color-border-light: #222222;
 
   /* Text */
-  --color-text:       #0f172a;
-  --color-text-muted: #64748b;
-  --color-text-light: #94a3b8;
+  --color-text:       #f1f5f9;
+  --color-text-muted: #94a3b8;
+  --color-text-light: #4b5563;
 
   /* Status */
-  --color-scheduled-bg:  #eff6ff;  --color-scheduled:  #3b82f6;
-  --color-inprogress-bg: #fffbeb;  --color-inprogress: #f59e0b;
-  --color-completed-bg:  #f0fdf4;  --color-completed:  #16a34a;
-  --color-overdue-bg:    #fef2f2;  --color-overdue:    #dc2626;
-  --color-unpaid-bg:     #fff7ed;  --color-unpaid:     #ea580c;
-  --color-paid-bg:       #f0fdf4;  --color-paid:       #16a34a;
-  --color-lead-bg:       #f5f3ff;  --color-lead:       #7c3aed;
-  --color-danger:        #dc2626;  --color-danger-bg:  #fef2f2;
-  --color-success:       #16a34a;
-  --color-warning:       #d97706;
+  --color-scheduled-bg:  #1e3a5f;  --color-scheduled:  #60a5fa;
+  --color-inprogress-bg: #3a2800;  --color-inprogress: #fbbf24;
+  --color-completed-bg:  #0a2e1a;  --color-completed:  #4ade80;
+  --color-overdue-bg:    #3a0a0a;  --color-overdue:    #f87171;
+  --color-unpaid-bg:     #3a1800;  --color-unpaid:     #fb923c;
+  --color-paid-bg:       #0a2e1a;  --color-paid:       #4ade80;
+  --color-lead-bg:       #1e0a3a;  --color-lead:       #c084fc;
+  --color-danger:        #f87171;  --color-danger-bg:  #3a0a0a;
+  --color-success:       #4ade80;
+  --color-warning:       #fbbf24;
 
   /* Layout */
   --mobile-nav-height: 64px;
@@ -50,8 +50,8 @@
   --r-lg: 14px;
 
   /* Shadows */
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.07);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.09);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.5);
 
   /* Font */
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
@@ -490,76 +490,40 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 .auth-tagline { text-align: center; color: var(--color-text-muted); font-size: 0.9rem; margin-bottom: var(--sp-6); }
 
 /* =======================================================================
-   Dark mode — Wicksburg brand palette
-   Activates automatically when the device is set to dark mode
+   Dark-only overrides (always active)
    ======================================================================= */
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Brand */
-    --color-primary:       #3dd68c;
-    --color-primary-dark:  #2ec47d;
-    --color-primary-light: #0b2418;
 
-    /* Surface */
-    --color-bg:           #0c0c0c;
-    --color-surface:      #1a1a1a;
-    --color-border:       #2e2e2e;
-    --color-border-light: #222222;
-
-    /* Text */
-    --color-text:       #f1f5f9;
-    --color-text-muted: #94a3b8;
-    --color-text-light: #4b5563;
-
-    /* Status — dark-friendly versions */
-    --color-scheduled-bg:  #1e3a5f;  --color-scheduled:  #60a5fa;
-    --color-inprogress-bg: #3a2800;  --color-inprogress: #fbbf24;
-    --color-completed-bg:  #0a2e1a;  --color-completed:  #4ade80;
-    --color-overdue-bg:    #3a0a0a;  --color-overdue:    #f87171;
-    --color-unpaid-bg:     #3a1800;  --color-unpaid:     #fb923c;
-    --color-paid-bg:       #0a2e1a;  --color-paid:       #4ade80;
-    --color-lead-bg:       #1e0a3a;  --color-lead:       #c084fc;
-    --color-danger:        #f87171;  --color-danger-bg:  #3a0a0a;
-    --color-success:       #4ade80;
-    --color-warning:       #fbbf24;
-
-    /* Shadows — more pronounced on dark */
-    --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
-    --shadow-md: 0 4px 16px rgba(0,0,0,0.5);
-  }
-
-  /* Select arrow — lighter on dark bg */
-  .form-select {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2394a3b8' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    color-scheme: dark;
-  }
-
-  /* Pill overrides for dark mode flat neutrals */
-  .pill-inactive, .pill-archived, .pill-draft,
-  .pill-skipped, .pill-not_billable {
-    background: #252525;
-    color: var(--color-text-muted);
-  }
-
-  /* Warning banner */
-  .warning-banner {
-    --color-warning-bg:     #2d2000;
-    --color-warning-border: #a16207;
-    --color-warning-text:   #fde68a;
-  }
-
-  /* Alert overrides */
-  .alert-success { background: var(--color-completed-bg); color: #86efac; border-color: #166534; }
-  .toast-success { background: var(--color-completed-bg); color: #86efac; border-color: #166534; }
-
-  .btn-danger    { background: #2e1515; color: #fca5a5; border: 1.5px solid #7f1d1d; }
-  .btn-danger:hover { background: #3f1a1a; }
-
-  /* Sidebar active state */
-  .desktop-sidebar a:hover,
-  .desktop-sidebar .sidebar-btn:hover,
-  .desktop-sidebar a.active { background: var(--color-primary-light); color: var(--color-primary); }
+/* Select arrow */
+.form-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2394a3b8' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  color-scheme: dark;
 }
+
+/* Neutral pill overrides */
+.pill-inactive, .pill-archived, .pill-draft,
+.pill-skipped, .pill-not_billable {
+  background: #252525;
+  color: var(--color-text-muted);
+}
+
+/* Warning banner */
+.warning-banner {
+  --color-warning-bg:     #2d2000;
+  --color-warning-border: #a16207;
+  --color-warning-text:   #fde68a;
+}
+
+/* Alert overrides */
+.alert-success { background: var(--color-completed-bg); color: #86efac; border-color: #166534; }
+.toast-success { background: var(--color-completed-bg); color: #86efac; border-color: #166534; }
+
+.btn-danger    { background: #2e1515; color: #fca5a5; border: 1.5px solid #7f1d1d; }
+.btn-danger:hover { background: #3f1a1a; }
+
+/* Sidebar active state */
+.desktop-sidebar a:hover,
+.desktop-sidebar .sidebar-btn:hover,
+.desktop-sidebar a.active { background: var(--color-primary-light); color: var(--color-primary); }
 
 /* -----------------------------------------------------------------------
    Filter tabs (jobs list)
