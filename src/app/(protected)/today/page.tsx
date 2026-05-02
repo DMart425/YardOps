@@ -119,12 +119,12 @@ export default async function TodayPage() {
           </div>
           <div className="stat-label">Overdue</div>
         </div>
-        <div className="stat-card">
+        <Link href="/jobs?filter=unpaid" className="stat-card" style={{ textDecoration: 'none' }}>
           <div className="stat-value" style={{ color: unpaidTotal > 0 ? 'var(--color-unpaid)' : undefined }}>
             ${unpaidTotal.toFixed(0)}
           </div>
           <div className="stat-label">Unpaid balance</div>
-        </div>
+        </Link>
       </div>
 
       {/* Today's Jobs */}
