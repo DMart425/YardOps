@@ -179,8 +179,8 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 .btn-primary   { background: var(--color-primary); color: #fff; }
 .btn-primary:hover { background: var(--color-primary-dark); }
 
-.btn-header   { background: #3a3a3a; color: var(--color-primary); border: 1.5px solid var(--color-primary); }
-.btn-header:hover { background: #3a3a3a; border-color: #000; box-shadow: none; }
+.btn-header   { background: var(--color-surface); color: var(--color-primary); border: 1.5px solid var(--color-primary); }
+.btn-header:hover { background: var(--color-surface); border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(0,0,0,0.5); }
 
 .btn-secondary { background: var(--color-surface); color: var(--color-text); border: 1.5px solid var(--color-border); }
 .btn-secondary:hover { background: var(--color-border-light); }
