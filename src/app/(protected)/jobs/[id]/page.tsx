@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { JobActions } from '@/components/JobActions'
+import { JobPhotos } from '@/components/JobPhotos'
 import type { Job } from '@/types/database'
 
 function fmtDate(d: string) {
@@ -35,6 +36,12 @@ export default async function JobDetailPage({
     .select('venmo_handle')
     .single()
   const venmoHandle = (settings?.venmo_handle as string | null) ?? null
+
+  const { data: photos } = await supabase
+    .from('job_photos')
+    .select('id, signed_url, kind, caption, created_at')
+    .eq('job_id', id)
+    .order('created_at', { ascending: true })
 
   const customer = job.customers as { first_name: string; last_name: string | null; phone: string | null }
   const property = job.properties as {
@@ -161,6 +168,12 @@ export default async function JobDetailPage({
       <div className="card">
         <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Actions</div>
         <JobActions job={job as unknown as Job} venmoHandle={venmoHandle} customerPhone={customer.phone} customerFirstName={customer.first_name} />
+      </div>
+
+      {/* Photos */}
+      <div className="card" style={{ marginTop: '1rem' }}>
+        <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Photos</div>
+        <JobPhotos jobId={job.id} photos={photos ?? []} />
       </div>
 
       {/* Nav links */}
