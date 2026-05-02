@@ -44,18 +44,12 @@ export default async function PropertiesPage({
       </div>
 
       {/* Filter tabs */}
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
+      <div className="filter-tabs">
         {tabs.map((t) => (
           <Link
             key={t.key}
             href={`/properties?filter=${t.key}`}
-            className="btn btn-sm"
-            style={{
-              background: filter === t.key ? 'var(--color-primary)' : 'var(--color-bg-secondary)',
-              color: filter === t.key ? '#000' : 'var(--color-text)',
-              border: '1px solid',
-              borderColor: filter === t.key ? 'var(--color-primary)' : 'var(--color-border)',
-            }}
+            className={`filter-tab${filter === t.key ? ' active' : ''}`}
           >
             {t.label}
           </Link>
