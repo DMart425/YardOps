@@ -4,6 +4,7 @@
    =================================================================== */
 
 :root {
+  color-scheme: dark only;
   /* Brand — Wicksburg green */
   --color-primary:       #3dd68c;
   --color-primary-dark:  #2ec47d;
