@@ -53,7 +53,8 @@ export default async function EstimateDetailPage({
 
   // Recalculate from stored inputs
   const inputs = estimate.estimate_inputs as EstimateInputs | null
-  const result = inputs ? calculateEstimate(inputs) : null
+  const pricingOverride = { ...DEFAULT_SETTINGS, minimumServicePrice: minimumPrice }
+  const result = inputs ? calculateEstimate(inputs, pricingOverride) : null
   const { breakdown, totalMinutes, finalEstimate, lineItems } = result ?? {
     breakdown: null, totalMinutes: 0, finalEstimate: Number(estimate.total), lineItems: [],
   }
