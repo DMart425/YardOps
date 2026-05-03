@@ -2,11 +2,19 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 
 export async function deleteEstimate(estimateId: string) {
   const supabase = await createClient()
   await supabase.from('estimates').delete().eq('id', estimateId)
   redirect('/estimates')
+}
+
+export async function updateEstimateStatus(estimateId: string, status: string) {
+  const supabase = await createClient()
+  await supabase.from('estimates').update({ status }).eq('id', estimateId)
+  revalidatePath('/estimates')
+  revalidatePath(`/estimates/${estimateId}`)
 }
 
 export async function logSmsSent(estimateId: string, customerId: string, body: string) {

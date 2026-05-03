@@ -256,6 +256,7 @@ export default async function EstimateDetailPage({
             smsBody={smsBody}
             estimateId={estimate.id}
             customerId={estimate.customer_id}
+            currentStatus={estimate.status}
           />
         </div>
       )}

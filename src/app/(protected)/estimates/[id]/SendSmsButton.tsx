@@ -1,18 +1,21 @@
 'use client'
 
-import { logSmsSent } from './actions'
+import { logSmsSent, updateEstimateStatus } from './actions'
 
 interface Props {
   phone: string
   smsBody: string
   estimateId: string
   customerId: string
+  currentStatus: string
 }
 
-export default function SendSmsButton({ phone, smsBody, estimateId, customerId }: Props) {
+export default function SendSmsButton({ phone, smsBody, estimateId, customerId, currentStatus }: Props) {
   function handleClick() {
-    // Fire-and-forget log — don't block the SMS link opening
     logSmsSent(estimateId, customerId, smsBody).catch(() => {})
+    if (currentStatus === 'draft') {
+      updateEstimateStatus(estimateId, 'pending').catch(() => {})
+    }
     window.location.href = 'sms:' + phone + '?body=' + encodeURIComponent(smsBody)
   }
 
