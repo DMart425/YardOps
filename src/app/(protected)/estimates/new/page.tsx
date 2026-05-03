@@ -24,7 +24,7 @@ export default async function NewEstimatePage({
       .order('service_address'),
     supabase
       .from('pricing_settings')
-      .select('target_hourly_rate')
+      .select('target_hourly_rate, minimum_price')
       .single(),
   ])
 
@@ -41,6 +41,7 @@ export default async function NewEstimatePage({
         defaultCustomerId={customer_id}
         defaultPropertyId={property_id}
         defaultHourlyRate={pricingSettings?.target_hourly_rate ?? undefined}
+        defaultMinimumPrice={pricingSettings?.minimum_price ?? undefined}
       />
     </div>
   )

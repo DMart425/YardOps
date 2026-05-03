@@ -55,7 +55,7 @@ const OBSTACLE_OPTIONS = [
 ]
 
 export function EstimateForm({
-  action, customers, properties, defaultCustomerId, defaultPropertyId, defaultHourlyRate,
+  action, customers, properties, defaultCustomerId, defaultPropertyId, defaultHourlyRate, defaultMinimumPrice,
 }: {
   action: (prevState: FormState, formData: FormData) => Promise<FormState>
   customers: CustomerOption[]
@@ -63,6 +63,7 @@ export function EstimateForm({
   defaultCustomerId?: string
   defaultPropertyId?: string
   defaultHourlyRate?: number
+  defaultMinimumPrice?: number
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(action, { error: null })
   const [customerId, setCustomerId] = useState(defaultCustomerId ?? '')
@@ -97,7 +98,11 @@ export function EstimateForm({
     }))
   }
 
-  const result     = useMemo(() => calculateEstimate(inputs), [inputs])
+  const pricingOverride = useMemo(() => ({
+    ...DEFAULT_SETTINGS,
+    ...(defaultMinimumPrice != null ? { minimumServicePrice: defaultMinimumPrice } : {}),
+  }), [defaultMinimumPrice])
+  const result     = useMemo(() => calculateEstimate(inputs, pricingOverride), [inputs, pricingOverride])
   const { breakdown, totalMinutes, finalEstimate } = result
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -167,15 +172,17 @@ export function EstimateForm({
         <div className="form-field">
           <label className="form-label">Mow time (min)</label>
           <input type="number" min="0" step="5" className="form-input"
-            value={inputs.mowingMinutes}
-            onChange={e => set('mowingMinutes', parseInt(e.target.value) || 0)} />
+            value={inputs.mowingMinutes === 0 ? '' : inputs.mowingMinutes}
+            placeholder="0"
+            onChange={e => set('mowingMinutes', e.target.value === '' ? 0 : parseInt(e.target.value, 10) || 0)} />
           <p className="form-hint">Auto-filled from parcel data</p>
         </div>
         <div className="form-field">
           <label className="form-label">Setup / Load (min)</label>
           <input type="number" min="0" step="5" className="form-input"
-            value={inputs.setupMinutes}
-            onChange={e => set('setupMinutes', parseInt(e.target.value) || 0)} />
+            value={inputs.setupMinutes === 0 ? '' : inputs.setupMinutes}
+            placeholder="0"
+            onChange={e => set('setupMinutes', e.target.value === '' ? 0 : parseInt(e.target.value, 10) || 0)} />
         </div>
       </div>
 
