@@ -75,6 +75,8 @@ export function EstimateForm({
     return d.toISOString().split('T')[0]
   })
   const [notes, setNotes] = useState('')
+  const [rateStr, setRateStr] = useState(() => String(inputs.hourlyRate))
+  const [priceOverride, setPriceOverride] = useState<number | null>(null)
 
   const filteredProps = customerId ? properties.filter(p => p.customer_id === customerId) : properties
   const selectedProp  = properties.find(p => p.id === propertyId)
@@ -118,7 +120,7 @@ export function EstimateForm({
       el.value = val
     }
     setHidden('estimate_inputs_json', JSON.stringify(inputs))
-    setHidden('final_estimate',       String(finalEstimate))
+    setHidden('final_estimate',       String(priceOverride ?? finalEstimate))
     setHidden('estimated_minutes',    String(totalMinutes))
     setHidden('frequency',            inputs.frequency)
   }
@@ -277,8 +279,16 @@ export function EstimateForm({
         <div className="form-field">
           <label className="form-label">Hourly rate ($/hr)</label>
           <input type="number" min="1" step="1" className="form-input"
-            value={inputs.hourlyRate}
-            onChange={e => set('hourlyRate', parseFloat(e.target.value) || S.targetHourlyRate)} />
+            value={rateStr}
+            onChange={e => {
+              setRateStr(e.target.value)
+              const parsed = parseFloat(e.target.value)
+              if (!isNaN(parsed) && parsed > 0) set('hourlyRate', parsed)
+            }}
+            onBlur={() => {
+              const parsed = parseFloat(rateStr)
+              if (isNaN(parsed) || parsed <= 0) setRateStr(String(inputs.hourlyRate))
+            }} />
           <p className="form-hint">Adjust for weekly vs bi-weekly</p>
         </div>
         <div className="form-field">
@@ -389,7 +399,7 @@ export function EstimateForm({
               {formatMinutes(totalMinutes)} &middot; {freqLabels[inputs.frequency]} &middot; ${inputs.hourlyRate}/hr
             </div>
           </div>
-          <span className="stat-value" style={{ fontSize: '2rem' }}>${finalEstimate}</span>
+          <span className="stat-value" style={{ fontSize: '2rem' }}>${priceOverride ?? finalEstimate}</span>
         </div>
         <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', display: 'flex', flexDirection: 'column', gap: '3px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -453,11 +463,23 @@ export function EstimateForm({
           )}
           {breakdown.minimumApplied && (
             <div style={{ color: 'var(--color-warning)' }}>
-              Minimum charge of ${S.minimumServicePrice} applied
+              Minimum charge of ${defaultMinimumPrice ?? S.minimumServicePrice} applied
             </div>
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, borderTop: '1px solid var(--color-border)', paddingTop: '3px', marginTop: '1px' }}>
             <span>Final (rounded to $5)</span><span>${finalEstimate}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px', paddingTop: '6px', borderTop: '1px solid var(--color-border)' }}>
+            <label className="form-label" style={{ margin: 0, flexShrink: 0 }}>Override price ($)</label>
+            <input
+              type="number" min="0" step="5" className="form-input" style={{ width: '100px', margin: 0 }}
+              placeholder={String(finalEstimate)}
+              value={priceOverride ?? ''}
+              onChange={e => setPriceOverride(e.target.value === '' ? null : parseFloat(e.target.value) || null)} />
+            {priceOverride != null && (
+              <button type="button" className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: '0.75rem' }}
+                onClick={() => setPriceOverride(null)}>Reset</button>
+            )}
           </div>
         </div>
       </div>
