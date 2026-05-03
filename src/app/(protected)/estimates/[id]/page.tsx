@@ -86,6 +86,10 @@ export default async function EstimateDetailPage({
     const venmoUrl = `https://venmo.com/${venmoHandle}?txn=pay&amount=${Number(estimate.total).toFixed(0)}&note=${encodeURIComponent('Lawn service - ' + customer.first_name)}`
     smsLines.push('')
     smsLines.push('Pay via Venmo: ' + venmoUrl)
+    smsLines.push('Cash is also accepted.')
+  } else {
+    smsLines.push('')
+    smsLines.push('Payment accepted via cash.')
   }
   smsLines.push('')
   smsLines.push('Questions? Call or text (334) 320-7514')
