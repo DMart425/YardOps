@@ -9,7 +9,8 @@ import ScheduleVisitForm from './ScheduleVisitForm'
 import { deleteEstimate } from './actions'
 
 function fmtDate(d: string) {
-  return new Date(d + 'T12:00:00').toLocaleDateString('en-US', {
+  const date = d.includes('T') ? new Date(d) : new Date(d + 'T12:00:00')
+  return date.toLocaleDateString('en-US', {
     weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
   })
 }
