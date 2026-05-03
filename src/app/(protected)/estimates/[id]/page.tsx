@@ -36,9 +36,10 @@ export default async function EstimateDetailPage({
 
   const { data: settings } = await supabase
     .from('pricing_settings')
-    .select('venmo_handle')
+    .select('venmo_handle, minimum_price')
     .single()
   const venmoHandle = (settings?.venmo_handle as string | null) ?? null
+  const minimumPrice = (settings?.minimum_price as number | null) ?? DEFAULT_SETTINGS.minimumServicePrice
 
   const customer = estimate.customers as { first_name: string; last_name: string | null; phone: string | null }
   const property = estimate.properties as { service_address: string; city: string | null; state: string | null; estimated_mowable_acres: number | null }
@@ -220,7 +221,7 @@ export default async function EstimateDetailPage({
             {breakdown.minimumApplied && (
               <div className="card-row" style={{ color: 'var(--color-warning)' }}>
                 <span>Minimum charge applied</span>
-                <span>${DEFAULT_SETTINGS.minimumServicePrice}</span>
+                <span>${minimumPrice}</span>
               </div>
             )}
             <div className="card-row" style={{ borderTop: '1px solid var(--color-border)', paddingTop: '6px', marginTop: '2px', fontWeight: 700, fontSize: '1rem' }}>
