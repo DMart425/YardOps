@@ -6,6 +6,7 @@ import { calculateEstimate, formatMinutes, DEFAULT_SETTINGS } from '@/lib/pricin
 import type { EstimateInputs } from '@/lib/pricing'
 import SendSmsButton from './SendSmsButton'
 import ScheduleVisitForm from './ScheduleVisitForm'
+import { deleteEstimate } from './actions'
 
 function fmtDate(d: string) {
   return new Date(d + 'T12:00:00').toLocaleDateString('en-US', {
@@ -266,6 +267,15 @@ export default async function EstimateDetailPage({
         <Link href={'/customers/' + estimate.customer_id} className="btn btn-sm btn-secondary">Customer</Link>
         <Link href={'/properties/' + estimate.property_id} className="btn btn-sm btn-secondary">Property</Link>
       </div>
+
+      {(estimate.status === 'draft' || estimate.status === 'pending') && (
+        <form action={deleteEstimate.bind(null, estimate.id)} style={{ marginTop: '12px' }}
+          onSubmit={e => { if (!confirm('Delete this estimate? This cannot be undone.')) e.preventDefault() }}>
+          <button type="submit" className="btn btn-sm" style={{ background: 'var(--color-danger, #ef4444)', color: '#fff', border: 'none', width: '100%' }}>
+            Delete Estimate
+          </button>
+        </form>
+      )}
     </div>
   )
 }
