@@ -295,6 +295,9 @@ function buildInvoiceSms(
   if (venmoHandle && job.price != null) {
     const venmoUrl = `https://venmo.com/${venmoHandle}?txn=pay&amount=${Number(job.price).toFixed(0)}&note=${encodeURIComponent('Lawn service')}`
     lines.push('', `Pay via Venmo: ${venmoUrl}`)
+    lines.push('Cash is also accepted.')
+  } else {
+    lines.push('', 'Payment accepted via cash.')
   }
   lines.push('', 'Thank you for your business! 🌿')
   return lines.join('\n')
