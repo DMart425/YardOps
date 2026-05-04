@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import { headers } from 'next/headers'
 
 const FILTERS_SCHEDULED = [
   ['upcoming', 'Upcoming'],
@@ -22,9 +23,19 @@ function fmtDate(d: string) {
   })
 }
 
-const BUSINESS_TIME_ZONE = 'America/Chicago'
+const DEFAULT_TIME_ZONE = 'UTC'
 
-function localDateStr(d: Date, timeZone = BUSINESS_TIME_ZONE) {
+function normalizeTimeZone(raw: string | null) {
+  if (!raw) return DEFAULT_TIME_ZONE
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: raw })
+    return raw
+  } catch {
+    return DEFAULT_TIME_ZONE
+  }
+}
+
+function localDateStr(d: Date, timeZone: string) {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone,
     year: 'numeric',
@@ -57,9 +68,13 @@ export default async function JobsPage({
   const defaultFilter = view === 'completed' ? 'today' : 'upcoming'
   const filter = availableFilters.some(([key]) => key === sp.filter) ? (sp.filter as string) : defaultFilter
   const supabase = await createClient()
+  const requestHeaders = await headers()
+  const timeZone = normalizeTimeZone(
+    requestHeaders.get('x-time-zone') ?? requestHeaders.get('x-vercel-ip-timezone')
+  )
 
   const now = new Date()
-  const today = localDateStr(now)
+  const today = localDateStr(now, timeZone)
   const weekday = dayOfWeek(today)
   const weekStartStr = addDays(today, -weekday)
   const weekEndStr = addDays(weekStartStr, 6)
