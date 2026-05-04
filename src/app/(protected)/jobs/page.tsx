@@ -40,12 +40,15 @@ export default async function JobsPage({
 
   const now = new Date()
   const today = localDateStr(now)
-  const weekEnd = new Date(now)
-  weekEnd.setDate(weekEnd.getDate() + 6)
-  const weekEndStr = localDateStr(weekEnd)
   const weekStart = new Date(now)
-  weekStart.setDate(weekStart.getDate() - 6)
+  weekStart.setDate(weekStart.getDate() - weekStart.getDay())
+  const weekEnd = new Date(weekStart)
+  weekEnd.setDate(weekStart.getDate() + 6)
+  const nextWeekStart = new Date(weekEnd)
+  nextWeekStart.setDate(weekEnd.getDate() + 1)
+  const weekEndStr = localDateStr(weekEnd)
   const weekStartStr = localDateStr(weekStart)
+  const nextWeekStartStr = localDateStr(nextWeekStart)
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
   const monthStartStr = localDateStr(monthStart)
   const yearStart = new Date(now.getFullYear(), 0, 1)
@@ -67,7 +70,7 @@ export default async function JobsPage({
         query = query.gte('completed_at', `${today}T00:00:00`).lt('completed_at', `${tomorrowStr}T00:00:00`)
         break
       case 'week':
-        query = query.gte('completed_at', `${weekStartStr}T00:00:00`).lt('completed_at', `${tomorrowStr}T00:00:00`)
+        query = query.gte('completed_at', `${weekStartStr}T00:00:00`).lt('completed_at', `${nextWeekStartStr}T00:00:00`)
         break
       case 'month':
         query = query.gte('completed_at', `${monthStartStr}T00:00:00`).lt('completed_at', `${tomorrowStr}T00:00:00`)
@@ -88,7 +91,7 @@ export default async function JobsPage({
         query = query.in('status', active).eq('scheduled_date', today)
         break
       case 'week':
-        query = query.in('status', active).gte('scheduled_date', today).lte('scheduled_date', weekEndStr)
+        query = query.in('status', active).gte('scheduled_date', weekStartStr).lte('scheduled_date', weekEndStr)
         break
       case 'overdue':
         query = query.in('status', active).lt('scheduled_date', today)
