@@ -2,11 +2,11 @@
 
 import { useActionState, useState, useRef, useEffect } from 'react'
 import type { FormState, Job } from '@/types/database'
-import { completeJob, markInProgress, skipJob, cancelJob, markPaid, rescheduleJob } from '@/app/(protected)/jobs/actions'
+import { completeJob, markInProgress, skipJob, cancelJob, markPaid, markPartial, rescheduleJob } from '@/app/(protected)/jobs/actions'
 import { Toast } from '@/components/Toast'
 
 export function JobActions({ job, venmoHandle, customerPhone, customerFirstName }: { job: Job; venmoHandle?: string | null; customerPhone?: string | null; customerFirstName?: string | null }) {
-  const [panel,      setPanel]      = useState<'complete' | 'skip' | 'paid' | 'reschedule' | null>(null)
+  const [panel,      setPanel]      = useState<'complete' | 'skip' | 'paid' | 'partial' | 'reschedule' | null>(null)
   const [markAsPaid, setMarkAsPaid] = useState(false)
   const notesRef = useRef<HTMLTextAreaElement>(null)
 
@@ -23,10 +23,11 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
   const [skipState,     skipAction,     skipPending]     = useActionState<FormState, FormData>(skipJob.bind(null, job.id),        { error: null })
   const [cancelState,   cancelAction,   cancelPending]   = useActionState<FormState, FormData>(cancelJob.bind(null, job.id),      { error: null })
   const [paidState,       paidAction,       paidPending]       = useActionState<FormState, FormData>(markPaid.bind(null, job.id),        { error: null })
+  const [partialState,    partialAction,    partialPending]    = useActionState<FormState, FormData>(markPartial.bind(null, job.id),     { error: null })
   const [reschedState,   reschedAction,   reschedPending]   = useActionState<FormState, FormData>(rescheduleJob.bind(null, job.id), { error: null })
 
-  const anyError      = completeState.error ?? skipState.error ?? paidState.error ?? startState.error ?? cancelState.error ?? reschedState.error
-  const anySuccess    = completeState.success ?? skipState.success ?? paidState.success ?? startState.success ?? cancelState.success ?? reschedState.success
+  const anyError      = completeState.error ?? skipState.error ?? paidState.error ?? partialState.error ?? startState.error ?? cancelState.error ?? reschedState.error
+  const anySuccess    = completeState.success ?? skipState.success ?? paidState.success ?? partialState.success ?? startState.success ?? cancelState.success ?? reschedState.success
   const justCompleted = !!completeState.success
 
   const isActive    = job.status === 'scheduled' || job.status === 'in_progress'
@@ -233,12 +234,11 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
               📲 Send Pay Reminder
             </a>
           )}
-          <button
-            type="button"
-            className="btn btn-primary btn-full"
-            onClick={() => setPanel(panel === 'paid' ? null : 'paid')}
-          >
+          <button type="button" className="btn btn-primary btn-full" onClick={() => setPanel(panel === 'paid' ? null : 'paid')}>
             $ Mark Paid
+          </button>
+          <button type="button" className="btn btn-secondary btn-full" onClick={() => setPanel(panel === 'partial' ? null : 'partial')}>
+            $ Mark Partial Payment
           </button>
 
           {panel === 'paid' && (
@@ -255,7 +255,62 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
                 </select>
               </div>
               <button type="submit" disabled={paidPending} className="btn btn-primary btn-full">
-                {paidPending ? 'Saving…' : 'Confirm Payment'}
+                {paidPending ? 'Saving…' : 'Confirm Full Payment'}
+              </button>
+            </form>
+          )}
+
+          {panel === 'partial' && (
+            <form action={partialAction} className="form action-panel">
+              <div className="form-field">
+                <label className="form-label">Amount received ($)</label>
+                <input type="number" name="amount_paid" min="1" step="1" className="form-input"
+                  placeholder={job.price ? String(Number(job.price).toFixed(0)) : '0'} />
+              </div>
+              <div className="form-field">
+                <label className="form-label">Payment Method</label>
+                <select name="payment_method" className="form-select">
+                  <option value="">Not specified</option>
+                  <option value="cash">Cash</option>
+                  <option value="check">Check</option>
+                  <option value="venmo">Venmo</option>
+                  <option value="cashapp">CashApp</option>
+                  <option value="zelle">Zelle</option>
+                </select>
+              </div>
+              <button type="submit" disabled={partialPending} className="btn btn-secondary btn-full">
+                {partialPending ? 'Saving…' : 'Record Partial Payment'}
+              </button>
+            </form>
+          )}
+        </>
+      )}
+
+      {/* ── Mark remaining paid (partial) ── */}
+      {isCompleted && job.payment_status === 'partial' && (
+        <>
+          <div className="text-small" style={{ color: 'var(--color-warning)', padding: '4px 0' }}>
+            Partial: ${Number(job.amount_paid ?? 0).toFixed(0)} of ${Number(job.price ?? 0).toFixed(0)} paid
+            &nbsp;— ${(Number(job.price ?? 0) - Number(job.amount_paid ?? 0)).toFixed(0)} remaining
+          </div>
+          <button type="button" className="btn btn-primary btn-full" onClick={() => setPanel(panel === 'paid' ? null : 'paid')}>
+            $ Mark Remaining Paid
+          </button>
+          {panel === 'paid' && (
+            <form action={paidAction} className="form action-panel">
+              <div className="form-field">
+                <label className="form-label">Payment Method</label>
+                <select name="payment_method" className="form-select">
+                  <option value="">Not specified</option>
+                  <option value="cash">Cash</option>
+                  <option value="check">Check</option>
+                  <option value="venmo">Venmo</option>
+                  <option value="cashapp">CashApp</option>
+                  <option value="zelle">Zelle</option>
+                </select>
+              </div>
+              <button type="submit" disabled={paidPending} className="btn btn-primary btn-full">
+                {paidPending ? 'Saving…' : 'Confirm Full Payment'}
               </button>
             </form>
           )}

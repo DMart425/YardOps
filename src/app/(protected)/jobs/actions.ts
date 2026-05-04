@@ -247,6 +247,37 @@ export async function markPaid(
   return { error: null, success: 'Marked as paid.' }
 }
 
+export async function markPartial(
+  id: string,
+  prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const amountPaid = parseFloat(formData.get('amount_paid') as string)
+  if (isNaN(amountPaid) || amountPaid <= 0) return { error: 'Enter a valid amount.' }
+
+  const { error } = await supabase
+    .from('jobs')
+    .update({
+      payment_status: 'partial',
+      payment_method: (formData.get('payment_method') as string) || null,
+      amount_paid: amountPaid,
+    })
+    .eq('id', id)
+    .eq('created_by', user.id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/jobs')
+  revalidatePath(`/jobs/${id}`)
+  revalidatePath('/today')
+  revalidatePath('/finances')
+  return { error: null, success: `Partial payment of $${amountPaid.toFixed(0)} recorded.` }
+}
+
 export async function rescheduleJob(
   id: string,
   prevState: FormState,

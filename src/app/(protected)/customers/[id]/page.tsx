@@ -33,13 +33,17 @@ export default async function CustomerDetailPage({
   // Aggregate stats from all jobs (separate count query for accuracy beyond the 10-row limit)
   const { data: allJobs } = await supabase
     .from('jobs')
-    .select('status, price, amount_paid, completed_at')
+      .select('status, price, amount_paid, payment_status, completed_at')
     .eq('customer_id', id)
 
   const completedJobs = (allJobs ?? []).filter(j => j.status === 'completed')
-  const totalRevenue  = completedJobs.reduce((s, j) => s + (j.price ?? 0), 0)
-  const totalPaid     = completedJobs.reduce((s, j) => s + (j.amount_paid ?? 0), 0)
-  const totalUnpaid   = totalRevenue - totalPaid
+  const totalRevenue  = completedJobs.reduce((s, j) => s + Number(j.price ?? 0), 0)
+  const totalUnpaid   = completedJobs
+    .filter(j => j.payment_status !== 'paid')
+    .reduce((s, j) => {
+      const owed = Number(j.price ?? 0) - Number((j.amount_paid || null) ?? 0)
+      return s + Math.max(0, owed)
+    }, 0)
   const lastVisit     = completedJobs
     .map(j => j.completed_at)
     .filter((d): d is string => !!d)
