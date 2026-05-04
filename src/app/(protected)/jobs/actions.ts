@@ -234,6 +234,7 @@ export async function markPaid(
   revalidatePath('/jobs')
   revalidatePath(`/jobs/${id}`)
   revalidatePath('/today')
+  revalidatePath('/finances')
   return { error: null, success: 'Marked as paid.' }
 }
 
