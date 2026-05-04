@@ -29,13 +29,14 @@ export default async function PropertyDetailPage({
   // Revenue stats for this property
   const { data: propJobs } = await supabase
     .from('jobs')
-    .select('id, status, price, amount_paid, completed_at')
+    .select('id, status, price, amount_paid, payment_status, completed_at')
     .eq('property_id', id)
 
   const completedPropJobs = (propJobs ?? []).filter(j => j.status === 'completed')
   const propRevenue  = completedPropJobs.reduce((s, j) => s + Number(j.price ?? 0), 0)
-  const propPaid     = completedPropJobs.reduce((s, j) => s + Number(j.amount_paid ?? 0), 0)
-  const propUnpaid   = propRevenue - propPaid
+  const propUnpaid   = completedPropJobs
+    .filter(j => j.payment_status !== 'paid')
+    .reduce((s, j) => s + Math.max(0, Number(j.price ?? 0) - Number(j.amount_paid ?? 0)), 0)
   const lastPropVisit = completedPropJobs
     .map(j => j.completed_at)
     .filter((d): d is string => !!d)

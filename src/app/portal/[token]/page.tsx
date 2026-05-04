@@ -56,7 +56,7 @@ export default async function CustomerPortalPage({
     supabase
       .from('pricing_settings')
       .select('venmo_handle')
-      .eq('created_by', created_by)
+      .eq('user_id', created_by)
       .single(),
   ])
 
