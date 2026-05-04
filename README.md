@@ -1,3 +1,12 @@
+## Read First
+
+Before making any changes in this repository, read these documents first:
+
+- [AGENTS.md](AGENTS.md)
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+
+These files define required guardrails, project boundaries, and architecture context for contributors and AI agents.
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
