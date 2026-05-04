@@ -30,7 +30,7 @@ export default async function FinancesPage({
   // Fetch paid/partial jobs for the year with customer info
   const { data: jobs } = await supabase
     .from('jobs')
-    .select('id, amount_paid, price, payment_status, completed_at, customers(id, full_name)')
+    .select('id, amount_paid, price, payment_status, completed_at, customers(id, first_name, last_name)')
     .in('payment_status', ['paid', 'partial'])
     .gte('completed_at', yearStart + 'T00:00:00Z')
     .lte('completed_at', yearEnd + 'T23:59:59Z')
@@ -79,9 +79,9 @@ export default async function FinancesPage({
   const customerTotals = new Map<string, { name: string; count: number; total: number }>()
   for (const j of monthJobs) {
     const raw = j.customers
-    const c = (Array.isArray(raw) ? raw[0] : raw) as { id: string; full_name: string } | null
+    const c = (Array.isArray(raw) ? raw[0] : raw) as { id: string; first_name: string; last_name: string | null } | null
     if (!c) continue
-    const cur = customerTotals.get(c.id) ?? { name: c.full_name ?? 'Unknown', count: 0, total: 0 }
+    const cur = customerTotals.get(c.id) ?? { name: [c.first_name, c.last_name].filter(Boolean).join(' ') || 'Unknown', count: 0, total: 0 }
     cur.count++
     cur.total += Number(j.amount_paid ?? j.price ?? 0)
     customerTotals.set(c.id, cur)
@@ -100,11 +100,11 @@ export default async function FinancesPage({
     const rows: CsvRow[] = []
     for (const j of jList ?? []) {
       const rawC = j.customers
-      const c = (Array.isArray(rawC) ? rawC[0] : rawC) as { full_name?: string } | null
+      const c = (Array.isArray(rawC) ? rawC[0] : rawC) as { first_name?: string; last_name?: string | null } | null
       rows.push({
         date: j.completed_at?.split('T')[0] ?? '',
         type: 'income',
-        customer_or_vendor: c?.full_name ?? '',
+        customer_or_vendor: [c?.first_name, c?.last_name].filter(Boolean).join(' '),
         description: 'Lawn service',
         category: 'service',
         amount: Number(j.amount_paid ?? j.price ?? 0),
