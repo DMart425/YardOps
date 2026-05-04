@@ -14,7 +14,7 @@ self.addEventListener('push', (event) => {
   let data = { title: 'YardOps', body: 'You have a new update', url: '/today' }
   try {
     if (event.data) data = { ...data, ...event.data.json() }
-  } catch (e) {
+  } catch {
     // payload wasn't JSON; use defaults
   }
 

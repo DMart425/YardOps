@@ -16,6 +16,7 @@ export async function createLead(
   prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
+  void prevState
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -65,6 +66,8 @@ export async function convertWebsiteLead(
   prevState: FormState,
   _formData: FormData
 ): Promise<FormState> {
+  void prevState
+  void _formData
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -136,6 +139,8 @@ export async function archiveLead(
   prevState: FormState,
   _formData: FormData
 ): Promise<FormState> {
+  void prevState
+  void _formData
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -159,6 +164,8 @@ export async function dismissWebsiteLead(
   prevState: FormState,
   _formData: FormData
 ): Promise<FormState> {
+  void prevState
+  void _formData
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -180,6 +187,7 @@ export async function deleteWebsiteLead(
   _prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
+  void _prevState
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -204,6 +212,8 @@ export async function clearAllWebsiteLeads(
   _prevState: FormState,
   _formData: FormData
 ): Promise<FormState> {
+  void _prevState
+  void _formData
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')

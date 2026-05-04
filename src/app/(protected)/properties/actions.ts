@@ -141,6 +141,7 @@ export async function applyParcelToProperty(
   _prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
+  void _prevState
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -179,6 +180,8 @@ export async function backfillPropertyCoordinates(
   _prevState: FormState,
   _formData: FormData
 ): Promise<FormState> {
+  void _prevState
+  void _formData
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')

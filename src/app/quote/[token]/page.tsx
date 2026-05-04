@@ -98,7 +98,7 @@ export default async function QuotePage({
             background: 'rgba(52,211,153,0.08)', border: '2px solid #34d399', borderRadius: '10px',
             padding: '14px 16px', marginBottom: '16px', color: '#34d399', fontWeight: 600,
           }}>
-            ✅ You've already accepted this estimate. We'll be in touch soon!
+            ✅ You&apos;ve already accepted this estimate. We&apos;ll be in touch soon!
           </div>
         )}
 

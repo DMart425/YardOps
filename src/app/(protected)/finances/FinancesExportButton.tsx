@@ -1,7 +1,5 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-
 interface CsvRow {
   date: string
   type: 'income' | 'expense'

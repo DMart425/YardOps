@@ -36,7 +36,7 @@ export default function QuoteConfirmForm({
         <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>✅</div>
         <h2 style={{ color: '#34d399', margin: '0 0 0.5rem' }}>Estimate Accepted!</h2>
         <p style={{ color: '#d4d4d4', margin: 0 }}>
-          Thank you! We'll be in touch shortly to schedule your service.
+          Thank you! We&apos;ll be in touch shortly to schedule your service.
           <br />
           Questions? Call or text us at{' '}
           <a href="tel:3343207514" style={{ color: '#34d399' }}>(334) 320-7514</a>.
@@ -69,7 +69,7 @@ export default function QuoteConfirmForm({
         <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>🤔</div>
         <h2 style={{ color: 'var(--q-text)', fontSize: '1.125rem', marginBottom: '0.5rem' }}>Decline this estimate?</h2>
         <p style={{ color: 'var(--q-text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
-          We'll mark it as declined. You can always call us if you change your mind.
+          We&apos;ll mark it as declined. You can always call us if you change your mind.
         </p>
         <form action={declineAction} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <input type="hidden" name="token" value={token} />

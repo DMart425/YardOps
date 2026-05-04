@@ -150,6 +150,8 @@ export async function markInProgress(
   prevState: FormState,
   _formData: FormData
 ): Promise<FormState> {
+  void prevState
+  void _formData
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -199,6 +201,8 @@ export async function cancelJob(
   prevState: FormState,
   _formData: FormData
 ): Promise<FormState> {
+  void prevState
+  void _formData
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')

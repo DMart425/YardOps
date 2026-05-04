@@ -3,7 +3,6 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { LeadActions } from './LeadActions'
 import { ApplyParcelButton } from './ApplyParcelButton'
-import { estimateMowableAcres } from '@/lib/pricing'
 
 export default async function LeadDetailPage({
   params,

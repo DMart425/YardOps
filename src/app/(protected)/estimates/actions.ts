@@ -10,11 +10,6 @@ function str(fd: FormData, key: string) {
   const v = (fd.get(key) as string)?.trim()
   return v || null
 }
-function num(fd: FormData, key: string) {
-  const v = fd.get(key) as string
-  const n = parseFloat(v)
-  return isNaN(n) ? 0 : n
-}
 
 // ── createEstimate ──────────────────────────────────────────────────────────
 export async function createEstimate(
@@ -133,6 +128,8 @@ export async function updateEstimateStatus(
   prevState: FormState,
   _formData: FormData
 ): Promise<FormState> {
+  void prevState
+  void _formData
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')

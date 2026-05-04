@@ -1,12 +1,11 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { Toast } from '@/components/Toast'
 
 export default function SavedToast() {
   const params = useSearchParams()
-  const router = useRouter()
   const saved = params.get('saved') === '1'
 
   useEffect(() => {

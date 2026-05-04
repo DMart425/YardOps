@@ -62,7 +62,6 @@ export default async function CustomerPortalPage({
 
   if (!customer) notFound()
 
-  const customerName  = `${customer.first_name}${customer.last_name ? ' ' + customer.last_name : ''}`
   const businessName  = profile?.business_name  ?? 'Your Lawn Service'
   const businessPhone = profile?.business_phone ?? null
   const venmoHandle   = (pricing?.venmo_handle as string | null) ?? null
@@ -91,7 +90,7 @@ export default async function CustomerPortalPage({
           </a>
         )}
         <div style={{ marginTop: '0.75rem', fontWeight: 600, fontSize: '1.0625rem' }}>Hi, {customer.first_name}!</div>
-        <div style={{ fontSize: '0.8125rem', opacity: 0.6 }}>Here's a summary of your lawn service account.</div>
+        <div style={{ fontSize: '0.8125rem', opacity: 0.6 }}>Here&apos;s a summary of your lawn service account.</div>
       </div>
 
       {/* Outstanding balance */}

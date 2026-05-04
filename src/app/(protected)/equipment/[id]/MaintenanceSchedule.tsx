@@ -22,9 +22,6 @@ interface Props {
 }
 
 function getStatus(item: MaintenanceItem, currentHours: number): 'overdue' | 'due-soon' | 'ok' | 'unknown' {
-  const hoursDue = item.next_due_hours != null && currentHours >= item.next_due_hours - (item.interval_hours ?? 5) * 0.2
-  const dateDue = item.next_due_date != null
-
   if (item.next_due_hours != null) {
     if (currentHours >= item.next_due_hours) return 'overdue'
     if (currentHours >= item.next_due_hours - (item.interval_hours ?? 5) * 0.2) return 'due-soon'
