@@ -1,5 +1,12 @@
 # YardOps Architecture
 
+## Verification Status
+
+This document now separates **current verified behavior** from **needs verification / planned behavior**.
+
+- **Verified** means confirmed from the current YardOps code in this workspace.
+- **Needs Verification / Planned** means not fully confirmed from this repo alone, or dependent on deployment, external systems, or live Supabase configuration.
+
 ## 1. App Purpose
 
 **YardOps** is the private operations command center for Wicksburg Lawn Service. It is **not** customer-facing and is not the same as the public website (wicksburglawnservice.com). 
@@ -10,10 +17,10 @@ YardOps enables the business owner/operator to:
 - Create and send estimates (with public quote tokens for customer approval)
 - Schedule and complete jobs, with optional photo logging
 - Track partial and full payments
-- Generate invoices and customer portals (read-only, paid-accessible)
-- Send SMS reminders (day-before job reminders, payment reminders)
+- Generate invoices and customer portal links
+- Log outbound SMS activity and launch device-native SMS compose flows
 - Monitor daily/weekly workflow and cash flow
-- Export financial data for accounting
+- Export CSV data from existing export components
 - Manage equipment and maintenance schedules
 - Track weather forecasts to warn about rain on scheduled jobs
 
@@ -60,12 +67,12 @@ src/
 │   │   ├── settings/                 # Pricing defaults, time zone, notifications
 │   │   └── layout.tsx                # Protected layout with sidebar/nav
 │   ├── api/
-│   │   ├── cron/                     # Scheduled tasks (morning/evening summaries)
+│   │   ├── cron/                     # Cron route handlers present in repo
 │   │   ├── push/                     # Web push subscription endpoints
-│   │   └── parcels/                  # Parcel data search (external API)
+│   │   └── parcels/                  # Parcel data search against cached `parcels` rows
 │   ├── login/                        # Public: login page
 │   ├── quote/[token]/                # Public: customer-facing estimate quote
-│   ├── portal/[token]/               # Public: read-only customer account portal
+│   ├── portal/[token]/               # Customer portal page exists, but middleware currently blocks public access
 │   ├── page.tsx                      # Root redirects to /today
 │   ├── layout.tsx                    # Root layout (metadata, PWA, theme)
 │   └── globals.css                   # Global styles (dark theme, components)
@@ -103,11 +110,11 @@ src/
 
 ### Key Details:
 
-- **`(protected)/`** — Route group wrapped by middleware that checks auth. Unauthenticated users redirected to `/login`.
+- **`(protected)/`** — Route group guarded twice: root middleware refreshes session and redirects, and `src/app/(protected)/layout.tsx` also checks `supabase.auth.getUser()` and redirects to `/login`.
 - **`/login`** — Public page, not in route group.
 - **`/quote/[token]`** — Public page for customers to review & approve estimates.
-- **`/portal/[token]`** — Public, read-only view of jobs/payments for a specific customer.
-- **`api/cron/*`** — Vercel cron triggers (require `CRON_SECRET` env var for security).
+- **`/portal/[token]`** — Customer portal page exists and uses an admin client, but unauthenticated public access is currently blocked by `middleware.ts` because `/portal/*` is not on the allowlist.
+- **`api/cron/*`** — Route handlers exist for morning/evening summaries and require `CRON_SECRET`; actual production cron wiring needs separate verification.
 - **`globals.css`** — All styling; no Tailwind. Dark theme CSS custom properties (color- palette). Mobile-first responsive design.
 - **No `lib/db.ts`** — All DB queries go directly through Supabase JS SDK in actions/pages.
 
@@ -120,11 +127,17 @@ src/
 1. Every request passes through middleware.ts.
 2. Middleware creates a server-side Supabase client with the anon key and cookies.
 3. Calls `supabase.auth.getUser()` to refresh the session and check if user is authenticated.
-4. If no user and route is NOT `/login`, `/quote/`, or `/portal/`:
+4. If no user and route is NOT `/login` and does not start with `/quote/`:
    - Redirect to `/login`
 5. If user exists and route IS `/login`:
    - Redirect to `/today`
 6. Otherwise, proceed to the route.
+
+### Second Guard in Protected Layout (`src/app/(protected)/layout.tsx`)
+
+- The protected route group is also guarded inside the layout.
+- `src/app/(protected)/layout.tsx` creates a Supabase server client, calls `supabase.auth.getUser()`, and redirects to `/login` if no user is present.
+- This means protected pages are currently protected in two places: middleware first, then the protected layout.
 
 ### Session Management
 
@@ -137,7 +150,11 @@ src/
 
 - **`/login`** — Login form (calls `login` server action in `lib/actions/auth.ts`).
 - **`/quote/[token]`** — No auth required. Uses `createAdminClient()` to look up estimate by public token. Customer can view & accept.
-- **`/portal/[token]`** — No auth required. Uses `createAdminClient()` to show customer account summary (jobs, balance, payment link).
+- **`/portal/[token]`** — Page exists and uses `createAdminClient()` to look up portal data by token, but it is **not currently public in practice** because `middleware.ts` redirects unauthenticated `/portal/*` requests to `/login`.
+
+### Customer Portal TODO
+
+- If customer portal links are intended to work publicly, `middleware.ts` must be updated to allow unauthenticated access to `/portal/*` before the route behaves as a real public portal.
 
 ### Protected Routes
 
@@ -212,7 +229,9 @@ src/
 - `notes`, `created_at`
 
 #### **estimate_items**
-- `id`, `estimate_id`, `label`, `price`
+- `id`, `created_by`, `estimate_id`, `sort_order`
+- `service_name`, `description`, `quantity`, `unit`
+- `unit_price`, `line_total`, `created_at`, `updated_at`
 
 #### **message_logs**
 - `id`, `user_id`, `customer_id`, `job_id`, `estimate_id`
@@ -267,13 +286,15 @@ auth.users
 
 ### Lead → Customer → Property → Job Flow
 
-1. **Website lead arrives** → `customers` row with `status = 'lead'`, one or more `properties`.
-2. **Convert lead** → Change customer `status` from 'lead' to 'active'; property stays.
-3. **Create estimate** → Estimate references customer + property.
-4. **Approve estimate** → `estimate.status = 'approved'` or `'converted'`.
-5. **Convert to job** → Creates `jobs` row, sets `estimate.status = 'converted'`, promotes customer to 'active'.
-6. **Complete job** → `job.status = 'completed'`, captures `completed_at` and `amount_paid`.
-7. **Auto-schedule next** → If property `auto_schedule_next = true` and job is recurring, create next job automatically.
+1. **Public website lead arrives** → Website quote/contact flow writes a row to `public.leads`.
+2. **YardOps reviews website leads** → Protected lead pages read from `leads` and allow convert / dismiss / delete actions.
+3. **Convert accepted website lead** → `convertWebsiteLead()` creates a `customers` row with `status = 'lead'` plus a linked `properties` row, then marks the `leads` row as `converted`.
+4. **Manual lead path** → `createLead()` skips `leads` entirely and creates `customers` + `properties` directly, with the customer starting in `status = 'lead'`.
+5. **Create estimate** → Estimate references customer + property.
+6. **Approve / convert estimate** → Estimate status changes through review and conversion.
+7. **Convert to job** → Creates `jobs` row, sets `estimate.status = 'converted'`, and may promote customer to `active` depending on workflow.
+8. **Complete job** → `job.status = 'completed'`, captures `completed_at` and `amount_paid`.
+9. **Auto-schedule next** → If property `auto_schedule_next = true` and job is recurring, create next job automatically.
 
 ---
 
@@ -302,10 +323,12 @@ auth.users
    - Review Finances page (YTD income/expenses by month/customer)
 
 4. **Lead management:**
-   - Check **Leads** page (website leads + manual adds)
-   - Review lead → Parcel lookup shows lot size, owner, land use
+   - Check **Leads** page (website `leads` rows + manual customer leads)
+   - Review website lead or manual lead
+   - For accepted website leads, convert `leads` row into `customers` + `properties`
+   - Review lead/property → Parcel lookup shows lot size, owner, land use when cached parcel data exists
    - Create estimate → Use pricing engine (hours + services)
-   - Send estimate (SMS link to public quote page)
+   - Send estimate via device SMS composer from YardOps
    - Wait for approval → Converts to 'converted' status
    - Auto-promote customer from 'lead' to 'active'
 
@@ -336,13 +359,13 @@ auth.users
 | Read own data (jobs, customers) | `createClient()` (anon key) | ✓ User session | ✓ Enforced | Middleware refreshes session |
 | Create/update/delete own data | `createClient()` (anon key) | ✓ User session | ✓ Enforced | Server actions via `useActionState` |
 | Public quote lookup | `createAdminClient()` | ✗ None | ✗ Bypassed | Looks up by public_token only |
-| Public portal lookup | `createAdminClient()` | ✗ None | ✗ Bypassed | Looks up by token, returns only allowed fields |
-| Cron jobs (morning/evening) | `createAdminClient()` | ✗ None | ✗ Bypassed | Protected by `CRON_SECRET` header check |
+| Portal lookup code path | `createAdminClient()` | ✗ None at page level | ✗ Bypassed | Page looks up by token, but middleware currently blocks unauthenticated access |
+| Cron route handlers | `createAdminClient()` | ✗ None | ✗ Bypassed | Route files are present and protected by `CRON_SECRET`; production scheduling still needs verification |
 
 ### RLS Strategy
 
-- All tables have RLS enabled (policy: users can only access rows where `created_by = auth.user_id` or `user_id = auth.user_id`).
-- Public routes use `createAdminClient()` to bypass RLS, but only select public-safe fields and validate token/ID.
+- YardOps code assumes user-owned tables are protected by RLS, usually through `created_by` or `user_id` ownership patterns.
+- Public quote and portal page code paths use `createAdminClient()` to bypass RLS, but only the quote path is currently reachable without authentication.
 - No direct client-side database access; all mutations go through server actions.
 
 ### Tables & Schemas
@@ -383,9 +406,11 @@ See Supabase project `lewzqavgvltzwfeypvam` for live schema. Notable tables:
 
 - **Public website** (wicksburglawnservice.com) = lead funnel only
   - Captures lead name, phone, address, frequency request
-  - Leads stored in Supabase `leads` table
+   - Writes website lead rows into `public.leads`
 - **YardOps** (this app) = operations + admin
-  - Converts leads to customers
+   - Reviews website leads from `public.leads`
+   - Converts accepted leads into `customers` and `properties`
+   - Also supports manual lead creation directly in YardOps
   - Schedules, completes, payments
   - No public website logic here
 
@@ -408,6 +433,7 @@ See Supabase project `lewzqavgvltzwfeypvam` for live schema. Notable tables:
 4. **No service worker** — PWA is "installable" but caching/offline not implemented.
 5. **Equipment maintenance not fully wired** — Equipment table exists but maintenance logic incomplete.
 6. **Partial payment UI complex** — Manually entering amounts on completed jobs; could use better UX.
+7. **Customer portal is not publicly reachable yet** — `/portal/[token]` exists, but unauthenticated requests are currently redirected by middleware.
 
 ### TODOs / Future Work
 
@@ -423,13 +449,33 @@ See Supabase project `lewzqavgvltzwfeypvam` for live schema. Notable tables:
 ### Unfinished Features
 
 - **Brief Settings** table exists but is unused.
-- **Email notifications** partially implemented (message_logs exist but delivery is SMS-only).
+- **Estimate SMS flow uses device compose, not provider delivery** — `SendSmsButton` launches `sms:` and `logSmsSent()` writes a log row; no SMS provider integration is present in this repo.
 - **Equipment maintenance schedule** shows upcoming maintenance but reminders not sent.
 
 ### Potentially Abandoned / Unclear
 
 - `src/lib/supabase/client.ts` exists but is never imported (browser-side client not used; all DB access is server-side). Likely legacy. **Needs verification:** Should this be removed?
 - Some API routes in `/api` may be stubs or unused. Check `/api/push` and `/api/parcels` for actual usage.
+
+### Needs Verification / Planned
+
+- **Cron routes:** `src/app/api/cron/morning-summary/route.ts` and `src/app/api/cron/evening-summary/route.ts` exist and call push notification helpers, but production Vercel cron scheduling is not verified in this repo.
+- **SMS sending:** Current estimate "Send via Text" behavior opens the device SMS composer and logs a message row. No server-side SMS provider delivery was confirmed from this codebase.
+- **Customer portal behavior:** `src/app/portal/[token]/page.tsx` exists and performs token lookup with an admin client, but public access is currently blocked by middleware.
+- **Automated reminder delivery:** `jobs` contains reminder-related fields, but no verified automatic day-before SMS delivery path was confirmed from this repo review.
+- **External parcel API behavior:** The only verified parcel API route in this repo reads cached rows from `public.parcels`; direct third-party parcel ingestion, sync, or backfill behavior was not verified here.
+- **Accounting / export workflow:** Existing export components generate CSV downloads for selected tables. Anything beyond those current components should be treated as planned or unverified until traced in code.
+
+### Supabase Hardening Notes
+
+These came from external review guidance and should be treated as a hardening checklist, not current verified YardOps behavior. The MCP-accessible Supabase metadata in this session did not cleanly confirm the YardOps-specific objects below, so they remain review items until checked directly in the live YardOps project.
+
+- Review any `schedule_upcoming` security-definer view and confirm it exposes only intended rows.
+- Tighten permissive `leads` update/delete RLS policies if those policies currently allow broader access than intended.
+- Tighten `message_logs` insert policy so only expected actors can create rows.
+- Revoke direct RPC execute on `handle_new_user()` if it is only meant to run as a trigger function.
+- Add missing indexes on frequently queried foreign keys where the live project shows sequential scans or missing coverage.
+- Optimize RLS policies using the `(select auth.uid())` pattern anywhere Supabase Advisor flags repeated `auth.uid()` evaluation.
 
 ---
 
