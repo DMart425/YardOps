@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { headers } from 'next/headers'
 
 const FILTERS_SCHEDULED = [
   ['upcoming', 'Upcoming'],
@@ -68,10 +67,11 @@ export default async function JobsPage({
   const defaultFilter = view === 'completed' ? 'today' : 'upcoming'
   const filter = availableFilters.some(([key]) => key === sp.filter) ? (sp.filter as string) : defaultFilter
   const supabase = await createClient()
-  const requestHeaders = await headers()
-  const timeZone = normalizeTimeZone(
-    requestHeaders.get('x-time-zone') ?? requestHeaders.get('x-vercel-ip-timezone')
-  )
+  const { data: settings } = await supabase
+    .from('pricing_settings')
+    .select('time_zone')
+    .single()
+  const timeZone = normalizeTimeZone(settings?.time_zone ?? null)
 
   const now = new Date()
   const today = localDateStr(now, timeZone)

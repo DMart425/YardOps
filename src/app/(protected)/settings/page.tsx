@@ -19,6 +19,7 @@ export default async function SettingsPage() {
     round_to_nearest:      settings?.round_to_nearest      ?? DEFAULT_SETTINGS.roundToNearest,
     default_setup_minutes: settings?.default_setup_minutes ?? DEFAULT_SETTINGS.defaultSetupMinutes,
     venmo_handle:          settings?.venmo_handle          ?? '',
+    time_zone:             settings?.time_zone             ?? 'America/Chicago',
   }
 
   const blackoutDates: string[] = (settings?.blackout_dates as string[] | null) ?? []

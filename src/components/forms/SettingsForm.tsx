@@ -5,12 +5,23 @@ import type { FormState } from '@/types/database'
 import { saveSettings } from '@/app/(protected)/settings/actions'
 import { Toast } from '@/components/Toast'
 
+const US_TIMEZONES = [
+  { value: 'America/New_York',   label: 'Eastern  (ET)  — New York, Miami' },
+  { value: 'America/Chicago',    label: 'Central  (CT)  — Chicago, Dallas' },
+  { value: 'America/Denver',     label: 'Mountain (MT)  — Denver, Salt Lake City' },
+  { value: 'America/Phoenix',    label: 'Mountain (no DST) — Phoenix' },
+  { value: 'America/Los_Angeles', label: 'Pacific  (PT)  — Los Angeles, Seattle' },
+  { value: 'America/Anchorage',  label: 'Alaska   (AKT) — Anchorage' },
+  { value: 'Pacific/Honolulu',   label: 'Hawaii   (HT)  — Honolulu' },
+]
+
 interface Defaults {
   target_hourly_rate:    number
   minimum_price:         number
   round_to_nearest:      number
   default_setup_minutes: number
   venmo_handle:          string
+  time_zone:             string
 }
 
 export function SettingsForm({ defaults }: { defaults: Defaults }) {
@@ -96,6 +107,22 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
           defaultValue={defaults.venmo_handle}
         />
         <p className="form-hint">Included as a payment link in invoices/estimates. Don&apos;t include the @ symbol.</p>
+      </div>
+
+      <div className="form-section-label">Date &amp; Time</div>
+      <div className="form-field">
+        <label className="form-label" htmlFor="s_tz">Time Zone</label>
+        <select
+          id="s_tz"
+          name="time_zone"
+          className="form-input"
+          defaultValue={defaults.time_zone}
+        >
+          {US_TIMEZONES.map(tz => (
+            <option key={tz.value} value={tz.value}>{tz.label}</option>
+          ))}
+        </select>
+        <p className="form-hint">Used to determine &quot;today&quot; when filtering scheduled and completed jobs.</p>
       </div>
 
       <div className="card" style={{ background: 'var(--color-bg-subtle)', marginBottom: '8px' }}>

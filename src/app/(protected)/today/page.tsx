@@ -2,8 +2,20 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { getTodayForecastForCoords, coordKey } from '@/lib/weather'
 
-function getTodayLocal() {
-  return new Date().toLocaleDateString('en-CA') // YYYY-MM-DD
+function getLocalDate(timeZone: string) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+}
+
+function addOneDay(dateStr: string) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  dt.setUTCDate(dt.getUTCDate() + 1)
+  return dt.toISOString().slice(0, 10)
 }
 
 function formatDisplayDate(iso: string) {
@@ -14,10 +26,13 @@ function formatDisplayDate(iso: string) {
 
 export default async function TodayPage() {
   const supabase = await createClient()
-  const today = getTodayLocal()
-  const tomorrowForCompleted = new Date()
-  tomorrowForCompleted.setDate(tomorrowForCompleted.getDate() + 1)
-  const tomorrowForCompletedStr = tomorrowForCompleted.toLocaleDateString('en-CA')
+  const { data: settings } = await supabase
+    .from('pricing_settings')
+    .select('time_zone')
+    .single()
+  const timeZone = settings?.time_zone ?? 'America/Chicago'
+  const today = getLocalDate(timeZone)
+  const tomorrowForCompletedStr = addOneDay(today)
 
   // Fetch today's jobs with customer and property info
   const { data: todayJobs } = await supabase

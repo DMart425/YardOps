@@ -23,6 +23,7 @@ export async function saveSettings(
   const round_to_nearest     = parse('round_to_nearest', 5)
   const default_setup_minutes = parse('default_setup_minutes', 10)
   const venmo_handle         = (formData.get('venmo_handle') as string ?? '').trim().replace(/^@/, '') || null
+  const time_zone            = (formData.get('time_zone') as string ?? '').trim() || 'America/Chicago'
 
   const { error } = await supabase
     .from('pricing_settings')
@@ -33,6 +34,7 @@ export async function saveSettings(
       round_to_nearest,
       default_setup_minutes,
       venmo_handle,
+      time_zone,
     }, { onConflict: 'user_id' })
 
   if (error) return { error: error.message }
