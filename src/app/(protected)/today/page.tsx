@@ -24,6 +24,11 @@ function formatDisplayDate(iso: string) {
   })
 }
 
+function dateOnlyToUtcMs(dateStr: string) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return Date.UTC(y, m - 1, d)
+}
+
 export default async function TodayPage() {
   const supabase = await createClient()
   const { data: settings } = await supabase
@@ -32,6 +37,7 @@ export default async function TodayPage() {
     .single()
   const timeZone = settings?.time_zone ?? 'America/Chicago'
   const today = getLocalDate(timeZone)
+  const todayStartMs = dateOnlyToUtcMs(today)
   const tomorrowForCompletedStr = addOneDay(today)
 
   // Fetch today's jobs with customer and property info
@@ -183,9 +189,8 @@ export default async function TodayPage() {
         lastVisitMap.set(cid, { name: `${c.first_name}${c.last_name ? ' ' + c.last_name : ''}`, date: d })
       }
     }
-    const now = Date.now()
     dormantCustomers = [...lastVisitMap.entries()]
-      .map(([id, { name, date }]) => ({ id, name, daysSince: Math.floor((now - date.getTime()) / 86400000) }))
+      .map(([id, { name, date }]) => ({ id, name, daysSince: Math.floor((todayStartMs - date.getTime()) / 86400000) }))
       .filter(c => c.daysSince >= 60)
       .sort((a, b) => b.daysSince - a.daysSince)
       .slice(0, 5) // cap at 5 to avoid wall of text
@@ -470,7 +475,7 @@ export default async function TodayPage() {
           {overdueJobs!.map((job) => {
             const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null } | null
             const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
-            const daysLate = Math.floor((Date.now() - new Date(job.scheduled_date + 'T00:00:00').getTime()) / 86400000)
+            const daysLate = Math.floor((todayStartMs - dateOnlyToUtcMs(job.scheduled_date)) / 86400000)
             return (
               <Link key={job.id} href={`/jobs/${job.id}`} style={{ display: 'block' }}>
                 <div className="card">

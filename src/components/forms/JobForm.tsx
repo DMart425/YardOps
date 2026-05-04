@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState, useEffect } from 'react'
+import { useActionState, useState } from 'react'
 import Link from 'next/link'
 import type { FormState } from '@/types/database'
 import { Toast } from '@/components/Toast'
@@ -25,30 +25,33 @@ interface JobFormProps {
   defaultValues?: Record<string, string | number | boolean | null>
 }
 
+function getPropertyDefaults(properties: PropertyOption[], propertyId?: string) {
+  if (!propertyId) return null
+  return properties.find((property) => property.id === propertyId) ?? null
+}
+
 export function JobForm({
   action, submitLabel, cancelHref,
   customers, properties,
   defaultCustomerId, defaultPropertyId, defaultValues,
 }: JobFormProps) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(action, { error: null })
+  const initialProperty = getPropertyDefaults(properties, defaultPropertyId)
 
   const [selectedCustomerId, setSelectedCustomerId] = useState(defaultCustomerId ?? '')
   const [selectedPropertyId, setSelectedPropertyId] = useState(defaultPropertyId ?? '')
-  const [price,          setPrice]          = useState(defaultValues?.price != null ? String(defaultValues.price) : '')
-  const [servicePackage, setServicePackage] = useState((defaultValues?.service_package as string) ?? '')
+  const [price, setPrice] = useState(() => {
+    if (defaultValues?.price != null) return String(defaultValues.price)
+    return initialProperty?.default_price != null ? String(initialProperty.default_price) : ''
+  })
+  const [servicePackage, setServicePackage] = useState(() => {
+    if (typeof defaultValues?.service_package === 'string') return defaultValues.service_package
+    return initialProperty?.default_service_package ?? ''
+  })
 
   const filteredProperties = selectedCustomerId
     ? properties.filter(p => p.customer_id === selectedCustomerId)
     : properties
-
-  // Auto-fill price + package when property changes
-  useEffect(() => {
-    const prop = properties.find(p => p.id === selectedPropertyId)
-    if (prop) {
-      if (prop.default_price != null) setPrice(String(prop.default_price))
-      if (prop.default_service_package)  setServicePackage(prop.default_service_package)
-    }
-  }, [selectedPropertyId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset property if customer changes and current property doesn't belong to new customer
   const handleCustomerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -56,6 +59,15 @@ export function JobForm({
     setSelectedCustomerId(newId)
     const currentProp = properties.find(p => p.id === selectedPropertyId)
     if (currentProp && currentProp.customer_id !== newId) setSelectedPropertyId('')
+  }
+
+  const handlePropertyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const propertyId = e.target.value
+    setSelectedPropertyId(propertyId)
+    const property = getPropertyDefaults(properties, propertyId)
+    if (!property) return
+    if (property.default_price != null) setPrice(String(property.default_price))
+    if (property.default_service_package) setServicePackage(property.default_service_package)
   }
 
   const today = new Date().toISOString().split('T')[0]
@@ -94,7 +106,7 @@ export function JobForm({
           className="form-select"
           required
           value={selectedPropertyId}
-          onChange={e => setSelectedPropertyId(e.target.value)}
+          onChange={handlePropertyChange}
         >
           <option value="">— Select property —</option>
           {filteredProperties.map(p => (

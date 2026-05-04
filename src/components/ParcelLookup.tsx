@@ -55,7 +55,7 @@ export default function ParcelLookup({ onImport }: Props) {
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (query.length < 3) { setResults([]); setOpen(false); return }
+    if (query.length < 3) return
     debounceRef.current = setTimeout(async () => {
       setLoading(true)
       try {
@@ -67,6 +67,9 @@ export default function ParcelLookup({ onImport }: Props) {
         setLoading(false)
       }
     }, 300)
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
   }, [query])
 
   // Close dropdown on outside click
@@ -95,7 +98,15 @@ export default function ParcelLookup({ onImport }: Props) {
           className="form-input"
           placeholder="Search by street address (e.g. 123 Oak St)"
           value={query}
-          onChange={e => { setQuery(e.target.value); setImported(null) }}
+          onChange={e => {
+            const nextQuery = e.target.value
+            setQuery(nextQuery)
+            setImported(null)
+            if (nextQuery.length < 3) {
+              setResults([])
+              setOpen(false)
+            }
+          }}
           onFocus={() => results.length > 0 && setOpen(true)}
           autoComplete="off"
         />

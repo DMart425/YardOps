@@ -15,27 +15,28 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
 }
 
 export function EnableNotificationsButton() {
-  const [supported, setSupported]     = useState(false)
-  const [permission, setPermission]   = useState<NotificationPermission>('default')
+  const [supported] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
+  })
+  const [permission, setPermission] = useState<NotificationPermission>(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return 'default'
+    return Notification.permission
+  })
   const [subscribed, setSubscribed]   = useState(false)
   const [busy, setBusy]               = useState(false)
   const [error, setError]             = useState<string | null>(null)
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    const ok = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
-    setSupported(ok)
-    if (!ok) return
+    if (!supported) return
 
-    setPermission(Notification.permission)
-
-    // Check existing subscription state
+    // Check existing subscription state after mount.
     navigator.serviceWorker.getRegistration().then(async (reg) => {
       if (!reg) return
       const sub = await reg.pushManager.getSubscription()
       setSubscribed(!!sub)
     })
-  }, [])
+  }, [supported])
 
   async function handleEnable() {
     setError(null)
