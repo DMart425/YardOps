@@ -28,6 +28,18 @@ export default async function TodayPage() {
     .not('status', 'in', '("completed","cancelled","skipped")')
     .order('scheduled_date')
 
+  // Completed jobs scheduled for today
+  const { data: completedTodayJobs } = await supabase
+    .from('jobs')
+    .select(`
+      id, title, service_package, price, amount_paid, payment_status, completed_at,
+      customers ( first_name, last_name ),
+      properties ( service_address, city )
+    `)
+    .eq('scheduled_date', today)
+    .eq('status', 'completed')
+    .order('completed_at', { ascending: false })
+
   // Fetch weather for unique property coordinates
   const coords: Array<{ lat: number; lon: number }> = []
   for (const j of todayJobs ?? []) {
@@ -256,6 +268,12 @@ export default async function TodayPage() {
           </div>
           <div className="stat-label">Overdue</div>
         </div>
+        <a href="#completed-today" className="stat-card" style={{ textDecoration: 'none' }}>
+          <div className="stat-value" style={{ color: (completedTodayJobs?.length ?? 0) > 0 ? 'var(--color-primary)' : undefined }}>
+            {completedTodayJobs?.length ?? 0}
+          </div>
+          <div className="stat-label">Completed today</div>
+        </a>
         <Link href="/jobs?filter=unpaid" className="stat-card" style={{ textDecoration: 'none' }}>
           <div className="stat-value" style={{ color: unpaidTotal > 0 ? 'var(--color-unpaid)' : undefined }}>
             ${unpaidTotal.toFixed(0)}
@@ -389,6 +407,38 @@ export default async function TodayPage() {
                   <Link href={`/estimates/${visit.id}`} className="btn btn-sm btn-primary">View Estimate</Link>
                 </div>
               </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Completed Today */}
+      {(completedTodayJobs?.length ?? 0) > 0 && (
+        <div className="detail-section" id="completed-today">
+          <div className="section-heading" style={{ color: 'var(--color-primary)' }}>
+            Completed Today ({completedTodayJobs!.length})
+          </div>
+          {completedTodayJobs!.map((job) => {
+            const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null } | null
+            const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
+            const balance = Math.max(0, (job.price ?? 0) - (job.amount_paid ?? 0))
+            return (
+              <Link key={job.id} href={`/jobs/${job.id}`} style={{ display: 'block' }}>
+                <div className="card">
+                  <div className="card-row">
+                    <div>
+                      <div className="card-title">{customer?.first_name} {customer?.last_name}</div>
+                      <div className="card-meta">{property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
+                      <div className="card-meta">{job.title}</div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      {job.price != null && <div style={{ fontWeight: 700 }}>${Number(job.price).toFixed(0)}</div>}
+                      <span className={`pill pill-${job.payment_status}`}>{job.payment_status.replace(/_/g, ' ')}</span>
+                      {balance > 0 && <div className="text-small" style={{ color: 'var(--color-unpaid)', marginTop: '4px' }}>${balance.toFixed(0)} owed</div>}
+                    </div>
+                  </div>
+                </div>
+              </Link>
             )
           })}
         </div>
