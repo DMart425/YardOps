@@ -22,6 +22,10 @@ function fmtDate(d: string) {
   })
 }
 
+function localDateStr(d: Date) {
+  return d.toLocaleDateString('en-CA')
+}
+
 export default async function JobsPage({
   searchParams,
 }: {
@@ -35,16 +39,20 @@ export default async function JobsPage({
   const supabase = await createClient()
 
   const now = new Date()
-  const today = now.toISOString().split('T')[0]
+  const today = localDateStr(now)
   const weekEnd = new Date(now)
   weekEnd.setDate(weekEnd.getDate() + 6)
-  const weekEndStr = weekEnd.toISOString().split('T')[0]
+  const weekEndStr = localDateStr(weekEnd)
   const weekStart = new Date(now)
   weekStart.setDate(weekStart.getDate() - 6)
+  const weekStartStr = localDateStr(weekStart)
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const monthStartStr = localDateStr(monthStart)
   const yearStart = new Date(now.getFullYear(), 0, 1)
+  const yearStartStr = localDateStr(yearStart)
   const tomorrow = new Date(now)
   tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowStr = localDateStr(tomorrow)
 
   const active = ['scheduled', 'in_progress', 'needs_reschedule']
 
@@ -56,22 +64,22 @@ export default async function JobsPage({
     query = query.eq('status', 'completed').order('completed_at', { ascending: false })
     switch (filter) {
       case 'today':
-        query = query.gte('completed_at', `${today}T00:00:00`).lt('completed_at', `${tomorrow.toISOString().split('T')[0]}T00:00:00`)
+        query = query.gte('completed_at', `${today}T00:00:00`).lt('completed_at', `${tomorrowStr}T00:00:00`)
         break
       case 'week':
-        query = query.gte('completed_at', `${weekStart.toISOString().split('T')[0]}T00:00:00`)
+        query = query.gte('completed_at', `${weekStartStr}T00:00:00`).lt('completed_at', `${tomorrowStr}T00:00:00`)
         break
       case 'month':
-        query = query.gte('completed_at', `${monthStart.toISOString().split('T')[0]}T00:00:00`)
+        query = query.gte('completed_at', `${monthStartStr}T00:00:00`).lt('completed_at', `${tomorrowStr}T00:00:00`)
         break
       case 'ytd':
-        query = query.gte('completed_at', `${yearStart.toISOString().split('T')[0]}T00:00:00`)
+        query = query.gte('completed_at', `${yearStartStr}T00:00:00`).lt('completed_at', `${tomorrowStr}T00:00:00`)
         break
       case 'unpaid':
         query = query.in('payment_status', ['unpaid', 'partial'])
         break
       default:
-        query = query.gte('completed_at', `${today}T00:00:00`).lt('completed_at', `${tomorrow.toISOString().split('T')[0]}T00:00:00`)
+        query = query.gte('completed_at', `${today}T00:00:00`).lt('completed_at', `${tomorrowStr}T00:00:00`)
     }
   } else {
     query = query.order('scheduled_date', { ascending: true })
