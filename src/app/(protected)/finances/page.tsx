@@ -45,7 +45,7 @@ export default async function FinancesPage({
     .order('purchased_at')
 
   // ── Aggregate YTD ──────────────────────────────────────────────
-  const totalIncome   = (jobs ?? []).reduce((s, j) => s + Number(j.amount_paid ?? j.price ?? 0), 0)
+  const totalIncome   = (jobs ?? []).reduce((s, j) => s + Number((j.amount_paid || null) ?? j.price ?? 0), 0)
   const totalExpenses = (expenses ?? []).reduce((s, e) => s + Number(e.amount ?? 0), 0)
   const totalJobCount = (jobs ?? []).length
   const avgJobValue   = totalJobCount > 0 ? totalIncome / totalJobCount : 0
@@ -57,7 +57,7 @@ export default async function FinancesPage({
 
   for (const j of jobs ?? []) {
     const m = new Date(j.completed_at).getMonth()
-    incomeByMonth[m]   += Number(j.amount_paid ?? j.price ?? 0)
+    incomeByMonth[m]   += Number((j.amount_paid || null) ?? j.price ?? 0)
     jobCountByMonth[m] += 1
   }
   for (const e of expenses ?? []) {

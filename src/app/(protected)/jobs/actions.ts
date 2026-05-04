@@ -220,11 +220,20 @@ export async function markPaid(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  // Fetch current price so we can set amount_paid
+  const { data: job } = await supabase
+    .from('jobs')
+    .select('price')
+    .eq('id', id)
+    .eq('created_by', user.id)
+    .single()
+
   const { error } = await supabase
     .from('jobs')
     .update({
       payment_status: 'paid',
       payment_method: (formData.get('payment_method') as string) || null,
+      amount_paid: job?.price ?? null,
     })
     .eq('id', id)
     .eq('created_by', user.id)
