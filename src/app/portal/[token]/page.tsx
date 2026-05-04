@@ -73,7 +73,9 @@ export default async function CustomerPortalPage({
   const history       = allJobs.filter(j => j.status === 'completed')
     .sort((a, b) => (b.completed_at ?? '').localeCompare(a.completed_at ?? ''))
     .slice(0, 10)
-  const totalUnpaid   = history.reduce((s, j) => s + Math.max(0, (j.price ?? 0) - (j.amount_paid ?? 0)), 0)
+  const totalUnpaid   = history
+    .filter(j => j.payment_status !== 'paid')
+    .reduce((s, j) => s + Math.max(0, (j.price ?? 0) - (j.amount_paid ?? 0)), 0)
 
   const pkgLabel = (pkg: string | null) =>
     pkg ? pkg.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Lawn Service'

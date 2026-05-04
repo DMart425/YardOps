@@ -60,7 +60,7 @@ export default async function TodayPage() {
       customers ( first_name, last_name, phone )
     `)
     .eq('status', 'completed')
-    .eq('payment_status', 'unpaid')
+    .in('payment_status', ['unpaid', 'partial'])
     .order('completed_at', { ascending: false })
     .limit(10)
 
@@ -163,7 +163,7 @@ export default async function TodayPage() {
   }
 
   const todayTotal = (todayJobs ?? []).reduce((s, j) => s + (j.price ?? 0), 0)
-  const unpaidTotal = (unpaidJobs ?? []).reduce((s, j) => s + ((j.price ?? 0) - (j.amount_paid ?? 0)), 0)
+  const unpaidTotal = (unpaidJobs ?? []).reduce((s, j) => s + Math.max(0, (j.price ?? 0) - (j.amount_paid ?? 0)), 0)
 
   // New leads count (website + manual)
   const [{ count: websiteLeadsCount }, { count: manualLeadsCount }] = await Promise.all([
@@ -482,7 +482,9 @@ export default async function TodayPage() {
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{ fontWeight: 700, color: 'var(--color-unpaid)' }}>${balance.toFixed(0)}</div>
-                    <span className="pill pill-unpaid">Unpaid</span>
+                    <span className={`pill pill-${job.payment_status === 'partial' ? 'pending' : 'unpaid'}`}>
+                      {job.payment_status === 'partial' ? 'Partial' : 'Unpaid'}
+                    </span>
                   </div>
                 </div>
                 <div className="card-actions">

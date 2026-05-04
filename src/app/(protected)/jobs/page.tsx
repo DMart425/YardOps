@@ -46,7 +46,7 @@ export default async function JobsPage({
       query = query.in('status', active).lt('scheduled_date', today)
       break
     case 'unpaid':
-      query = query.eq('status', 'completed').eq('payment_status', 'unpaid')
+      query = query.eq('status', 'completed').in('payment_status', ['unpaid', 'partial'])
       break
     default: // upcoming
       query = query.in('status', active).gte('scheduled_date', today)
@@ -68,7 +68,7 @@ export default async function JobsPage({
     .from('jobs')
     .select('id', { count: 'exact', head: true })
     .eq('status', 'completed')
-    .eq('payment_status', 'unpaid')
+    .in('payment_status', ['unpaid', 'partial'])
     .lt('completed_at', sevenDaysAgo.toISOString())
   function routeUrl(addresses: string[]): string | null {
     if (addresses.length === 0) return null

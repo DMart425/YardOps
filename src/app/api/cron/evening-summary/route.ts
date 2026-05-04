@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const completed  = safeJobs.filter(j => j.status === 'completed')
   const skipped    = safeJobs.filter(j => j.status === 'skipped')
   const remaining  = safeJobs.filter(j => j.status === 'scheduled' || j.status === 'in_progress')
-  const unpaid     = completed.filter(j => j.payment_status === 'unpaid')
+  const unpaid     = completed.filter(j => j.payment_status === 'unpaid' || j.payment_status === 'partial')
   const earned     = completed.reduce((s, j) => s + Number(j.price ?? 0), 0)
 
   if (safeJobs.length === 0) {

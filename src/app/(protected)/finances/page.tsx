@@ -72,7 +72,7 @@ export default async function FinancesPage({
   // ── Selected month data ────────────────────────────────────────
   const monthJobs = (jobs ?? []).filter(j => new Date(j.completed_at).getMonth() === selectedMonth)
   const monthExpenses = (expenses ?? []).filter(e => new Date(e.purchased_at).getMonth() === selectedMonth)
-  const monthIncome = monthJobs.reduce((s, j) => s + Number(j.amount_paid ?? j.price ?? 0), 0)
+  const monthIncome = monthJobs.reduce((s, j) => s + Number((j.amount_paid || null) ?? j.price ?? 0), 0)
   const monthExpenseTotal = monthExpenses.reduce((s, e) => s + Number(e.amount ?? 0), 0)
 
   // ── Per-customer income (selected month) ──────────────────────
@@ -83,7 +83,7 @@ export default async function FinancesPage({
     if (!c) continue
     const cur = customerTotals.get(c.id) ?? { name: [c.first_name, c.last_name].filter(Boolean).join(' ') || 'Unknown', count: 0, total: 0 }
     cur.count++
-    cur.total += Number(j.amount_paid ?? j.price ?? 0)
+    cur.total += Number((j.amount_paid || null) ?? j.price ?? 0)
     customerTotals.set(c.id, cur)
   }
   const customerRows = [...customerTotals.values()].sort((a, b) => b.total - a.total)
@@ -107,7 +107,7 @@ export default async function FinancesPage({
         customer_or_vendor: [c?.first_name, c?.last_name].filter(Boolean).join(' '),
         description: 'Lawn service',
         category: 'service',
-        amount: Number(j.amount_paid ?? j.price ?? 0),
+        amount: Number((j.amount_paid || null) ?? j.price ?? 0),
       })
     }
     for (const e of eList ?? []) {
