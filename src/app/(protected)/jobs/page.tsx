@@ -1,6 +1,28 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 
+type CustomerRelation = { first_name: string; last_name: string | null }
+type PropertyRelation = {
+  service_address: string
+  city: string | null
+  latitude: number | null
+  longitude: number | null
+}
+
+type JobListRow = {
+  id: string
+  status: string
+  payment_status: string
+  price: number | null
+  amount_paid: number | null
+  scheduled_date: string | null
+  completed_at: string | null
+  scheduled_time_window: string | null
+  service_package: string | null
+  customers: CustomerRelation | CustomerRelation[] | null
+  properties: PropertyRelation | PropertyRelation[] | null
+}
+
 const FILTERS_SCHEDULED = [
   ['upcoming', 'Upcoming'],
   ['today',    'Today'],
@@ -128,6 +150,7 @@ export default async function JobsPage({
   }
 
   const { data: jobs } = await query
+  const jobRows = (jobs ?? []) as JobListRow[]
 
   // ── Blackout dates ──
   const { data: pricingSettings } = await supabase
@@ -156,11 +179,11 @@ export default async function JobsPage({
   }
 
   // Group week jobs by date, optimized by nearest-neighbor route order
-  type WeekJob = NonNullable<typeof jobs> extends (infer T)[] ? T : never
+  type WeekJob = JobListRow
   const groupedByDay: Map<string, WeekJob[]> = new Map()
-  if (view === 'scheduled' && filter === 'week' && jobs) {
+  if (view === 'scheduled' && filter === 'week' && jobRows.length > 0) {
     // First group by day
-    for (const j of jobs) {
+    for (const j of jobRows) {
       const k = j.scheduled_date ?? 'unscheduled'
       if (!groupedByDay.has(k)) groupedByDay.set(k, [])
       groupedByDay.get(k)!.push(j)
@@ -233,7 +256,7 @@ export default async function JobsPage({
         </div>
       )}
 
-      {!jobs || jobs.length === 0 ? (
+      {jobRows.length === 0 ? (
         <div className="empty-state">
           <p style={{ fontSize: '2rem' }}>📋</p>
           <p style={{ marginTop: '8px', fontWeight: 600 }}>No jobs here</p>
@@ -326,7 +349,7 @@ export default async function JobsPage({
         </div>
       ) : (
         <div>
-          {(jobs as any[]).map((job) => {
+          {jobRows.map((job) => {
             const c = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null } | null
             const p = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
             const name = c ? `${c.first_name}${c.last_name ? ' ' + c.last_name : ''}` : '—'

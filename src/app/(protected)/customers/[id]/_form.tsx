@@ -8,8 +8,10 @@ import { Toast } from '@/components/Toast'
 
 const CUSTOMER_TAGS = ['Seasonal', 'Commercial', 'Priority', 'Cash Only', 'Key Holder', 'HOA']
 
+type CustomerWithTags = Customer & { tags?: string[] | null }
+
 export function CustomerEditForm({ customer }: { customer: Customer }) {
-  const currentTags: string[] = (customer as any).tags ?? []
+  const currentTags: string[] = (customer as CustomerWithTags).tags ?? []
   const [state, action, pending] = useActionState<FormState, FormData>(
     updateCustomer.bind(null, customer.id),
     { error: null }

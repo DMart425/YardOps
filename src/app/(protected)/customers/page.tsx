@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import type { Customer } from '@/types/database'
 
+type CustomerListItem = Customer & { tags?: string[] | null }
+
 export default async function CustomersPage() {
   const supabase = await createClient()
 
@@ -10,6 +12,8 @@ export default async function CustomersPage() {
     .select('*')
     .in('status', ['active', 'inactive'])
     .order('first_name', { ascending: true })
+
+  const customerRows = (customers ?? []) as CustomerListItem[]
 
   return (
     <div className="page">
@@ -21,7 +25,7 @@ export default async function CustomersPage() {
         <Link href="/customers/new" className="btn btn-header btn-sm">+ Add</Link>
       </div>
 
-      {!customers?.length ? (
+      {customerRows.length === 0 ? (
         <div className="empty-state">
           <p style={{ fontSize: '2rem' }}>👷</p>
           <p style={{ fontWeight: 600, marginTop: '8px' }}>No customers yet</p>
@@ -31,7 +35,7 @@ export default async function CustomersPage() {
           </Link>
         </div>
       ) : (
-        customers.map((c: Customer) => (
+        customerRows.map((c) => (
           <Link key={c.id} href={`/customers/${c.id}`} style={{ display: 'block' }}>
             <div className="card">
               <div className="card-row">
@@ -44,7 +48,7 @@ export default async function CustomersPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
                   <span className={`pill pill-${c.status}`}>{c.status}</span>
-                  {((c as any).tags as string[] ?? []).map((tag: string) => (
+                  {(c.tags ?? []).map((tag: string) => (
                     <span key={tag} className="pill pill-draft" style={{ fontSize: '0.7rem' }}>{tag}</span>
                   ))}
                 </div>

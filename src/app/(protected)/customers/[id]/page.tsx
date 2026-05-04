@@ -5,6 +5,8 @@ import type { Customer, Property } from '@/types/database'
 import { CustomerEditForm } from './_form'
 import { CopyPortalLinkButton } from '@/components/CopyPortalLinkButton'
 
+type CustomerWithTags = Customer & { tags?: string[] | null }
+
 export default async function CustomerDetailPage({
   params,
 }: {
@@ -29,6 +31,7 @@ export default async function CustomerDetailPage({
   ])
 
   if (!customer) notFound()
+  const customerRow = customer as CustomerWithTags
 
   // Aggregate stats from all jobs (separate count query for accuracy beyond the 10-row limit)
   const { data: allJobs } = await supabase
@@ -61,11 +64,11 @@ export default async function CustomerDetailPage({
       <div className="page-header">
         <div>
           <h1 className="page-title">
-            {customer.first_name}{customer.last_name ? ` ${customer.last_name}` : ''}
+            {customerRow.first_name}{customerRow.last_name ? ` ${customerRow.last_name}` : ''}
           </h1>
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
-            <span className={`pill pill-${customer.status}`}>{customer.status}</span>
-            {((customer as any).tags as string[] ?? []).map((tag: string) => (
+            <span className={`pill pill-${customerRow.status}`}>{customerRow.status}</span>
+            {(customerRow.tags ?? []).map((tag: string) => (
               <span key={tag} className="pill pill-draft">{tag}</span>
             ))}
           </div>
@@ -73,21 +76,21 @@ export default async function CustomerDetailPage({
       </div>
 
       {/* Contact quick info */}
-      {(customer.phone || customer.email) && (
+      {(customerRow.phone || customerRow.email) && (
         <div className="card" style={{ marginBottom: '1.5rem' }}>
-          {customer.phone && (
-            <a href={`tel:${customer.phone}`} className="contact-row">
-              📞 {customer.phone}
+          {customerRow.phone && (
+            <a href={`tel:${customerRow.phone}`} className="contact-row">
+              📞 {customerRow.phone}
             </a>
           )}
-          {customer.email && (
-            <a href={`mailto:${customer.email}`} className="contact-row">
-              ✉ {customer.email}
+          {customerRow.email && (
+            <a href={`mailto:${customerRow.email}`} className="contact-row">
+              ✉ {customerRow.email}
             </a>
           )}
-          {customer.preferred_contact_method && (
+          {customerRow.preferred_contact_method && (
             <div className="contact-row text-muted">
-              Prefers: {customer.preferred_contact_method.replace('_', ' ')}
+              Prefers: {customerRow.preferred_contact_method.replace('_', ' ')}
             </div>
           )}
         </div>
@@ -195,14 +198,14 @@ export default async function CustomerDetailPage({
             <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>Share with customer</div>
             <div className="text-small text-muted">They can view upcoming jobs, history &amp; balance — no login needed</div>
           </div>
-          <CopyPortalLinkButton customerId={customer.id} />
+          <CopyPortalLinkButton customerId={customerRow.id} />
         </div>
       </div>
 
       <div className="detail-section">
         <div className="section-heading">Edit Customer Info</div>
         <div className="card">
-          <CustomerEditForm customer={customer as Customer} />
+          <CustomerEditForm customer={customerRow} />
         </div>
       </div>
     </div>

@@ -1,6 +1,18 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 
+type EstimateListRow = {
+  id: string
+  status: string
+  total: number | null
+  valid_until: string | null
+  created_at: string
+  visit_scheduled_date: string | null
+  visit_scheduled_time: string | null
+  customers: { first_name: string; last_name: string | null } | Array<{ first_name: string; last_name: string | null }> | null
+  properties: { service_address: string; city: string | null } | Array<{ service_address: string; city: string | null }> | null
+}
+
 const STATUS_FILTERS = [
   ['all',       'All'],
   ['draft',     'Draft'],
@@ -32,6 +44,7 @@ export default async function EstimatesPage({
   }
 
   const { data: estimates } = await query
+  const estimateRows = (estimates ?? []) as EstimateListRow[]
 
   return (
     <div className="page">
@@ -52,7 +65,7 @@ export default async function EstimatesPage({
         ))}
       </div>
 
-      {!estimates || estimates.length === 0 ? (
+      {estimateRows.length === 0 ? (
         <div className="empty-state">
           <p style={{ fontSize: '2rem' }}>📋</p>
           <p style={{ marginTop: '8px', fontWeight: 600 }}>No estimates yet</p>
@@ -61,7 +74,7 @@ export default async function EstimatesPage({
         </div>
       ) : (
         <div>
-          {(estimates as any[]).map((est) => {
+          {estimateRows.map((est) => {
             const rawC = est.customers
             const rawP = est.properties
             const c    = (Array.isArray(rawC) ? rawC[0] : rawC) as { first_name: string; last_name: string | null } | null
