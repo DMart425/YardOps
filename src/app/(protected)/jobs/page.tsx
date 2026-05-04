@@ -298,8 +298,8 @@ export default async function JobsPage({
       ) : (
         <div>
           {(jobs as any[]).map((job) => {
-            const c    = job.customers
-            const p    = job.properties
+            const c = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null } | null
+            const p = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
             const name = c ? `${c.first_name}${c.last_name ? ' ' + c.last_name : ''}` : '—'
             const addr = p ? `${p.service_address}${p.city ? ', ' + p.city : ''}` : '—'
             const pkg  = job.service_package
