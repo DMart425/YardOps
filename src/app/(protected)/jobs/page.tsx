@@ -1,12 +1,19 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 
-const FILTERS = [
+const FILTERS_SCHEDULED = [
   ['upcoming', 'Upcoming'],
   ['today',    'Today'],
   ['week',     'This Week'],
   ['overdue',  'Overdue'],
-  ['unpaid',   'Unpaid'],
+] as const
+
+const FILTERS_COMPLETED = [
+  ['today',  'Today'],
+  ['week',   'This Week'],
+  ['month',  'This Month'],
+  ['ytd',    'YTD'],
+  ['unpaid', 'Unpaid'],
 ] as const
 
 function fmtDate(d: string) {
@@ -18,38 +25,69 @@ function fmtDate(d: string) {
 export default async function JobsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>
+  searchParams: Promise<{ filter?: string; view?: string }>
 }) {
-  const { filter = 'upcoming' } = await searchParams
+  const sp = await searchParams
+  const view: 'scheduled' | 'completed' = sp.view === 'completed' ? 'completed' : 'scheduled'
+  const availableFilters = view === 'completed' ? FILTERS_COMPLETED : FILTERS_SCHEDULED
+  const defaultFilter = view === 'completed' ? 'today' : 'upcoming'
+  const filter = availableFilters.some(([key]) => key === sp.filter) ? (sp.filter as string) : defaultFilter
   const supabase = await createClient()
 
-  const today   = new Date().toISOString().split('T')[0]
-  const weekEnd = new Date()
+  const now = new Date()
+  const today = now.toISOString().split('T')[0]
+  const weekEnd = new Date(now)
   weekEnd.setDate(weekEnd.getDate() + 6)
   const weekEndStr = weekEnd.toISOString().split('T')[0]
+  const weekStart = new Date(now)
+  weekStart.setDate(weekStart.getDate() - 6)
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const yearStart = new Date(now.getFullYear(), 0, 1)
+  const tomorrow = new Date(now)
+  tomorrow.setDate(tomorrow.getDate() + 1)
 
   const active = ['scheduled', 'in_progress', 'needs_reschedule']
 
   let query = supabase
     .from('jobs')
-    .select('id, status, payment_status, price, scheduled_date, scheduled_time_window, service_package, customers(first_name, last_name), properties(service_address, city, latitude, longitude)')
-    .order('scheduled_date', { ascending: true })
+    .select('id, status, payment_status, price, amount_paid, scheduled_date, completed_at, scheduled_time_window, service_package, customers(first_name, last_name), properties(service_address, city, latitude, longitude)')
 
-  switch (filter) {
-    case 'today':
-      query = query.in('status', active).eq('scheduled_date', today)
-      break
-    case 'week':
-      query = query.in('status', active).gte('scheduled_date', today).lte('scheduled_date', weekEndStr)
-      break
-    case 'overdue':
-      query = query.in('status', active).lt('scheduled_date', today)
-      break
-    case 'unpaid':
-      query = query.eq('status', 'completed').in('payment_status', ['unpaid', 'partial'])
-      break
-    default: // upcoming
-      query = query.in('status', active).gte('scheduled_date', today)
+  if (view === 'completed') {
+    query = query.eq('status', 'completed').order('completed_at', { ascending: false })
+    switch (filter) {
+      case 'today':
+        query = query.gte('completed_at', `${today}T00:00:00`).lt('completed_at', `${tomorrow.toISOString().split('T')[0]}T00:00:00`)
+        break
+      case 'week':
+        query = query.gte('completed_at', `${weekStart.toISOString().split('T')[0]}T00:00:00`)
+        break
+      case 'month':
+        query = query.gte('completed_at', `${monthStart.toISOString().split('T')[0]}T00:00:00`)
+        break
+      case 'ytd':
+        query = query.gte('completed_at', `${yearStart.toISOString().split('T')[0]}T00:00:00`)
+        break
+      case 'unpaid':
+        query = query.in('payment_status', ['unpaid', 'partial'])
+        break
+      default:
+        query = query.gte('completed_at', `${today}T00:00:00`).lt('completed_at', `${tomorrow.toISOString().split('T')[0]}T00:00:00`)
+    }
+  } else {
+    query = query.order('scheduled_date', { ascending: true })
+    switch (filter) {
+      case 'today':
+        query = query.in('status', active).eq('scheduled_date', today)
+        break
+      case 'week':
+        query = query.in('status', active).gte('scheduled_date', today).lte('scheduled_date', weekEndStr)
+        break
+      case 'overdue':
+        query = query.in('status', active).lt('scheduled_date', today)
+        break
+      default: // upcoming
+        query = query.in('status', active).gte('scheduled_date', today)
+    }
   }
 
   const { data: jobs } = await query
@@ -83,7 +121,7 @@ export default async function JobsPage({
   // Group week jobs by date, optimized by nearest-neighbor route order
   type WeekJob = NonNullable<typeof jobs> extends (infer T)[] ? T : never
   const groupedByDay: Map<string, WeekJob[]> = new Map()
-  if (filter === 'week' && jobs) {
+  if (view === 'scheduled' && filter === 'week' && jobs) {
     // First group by day
     for (const j of jobs) {
       const k = j.scheduled_date ?? 'unscheduled'
@@ -131,11 +169,20 @@ export default async function JobsPage({
         <Link href="/jobs/new" className="btn btn-header btn-sm">+ New</Link>
       </div>
 
+      <div className="filter-tabs" style={{ marginBottom: '8px' }}>
+        <Link href="/jobs?view=scheduled&filter=upcoming" className={`filter-tab${view === 'scheduled' ? ' active' : ''}`}>
+          Scheduled
+        </Link>
+        <Link href="/jobs?view=completed&filter=today" className={`filter-tab${view === 'completed' ? ' active' : ''}`}>
+          Completed
+        </Link>
+      </div>
+
       <div className="filter-tabs">
-        {FILTERS.map(([key, label]) => (
+        {availableFilters.map(([key, label]) => (
           <Link
             key={key}
-            href={`/jobs?filter=${key}`}
+            href={`/jobs?view=${view}&filter=${key}`}
             className={`filter-tab${filter === key ? ' active' : ''}`}
           >
             {label}{key === 'unpaid' && overdueCount ? <span style={{ marginLeft: 4, background: '#dc2626', color: '#fff', borderRadius: '999px', padding: '1px 6px', fontSize: '0.65rem', fontWeight: 700, verticalAlign: 'middle' }}>{overdueCount}</span> : null}
@@ -156,7 +203,7 @@ export default async function JobsPage({
           <p>Try a different filter or create a new job.</p>
           <Link href="/jobs/new" className="btn btn-primary" style={{ marginTop: '1rem' }}>+ New Job</Link>
         </div>
-      ) : filter === 'week' ? (
+      ) : view === 'scheduled' && filter === 'week' ? (
         <div>
           {/* Blackout days with no jobs (otherwise they'd be invisible) */}
           {blackoutDates
@@ -266,8 +313,10 @@ export default async function JobsPage({
                 </div>
                 <div className="card-row" style={{ marginTop: '8px' }}>
                   <span className="text-small text-muted">
-                    {job.scheduled_date ? fmtDate(job.scheduled_date) : 'No date'}
-                    {job.scheduled_time_window ? ` · ${job.scheduled_time_window}` : ''}
+                    {view === 'completed'
+                      ? (job.completed_at ? fmtDate((job.completed_at as string).split('T')[0]) : 'No completion date')
+                      : (job.scheduled_date ? fmtDate(job.scheduled_date) : 'No date')}
+                    {view === 'scheduled' && job.scheduled_time_window ? ` · ${job.scheduled_time_window}` : ''}
                   </span>
                   {job.status === 'completed' && (
                     <span className={`pill pill-${job.payment_status}`}>{job.payment_status.replace(/_/g, ' ')}</span>
