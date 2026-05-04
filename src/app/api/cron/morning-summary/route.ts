@@ -11,8 +11,10 @@ export async function GET(req: NextRequest) {
 
   const admin = createAdminClient()
 
-  // Today's date in local time — jobs are stored as YYYY-MM-DD
-  const today = new Date().toLocaleDateString('en-CA') // "YYYY-MM-DD"
+  // Read timezone from settings so "today" matches the user's local date
+  const { data: tzRow } = await admin.from('pricing_settings').select('time_zone').limit(1).single()
+  const timeZone = tzRow?.time_zone ?? 'America/Chicago'
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 
   const { data: jobs } = await admin
     .from('jobs')

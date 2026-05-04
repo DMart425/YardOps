@@ -96,9 +96,7 @@ export default async function TodayPage() {
     .limit(10)
 
   // Tomorrow's jobs for reminder SMS
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const tomorrowStr = tomorrow.toLocaleDateString('en-CA')
+  const tomorrowStr = addOneDay(today)
   const { data: tomorrowJobs } = await supabase
     .from('jobs')
     .select(`

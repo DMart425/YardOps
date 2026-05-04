@@ -62,8 +62,10 @@ export default async function EstimatesPage({
       ) : (
         <div>
           {(estimates as any[]).map((est) => {
-            const c    = est.customers
-            const p    = est.properties
+            const rawC = est.customers
+            const rawP = est.properties
+            const c    = (Array.isArray(rawC) ? rawC[0] : rawC) as { first_name: string; last_name: string | null } | null
+            const p    = (Array.isArray(rawP) ? rawP[0] : rawP) as { service_address: string; city: string | null } | null
             const name = c ? `${c.first_name}${c.last_name ? ' ' + c.last_name : ''}` : '—'
             const addr = p ? `${p.service_address}${p.city ? ', ' + p.city : ''}` : '—'
 
