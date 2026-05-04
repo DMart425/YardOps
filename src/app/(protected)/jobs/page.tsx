@@ -22,8 +22,28 @@ function fmtDate(d: string) {
   })
 }
 
-function localDateStr(d: Date) {
-  return d.toLocaleDateString('en-CA')
+const BUSINESS_TIME_ZONE = 'America/Chicago'
+
+function localDateStr(d: Date, timeZone = BUSINESS_TIME_ZONE) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d)
+}
+
+function addDays(dateStr: string, days: number) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  dt.setUTCDate(dt.getUTCDate() + days)
+  return dt.toISOString().slice(0, 10)
+}
+
+function dayOfWeek(dateStr: string) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  return dt.getUTCDay()
 }
 
 export default async function JobsPage({
@@ -40,22 +60,13 @@ export default async function JobsPage({
 
   const now = new Date()
   const today = localDateStr(now)
-  const weekStart = new Date(now)
-  weekStart.setDate(weekStart.getDate() - weekStart.getDay())
-  const weekEnd = new Date(weekStart)
-  weekEnd.setDate(weekStart.getDate() + 6)
-  const nextWeekStart = new Date(weekEnd)
-  nextWeekStart.setDate(weekEnd.getDate() + 1)
-  const weekEndStr = localDateStr(weekEnd)
-  const weekStartStr = localDateStr(weekStart)
-  const nextWeekStartStr = localDateStr(nextWeekStart)
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-  const monthStartStr = localDateStr(monthStart)
-  const yearStart = new Date(now.getFullYear(), 0, 1)
-  const yearStartStr = localDateStr(yearStart)
-  const tomorrow = new Date(now)
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const tomorrowStr = localDateStr(tomorrow)
+  const weekday = dayOfWeek(today)
+  const weekStartStr = addDays(today, -weekday)
+  const weekEndStr = addDays(weekStartStr, 6)
+  const nextWeekStartStr = addDays(weekStartStr, 7)
+  const monthStartStr = `${today.slice(0, 7)}-01`
+  const yearStartStr = `${today.slice(0, 4)}-01-01`
+  const tomorrowStr = addDays(today, 1)
 
   const active = ['scheduled', 'in_progress', 'needs_reschedule']
 
