@@ -15,6 +15,9 @@ function formatDisplayDate(iso: string) {
 export default async function TodayPage() {
   const supabase = await createClient()
   const today = getTodayLocal()
+  const tomorrowForCompleted = new Date()
+  tomorrowForCompleted.setDate(tomorrowForCompleted.getDate() + 1)
+  const tomorrowForCompletedStr = tomorrowForCompleted.toLocaleDateString('en-CA')
 
   // Fetch today's jobs with customer and property info
   const { data: todayJobs } = await supabase
@@ -28,7 +31,7 @@ export default async function TodayPage() {
     .not('status', 'in', '("completed","cancelled","skipped")')
     .order('scheduled_date')
 
-  // Completed jobs scheduled for today
+  // Completed jobs finished today
   const { data: completedTodayJobs } = await supabase
     .from('jobs')
     .select(`
@@ -36,8 +39,9 @@ export default async function TodayPage() {
       customers ( first_name, last_name ),
       properties ( service_address, city )
     `)
-    .eq('scheduled_date', today)
     .eq('status', 'completed')
+    .gte('completed_at', `${today}T00:00:00`)
+    .lt('completed_at', `${tomorrowForCompletedStr}T00:00:00`)
     .order('completed_at', { ascending: false })
 
   // Fetch weather for unique property coordinates
