@@ -42,6 +42,18 @@ export interface Customer {
   updated_at: string
 }
 
+export interface Lead {
+  id: string
+  name: string
+  phone: string | null
+  email: string | null
+  address: string | null
+  frequency: string | null
+  notes: string | null
+  status: string | null
+  created_at: string
+}
+
 export interface Property {
   id: string
   created_by: string
@@ -109,6 +121,8 @@ export interface Job {
   day_before_reminder_sent_at: string | null
   started_at: string | null
   actual_minutes: number | null
+  reschedule_count: number | null
+  reschedule_log: string | null
   created_at: string
   updated_at: string
 }
@@ -162,7 +176,7 @@ export interface BriefSettings {
   updated_at: string
 }
 
-export type EstimateStatus = 'draft' | 'sent' | 'approved' | 'declined' | 'expired' | 'converted'
+export type EstimateStatus = 'draft' | 'pending' | 'sent' | 'approved' | 'declined' | 'expired' | 'converted'
 
 export interface Estimate {
   id: string
@@ -175,6 +189,13 @@ export interface Estimate {
   subtotal: number
   tax: number
   total: number
+  frequency: string | null
+  estimated_minutes: number | null
+  estimate_inputs: Record<string, unknown> | null
+  public_token: string | null
+  accepted_at: string | null
+  visit_scheduled_date: string | null
+  visit_scheduled_time: string | null
   notes: string | null
   created_at: string
   updated_at: string

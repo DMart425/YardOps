@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { EstimateStatusActions } from '@/components/EstimateStatusActions'
 import { calculateEstimate, formatMinutes, DEFAULT_SETTINGS } from '@/lib/pricing'
 import type { EstimateInputs } from '@/lib/pricing'
+import type { Estimate } from '@/types/database'
 import SendSmsButton from './SendSmsButton'
 import ScheduleVisitForm from './ScheduleVisitForm'
 import DeleteEstimateButton from './DeleteEstimateButton'
@@ -19,6 +20,11 @@ const FREQ_LABELS: Record<string, string> = {
   weekly: 'Weekly', biweekly: 'Bi-Weekly', one_time: 'One-Time', monthly: 'Monthly',
 }
 
+type EstimateWithRelations = Estimate & {
+  customers: { first_name: string; last_name: string | null; phone: string | null }
+  properties: { service_address: string; city: string | null; state: string | null; estimated_mowable_acres: number | null }
+}
+
 export default async function EstimateDetailPage({
   params,
 }: {
@@ -27,13 +33,14 @@ export default async function EstimateDetailPage({
   const { id } = await params
   const supabase = await createClient()
 
-  const { data: estimate } = await supabase
+  const { data: estimateRaw } = await supabase
     .from('estimates')
     .select('*, customers(first_name, last_name, phone), properties(service_address, city, state, estimated_mowable_acres)')
     .eq('id', id)
     .single()
 
-  if (!estimate) notFound()
+  if (!estimateRaw) notFound()
+  const estimate = estimateRaw as EstimateWithRelations
 
   const { data: settings } = await supabase
     .from('pricing_settings')
@@ -42,8 +49,8 @@ export default async function EstimateDetailPage({
   const venmoHandle = (settings?.venmo_handle as string | null) ?? null
   const minimumPrice = (settings?.minimum_price as number | null) ?? DEFAULT_SETTINGS.minimumServicePrice
 
-  const customer = estimate.customers as { first_name: string; last_name: string | null; phone: string | null }
-  const property = estimate.properties as { service_address: string; city: string | null; state: string | null; estimated_mowable_acres: number | null }
+  const customer = estimate.customers
+  const property = estimate.properties
   const customerName = customer.first_name + (customer.last_name ? ' ' + customer.last_name : '')
   const address = property.service_address + (property.city ? ', ' + property.city : '')
 

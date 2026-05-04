@@ -4,6 +4,15 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { sendPushToUser } from '@/lib/push'
 
+type QuoteEstimate = {
+  id: string
+  status: string
+  valid_until: string | null
+  customer_id: string
+  property_id: string
+  created_by: string | null
+}
+
 export interface AcceptState {
   success?: boolean
   error?: string
@@ -26,11 +35,13 @@ export async function acceptEstimate(
   const supabase = createAdminClient()
 
   // 1. Fetch estimate by token
-  const { data: estimate } = await supabase
+  const { data: estimateRaw } = await supabase
     .from('estimates')
     .select('id, status, valid_until, customer_id, property_id, created_by')
     .eq('public_token', token)
     .single()
+
+  const estimate = estimateRaw as QuoteEstimate | null
 
   if (!estimate) return { error: 'Estimate not found. The link may be invalid.' }
 

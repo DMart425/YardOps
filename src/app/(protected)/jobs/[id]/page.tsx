@@ -6,6 +6,20 @@ import { JobPhotos } from '@/components/JobPhotos'
 import { DownloadInvoiceButton } from '@/components/DownloadInvoiceButton'
 import type { Job } from '@/types/database'
 
+type JobDetail = Job & {
+  customers: { first_name: string; last_name: string | null; phone: string | null; email: string | null }
+  properties: {
+    service_address: string
+    city: string | null
+    state: string | null
+    pet_warning: string | null
+    gate_code: string | null
+    access_notes: string | null
+    obstacle_notes: string | null
+    parking_notes: string | null
+  }
+}
+
 function fmtDate(d: string) {
   return new Date(d + 'T12:00:00').toLocaleDateString('en-US', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -20,7 +34,7 @@ export default async function JobDetailPage({
   const { id } = await params
   const supabase = await createClient()
 
-  const { data: job } = await supabase
+  const { data: jobRaw } = await supabase
     .from('jobs')
     .select(`
       *,
@@ -30,7 +44,8 @@ export default async function JobDetailPage({
     .eq('id', id)
     .single()
 
-  if (!job) notFound()
+  if (!jobRaw) notFound()
+  const job = jobRaw as JobDetail
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -56,12 +71,8 @@ export default async function JobDetailPage({
     .eq('job_id', id)
     .order('purchased_at', { ascending: false })
 
-  const customer = job.customers as { first_name: string; last_name: string | null; phone: string | null; email: string | null }
-  const property = job.properties as {
-    service_address: string; city: string | null; state: string | null
-    pet_warning: string | null; gate_code: string | null; access_notes: string | null
-    obstacle_notes: string | null; parking_notes: string | null
-  }
+  const customer = job.customers
+  const property = job.properties
 
   const customerName = `${customer.first_name}${customer.last_name ? ' ' + customer.last_name : ''}`
   const address      = `${property.service_address}${property.city ? ', ' + property.city : ''}`
@@ -182,7 +193,7 @@ export default async function JobDetailPage({
       {/* Actions */}
       <div className="card">
         <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Actions</div>
-        <JobActions job={job as unknown as Job} venmoHandle={venmoHandle} customerPhone={customer.phone} customerFirstName={customer.first_name} />
+        <JobActions job={job} venmoHandle={venmoHandle} customerPhone={customer.phone} customerFirstName={customer.first_name} />
       </div>
 
       {/* Reschedule history */}

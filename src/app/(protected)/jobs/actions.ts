@@ -5,6 +5,12 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import type { FormState } from '@/types/database'
 
+type JobRescheduleFields = {
+  reschedule_count: number | null
+  reschedule_log: string | null
+  scheduled_date: string | null
+}
+
 export async function createJob(
   prevState: FormState,
   formData: FormData
@@ -293,12 +299,14 @@ export async function rescheduleJob(
   const notes = (formData.get('internal_notes') as string)?.trim() || null
 
   // Fetch current reschedule_count and log to append
-  const { data: existing } = await supabase
+  const { data: existingRaw } = await supabase
     .from('jobs')
     .select('reschedule_count, reschedule_log, scheduled_date')
     .eq('id', id)
     .eq('created_by', user.id)
     .single()
+
+  const existing = existingRaw as JobRescheduleFields | null
 
   if (!existing) return { error: 'Job not found.' }
 
