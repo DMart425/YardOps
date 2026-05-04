@@ -195,4 +195,4 @@ export interface EstimateItem {
   updated_at: string
 }
 
-export type FormState = { error: string | null; success?: string | null }
+export type FormState = { error: string | null; success?: string | null; savedAt?: number | null }

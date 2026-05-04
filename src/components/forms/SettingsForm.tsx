@@ -29,7 +29,7 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
 
   return (
     <form action={action} className="form">
-      <Toast message={state.success} />
+      <Toast message={state.success} triggerKey={state.savedAt} />
       {state.error && <div className="alert alert-error">{state.error}</div>}
 
       <div className="form-section-label">Pricing Defaults</div>

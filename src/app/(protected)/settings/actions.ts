@@ -40,7 +40,7 @@ export async function saveSettings(
   if (error) return { error: error.message }
 
   revalidatePath('/settings')
-  return { error: null, success: 'Settings saved.' }
+  return { error: null, success: 'Settings saved.', savedAt: Date.now() }
 }
 
 export async function addBlackoutDate(date: string): Promise<{ error?: string }> {
