@@ -56,6 +56,10 @@ export default async function CustomerDetailPage({
   const propertyRows = (properties as Pick<Property, 'id' | 'property_name' | 'service_address' | 'city' | 'service_frequency' | 'status'>[] | null) ?? []
   const activeProperties = propertyRows.filter(p => p.status !== 'archived')
   const archivedProperties = propertyRows.filter(p => p.status === 'archived')
+  const mapProperty = activeProperties[0] ?? archivedProperties[0] ?? null
+  const mapsAddress = mapProperty
+    ? [mapProperty.service_address, mapProperty.city].filter(Boolean).join(', ')
+    : null
 
   function fmtDate(d: string) {
     return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -80,7 +84,7 @@ export default async function CustomerDetailPage({
       </div>
 
       {/* Contact quick info */}
-      {(customerRow.phone || customerRow.email) && (
+      {(customerRow.phone || customerRow.email || mapsAddress) && (
         <div className="card" style={{ marginBottom: '1.5rem' }}>
           {customerRow.phone && (
             <a href={`tel:${customerRow.phone}`} className="contact-row">
@@ -97,6 +101,28 @@ export default async function CustomerDetailPage({
               Prefers: {customerRow.preferred_contact_method.replace('_', ' ')}
             </div>
           )}
+          {(customerRow.phone || customerRow.email || customerRow.preferred_contact_method) && <div className="divider" />}
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {customerRow.phone && (
+              <a href={`tel:${customerRow.phone}`} className="btn btn-sm btn-secondary">📞 Call</a>
+            )}
+            {customerRow.phone && (
+              <a href={`sms:${customerRow.phone}`} className="btn btn-sm btn-secondary">💬 Text</a>
+            )}
+            {customerRow.email && (
+              <a href={`mailto:${customerRow.email}`} className="btn btn-sm btn-secondary">✉ Email</a>
+            )}
+            {mapsAddress && (
+              <a
+                href={`https://maps.google.com/?q=${encodeURIComponent(mapsAddress)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-sm btn-secondary"
+              >
+                📍 Maps
+              </a>
+            )}
+          </div>
         </div>
       )}
 
