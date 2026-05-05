@@ -8,7 +8,7 @@ import { calculateEstimate, DEFAULT_SETTINGS, formatMinutes, acrestoMowMinutes }
 import type { EstimateInputs } from '@/lib/pricing'
 import ParcelLookup from '@/components/ParcelLookup'
 
-interface CustomerOption { id: string; first_name: string; last_name: string | null }
+interface CustomerOption { id: string; first_name: string; last_name: string | null; phone?: string | null }
 interface PropertyOption {
   id: string; customer_id: string; property_name: string | null
   service_address: string; city: string | null
@@ -84,6 +84,8 @@ export function EstimateForm({
   cancelHref?: string
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(action, { error: null })
+  const [customerMode, setCustomerMode] = useState<'existing' | 'new'>('existing')
+  const [propertyMode, setPropertyMode] = useState<'existing' | 'new'>('existing')
   const [customerId, setCustomerId] = useState(defaultCustomerId ?? '')
   const [propertyId, setPropertyId] = useState(defaultPropertyId ?? '')
   const [inputs, setInputs] = useState<EstimateInputs>(() => initialInputs ?? defaultInputs(defaultHourlyRate))
@@ -100,6 +102,7 @@ export function EstimateForm({
 
   const filteredProps = customerId ? properties.filter(p => p.customer_id === customerId) : properties
   const selectedProp  = properties.find(p => p.id === propertyId)
+  const selectedCustomer = customers.find(c => c.id === customerId)
 
   useEffect(() => {
     if (!selectedProp) return
@@ -162,6 +165,60 @@ export function EstimateForm({
       <div className="form-section-label">Customer &amp; Property</div>
 
       <div className="form-field">
+        <label className="form-label">Customer Entry Mode</label>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <label className="checkbox-label" style={{ margin: 0 }}>
+            <input
+              type="radio"
+              name="customer_mode_ui"
+              value="existing"
+              checked={customerMode === 'existing'}
+              onChange={() => setCustomerMode('existing')}
+            />
+            Existing Customer
+          </label>
+          <label className="checkbox-label" style={{ margin: 0 }}>
+            <input
+              type="radio"
+              name="customer_mode_ui"
+              value="new"
+              checked={customerMode === 'new'}
+              onChange={() => setCustomerMode('new')}
+            />
+            New Customer
+          </label>
+        </div>
+      </div>
+
+      {customerMode === 'new' && (
+        <div className="card" style={{ marginBottom: '0.75rem', padding: '10px' }}>
+          <div className="text-small text-muted" style={{ marginBottom: '8px' }}>
+            New customer inline creation is coming next. For now, select an existing customer to save.
+          </div>
+          <div className="form-row">
+            <div className="form-field">
+              <label className="form-label">First name</label>
+              <input className="form-input" placeholder="Coming next" disabled />
+            </div>
+            <div className="form-field">
+              <label className="form-label">Last name</label>
+              <input className="form-input" placeholder="Coming next" disabled />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-field">
+              <label className="form-label">Phone</label>
+              <input className="form-input" placeholder="Coming next" disabled />
+            </div>
+            <div className="form-field">
+              <label className="form-label">Email (optional)</label>
+              <input className="form-input" placeholder="Coming next" disabled />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="form-field">
         <label className="form-label">Customer *</label>
         <select name="customer_id" className="form-select" required value={customerId}
           onChange={e => { setCustomerId(e.target.value); if (selectedProp?.customer_id !== e.target.value) setPropertyId('') }}>
@@ -170,7 +227,82 @@ export function EstimateForm({
             <option key={c.id} value={c.id}>{c.first_name}{c.last_name ? ' ' + c.last_name : ''}</option>
           ))}
         </select>
+        {selectedCustomer && (
+          selectedCustomer.phone ? (
+            <p className="form-hint">
+              SMS phone on file: {selectedCustomer.phone}
+            </p>
+          ) : (
+            <p className="form-hint" style={{ color: 'var(--color-warning)' }}>
+              No customer phone on file. SMS estimate sending will not be available until a phone number is added.
+            </p>
+          )
+        )}
       </div>
+
+      <div className="form-field">
+        <label className="form-label">Property Entry Mode</label>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <label className="checkbox-label" style={{ margin: 0 }}>
+            <input
+              type="radio"
+              name="property_mode_ui"
+              value="existing"
+              checked={propertyMode === 'existing'}
+              onChange={() => setPropertyMode('existing')}
+            />
+            Existing Property
+          </label>
+          <label className="checkbox-label" style={{ margin: 0 }}>
+            <input
+              type="radio"
+              name="property_mode_ui"
+              value="new"
+              checked={propertyMode === 'new'}
+              onChange={() => setPropertyMode('new')}
+            />
+            New Property
+          </label>
+        </div>
+      </div>
+
+      {propertyMode === 'new' && (
+        <div className="card" style={{ marginBottom: '0.75rem', padding: '10px' }}>
+          <div className="text-small text-muted" style={{ marginBottom: '8px' }}>
+            New property inline creation is coming next. For now, select an existing property to save.
+          </div>
+          <div className="form-row">
+            <div className="form-field">
+              <label className="form-label">Street address</label>
+              <input className="form-input" placeholder="Coming next" disabled />
+            </div>
+            <div className="form-field">
+              <label className="form-label">City</label>
+              <input className="form-input" placeholder="Coming next" disabled />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-field">
+              <label className="form-label">County</label>
+              <input className="form-input" placeholder="Coming next" disabled />
+            </div>
+            <div className="form-field">
+              <label className="form-label">State</label>
+              <input className="form-input" value="AL" disabled />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-field">
+              <label className="form-label">Parcel acres (optional)</label>
+              <input className="form-input" placeholder="Coming next" disabled />
+            </div>
+            <div className="form-field">
+              <label className="form-label">Mowable acres (optional)</label>
+              <input className="form-input" placeholder="Coming next" disabled />
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="form-field">
         <label className="form-label">Property *</label>
