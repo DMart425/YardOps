@@ -136,7 +136,9 @@ function computeParcel(p: ParcelResult): ImportedParcel | null {
   ])
   const sqftParcelAcres = p.lot_sqft ? p.lot_sqft / 43560 : null
   const parcelAcresBase = rawParcelAcres ?? sqftParcelAcres
-  const parcelAcres = parcelAcresBase != null ? Math.round(parcelAcresBase * 100) / 100 : null
+  const parcelAcres = (parcelAcresBase != null && parcelAcresBase > 0)
+    ? Math.round(parcelAcresBase * 100) / 100
+    : null
 
   const timberAcres = pickFirstNumber([
     attrs['TimberAcres'],
@@ -277,10 +279,10 @@ export default function ParcelLookup({ onImport }: Props) {
                       <span style={{ color: 'var(--color-primary)' }}>
                         {computed.parcelAcres != null && computed.mowableAcres != null && computed.mowingMinutes != null
                           ? `${computed.parcelAcres.toFixed(2)} ac total · ~${computed.mowableAcres.toFixed(2)} mowable · ${computed.mowingMinutes} min`
-                          : 'No lot size data'}
+                          : 'No usable lot size data'}
                       </span>
                     ) : (
-                      <span>No lot size data</span>
+                      <span>No usable lot size data</span>
                     )}
                   </div>
                 </button>
@@ -301,7 +303,7 @@ export default function ParcelLookup({ onImport }: Props) {
             {imported.address}
             {imported.parcelAcres != null && imported.mowableAcres != null && imported.mowingMinutes != null
               ? ` · ${imported.parcelAcres.toFixed(2)} ac · ~${imported.mowableAcres.toFixed(2)} mowable → ${imported.mowingMinutes} min`
-              : ' · No lot size data available'}
+              : ' · No usable lot size data'}
           </span>
         </div>
       )}

@@ -7,6 +7,7 @@ import { Toast } from '@/components/Toast'
 import { calculateEstimate, DEFAULT_SETTINGS, formatMinutes, acrestoMowMinutes, estimateMowableAcres } from '@/lib/pricing'
 import type { EstimateInputs } from '@/lib/pricing'
 import ParcelLookup from '@/components/ParcelLookup'
+import type { ImportedParcel } from '@/components/ParcelLookup'
 
 interface CustomerOption { id: string; first_name: string; last_name: string | null; phone?: string | null }
 interface PropertyOption {
@@ -123,6 +124,7 @@ export function EstimateForm({
   const [newPropertyMowableAcres, setNewPropertyMowableAcres] = useState('')
   const [newPropertyParcelMessage, setNewPropertyParcelMessage] = useState<string | null>(null)
   const [parcelLookupPending, setParcelLookupPending] = useState(false)
+  const [importedEstimateParcel, setImportedEstimateParcel] = useState<ImportedParcel | null>(null)
   const autoFillReadyRef = useRef(initialInputs == null)
 
   const filteredProps = customerId ? properties.filter(p => p.customer_id === customerId) : properties
@@ -518,10 +520,70 @@ export function EstimateForm({
       {(!inlineEnabled || propertyMode === 'existing') && (
         <div className="form-field">
           <label className="form-label">Look up parcel by address</label>
-          <ParcelLookup onImport={({ mowingMinutes }) => {
-            if (mowingMinutes != null) set('mowingMinutes', mowingMinutes)
+          <ParcelLookup onImport={(parcel) => {
+            setImportedEstimateParcel(parcel)
+            if (parcel.mowingMinutes != null) set('mowingMinutes', parcel.mowingMinutes)
           }} />
           <p className="form-hint">Search parcel data to auto-fill mow time when lot size is available</p>
+
+          {importedEstimateParcel && (
+            <div className="card" style={{ marginTop: '10px' }}>
+              <div className="section-heading" style={{ marginBottom: '8px' }}>Imported Parcel</div>
+
+              {(importedEstimateParcel.streetAddress || importedEstimateParcel.address) && (
+                <div className="card-row">
+                  <span className="text-muted text-small">Address</span>
+                  <span className="text-small">{importedEstimateParcel.streetAddress || importedEstimateParcel.address}</span>
+                </div>
+              )}
+
+              {(importedEstimateParcel.city || importedEstimateParcel.state || importedEstimateParcel.postalCode) && (
+                <div className="card-row">
+                  <span className="text-muted text-small">City / State / ZIP</span>
+                  <span className="text-small">
+                    {[
+                      importedEstimateParcel.city,
+                      importedEstimateParcel.state,
+                      importedEstimateParcel.postalCode,
+                    ].filter(Boolean).join(', ')}
+                  </span>
+                </div>
+              )}
+
+              <div className="card-row">
+                <span className="text-muted text-small">County</span>
+                <span className="text-small">{importedEstimateParcel.county || 'Not provided'}</span>
+              </div>
+
+              {importedEstimateParcel.parcelAcres != null && (
+                <div className="card-row">
+                  <span className="text-muted text-small">Parcel Acres</span>
+                  <span className="text-small">{importedEstimateParcel.parcelAcres.toFixed(2)} ac</span>
+                </div>
+              )}
+
+              {importedEstimateParcel.mowableAcres != null && (
+                <div className="card-row">
+                  <span className="text-muted text-small">Est. Mowable Acres</span>
+                  <span className="text-small">~{importedEstimateParcel.mowableAcres.toFixed(2)} ac</span>
+                </div>
+              )}
+
+              {importedEstimateParcel.mowingMinutes != null && (
+                <div className="card-row">
+                  <span className="text-muted text-small">Est. Mowing Minutes</span>
+                  <span className="text-small">{importedEstimateParcel.mowingMinutes} min</span>
+                </div>
+              )}
+
+              {importedEstimateParcel.parcelAcres == null && (
+                <div className="card-row">
+                  <span className="text-muted text-small">Lot Size</span>
+                  <span className="text-small">No usable lot size data</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
       <div className="form-row">
