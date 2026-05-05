@@ -190,6 +190,38 @@ export default async function JobDetailPage({
         </div>
       )}
 
+      {/* Service scope */}
+      {(job.internal_notes || job.customer_notes || job.quoted_total != null) && (
+        <div className="card" style={{ marginBottom: '1rem' }}>
+          <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Service Scope</div>
+
+          {job.quoted_total != null && (
+            <div className="card-row" style={{ marginBottom: '8px' }}>
+              <span className="text-small text-muted">Quoted total</span>
+              <span className="text-small font-bold">${Number(job.quoted_total).toFixed(2)}</span>
+            </div>
+          )}
+
+          {job.internal_notes && (
+            <div style={{ marginBottom: job.customer_notes ? '10px' : 0 }}>
+              <span className="text-small text-muted">Operator checklist</span>
+              <p className="text-small" style={{ marginTop: '4px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {job.internal_notes}
+              </p>
+            </div>
+          )}
+
+          {job.customer_notes && (
+            <div>
+              <span className="text-small text-muted">Customer notes</span>
+              <p className="text-small" style={{ marginTop: '4px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {job.customer_notes}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Actions */}
       <div className="card">
         <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Actions</div>

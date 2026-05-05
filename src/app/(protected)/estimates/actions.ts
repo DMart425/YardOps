@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import type { FormState } from '@/types/database'
+import { calculateEstimate, formatMinutes, type EstimateInputs } from '@/lib/pricing'
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function str(fd: FormData, key: string) {
@@ -26,6 +27,76 @@ type EstimatePayload = {
 type EstimatePayloadParseResult =
   | { payload: EstimatePayload }
   | { error: string }
+
+type JobScope = {
+  title: string
+  servicePackage: string | null
+  internalNotes: string
+}
+
+function deriveJobScopeFromEstimate(estimate: { estimate_inputs: Record<string, unknown> | null; estimated_minutes: number | null }): JobScope {
+  const rawInputs = estimate.estimate_inputs
+  if (!rawInputs) {
+    return {
+      title: 'Lawn Service',
+      servicePackage: null,
+      internalNotes: 'Estimate Scope:\n- Service details unavailable on this estimate.',
+    }
+  }
+
+  try {
+    const result = calculateEstimate(rawInputs as unknown as EstimateInputs)
+    const { breakdown, lineItems, totalMinutes } = result
+
+    const coreServices: string[] = []
+    if (breakdown.mowingMinutes > 0) coreServices.push('Mow')
+    if (breakdown.weedEatingMinutes > 0) coreServices.push('Weed Eat')
+    if (breakdown.edgingMinutes > 0) coreServices.push('Edge')
+    if (breakdown.blowOffMinutes > 0) coreServices.push('Blow Off')
+
+    const serviceSummary = coreServices.length > 0 ? coreServices.join(', ') : 'Standard Service'
+    const title = coreServices.length > 0 ? `Lawn Service - ${serviceSummary}` : 'Lawn Service'
+
+    const hasMow = breakdown.mowingMinutes > 0
+    const hasWeed = breakdown.weedEatingMinutes > 0
+    const hasEdge = breakdown.edgingMinutes > 0
+    const hasBlow = breakdown.blowOffMinutes > 0
+
+    let servicePackage: string | null = null
+    if (hasMow && !hasWeed && !hasEdge && !hasBlow) servicePackage = 'mow_only'
+    else if (hasMow && hasWeed && !hasEdge && hasBlow) servicePackage = 'mow_trim_blow'
+    else if (!hasMow && (hasWeed || hasEdge || hasBlow)) servicePackage = 'trim_cleanup'
+    else if (hasMow && (hasWeed || hasEdge || hasBlow)) servicePackage = 'full_service'
+
+    const checklist = [
+      'Estimate Scope:',
+      `- Core services: ${serviceSummary}`,
+      `- Estimated time: ${formatMinutes(Math.max(estimate.estimated_minutes ?? totalMinutes, 0))}`,
+    ]
+
+    lineItems
+      .filter(item => item.isAddOn)
+      .forEach(item => {
+        checklist.push(`- Add-on: ${item.label}${item.price != null ? ` (+$${item.price.toFixed(2)})` : ''}`)
+      })
+
+    if (breakdown.obstacleMinutes > 0) {
+      checklist.push(`- Extra obstacle time: ${breakdown.obstacleMinutes} min`)
+    }
+
+    return {
+      title,
+      servicePackage,
+      internalNotes: checklist.join('\n'),
+    }
+  } catch {
+    return {
+      title: 'Lawn Service',
+      servicePackage: null,
+      internalNotes: 'Estimate Scope:\n- Unable to parse estimate scope details.',
+    }
+  }
+}
 
 function parseEstimatePayload(formData: FormData): EstimatePayloadParseResult {
   let estimateInputs: Record<string, unknown> | null = null
@@ -136,6 +207,8 @@ export async function convertToJob(
 
   if (!estimate) return { error: 'Estimate not found.' }
 
+  const scope = deriveJobScopeFromEstimate(estimate)
+
   const { data: job, error } = await supabase
     .from('jobs')
     .insert({
@@ -143,11 +216,15 @@ export async function convertToJob(
       customer_id:     estimate.customer_id,
       property_id:     estimate.property_id,
       estimate_id:     estimateId,
-      title:           'Lawn Service',
+      title:           scope.title,
+      service_package: scope.servicePackage,
       job_type:        'one_time',
       scheduled_date:  str(formData, 'scheduled_date'),
+      quoted_total:    estimate.total,
       price:           estimate.total,
       payment_status:  'unpaid',
+      internal_notes:  scope.internalNotes,
+      customer_notes:  estimate.notes,
       status:          'scheduled',
     })
     .select('id')
