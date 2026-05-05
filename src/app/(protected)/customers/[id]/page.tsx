@@ -4,6 +4,7 @@ import Link from 'next/link'
 import type { Customer, Property } from '@/types/database'
 import { CustomerEditForm } from './_form'
 import { CopyPortalLinkButton } from '@/components/CopyPortalLinkButton'
+import { CustomerDangerZone } from './CustomerDangerZone'
 
 type CustomerWithTags = Customer & { tags?: string[] | null }
 
@@ -52,6 +53,9 @@ export default async function CustomerDetailPage({
     .filter((d): d is string => !!d)
     .sort()
     .pop()
+  const propertyRows = (properties as Pick<Property, 'id' | 'property_name' | 'service_address' | 'city' | 'service_frequency' | 'status'>[] | null) ?? []
+  const activeProperties = propertyRows.filter(p => p.status !== 'archived')
+  const archivedProperties = propertyRows.filter(p => p.status === 'archived')
 
   function fmtDate(d: string) {
     return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -126,19 +130,19 @@ export default async function CustomerDetailPage({
       <div className="detail-section">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <div className="section-heading" style={{ marginBottom: 0 }}>
-            Properties ({properties?.length ?? 0})
+            Properties ({activeProperties.length})
           </div>
           <Link href={`/properties/new?customer_id=${id}`} className="btn btn-sm btn-secondary">
             + Add Property
           </Link>
         </div>
 
-        {!properties?.length ? (
+        {!activeProperties.length ? (
           <div className="card">
             <p className="text-muted text-small">No properties yet.</p>
           </div>
         ) : (
-          (properties as Pick<Property, 'id' | 'property_name' | 'service_address' | 'city' | 'service_frequency' | 'status'>[]).map((p) => (
+          activeProperties.map((p) => (
             <Link key={p.id} href={`/properties/${p.id}`} style={{ display: 'block' }}>
               <div className="card">
                 <div className="card-row">
@@ -152,6 +156,28 @@ export default async function CustomerDetailPage({
               </div>
             </Link>
           ))
+        )}
+
+        {archivedProperties.length > 0 && (
+          <div style={{ marginTop: '14px' }}>
+            <div className="section-heading" style={{ marginBottom: '8px', fontSize: '0.95rem' }}>
+              Archived Properties ({archivedProperties.length})
+            </div>
+            {archivedProperties.map((p) => (
+              <Link key={p.id} href={`/properties/${p.id}`} style={{ display: 'block' }}>
+                <div className="card" style={{ opacity: 0.92 }}>
+                  <div className="card-row">
+                    <div>
+                      <div className="card-title">{p.property_name ?? p.service_address}</div>
+                      {p.property_name && <div className="card-meta">{p.service_address}{p.city ? `, ${p.city}` : ''}</div>}
+                      <div className="card-meta">{p.service_frequency?.replace('_', ' ')}</div>
+                    </div>
+                    <span className={`pill pill-${p.status}`}>{p.status}</span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
         )}
       </div>
 
@@ -208,6 +234,8 @@ export default async function CustomerDetailPage({
           <CustomerEditForm customer={customerRow} />
         </div>
       </div>
+
+      <CustomerDangerZone customerId={customerRow.id} />
     </div>
   )
 }

@@ -6,6 +6,8 @@ import { PropertyForm } from '@/components/forms/PropertyForm'
 import { updateProperty } from '../actions'
 import { ApplyParcelButton } from '@/app/(protected)/leads/[id]/ApplyParcelButton'
 import { estimateMowableAcres } from '@/lib/pricing'
+import { PropertyDangerZone } from './PropertyDangerZone'
+import { PropertyAssignmentSection } from './PropertyAssignmentSection'
 
 export default async function PropertyDetailPage({
   params,
@@ -44,6 +46,15 @@ export default async function PropertyDetailPage({
     .pop()
 
   const p = property as Property
+  const { data: currentCustomerData } = await supabase
+    .from('customers')
+    .select('id, first_name, last_name, status')
+    .eq('id', p.customer_id)
+    .maybeSingle()
+  const currentCustomer = currentCustomerData ?? (customers ?? []).find(c => c.id === p.customer_id) ?? null
+  const currentCustomerName = currentCustomer
+    ? `${currentCustomer.first_name}${currentCustomer.last_name ? ` ${currentCustomer.last_name}` : ''}`
+    : 'Unknown customer'
 
   // Parcel lookup
   type ParcelRow = {
@@ -290,6 +301,17 @@ export default async function PropertyDetailPage({
           />
         </div>
       </div>
+
+      <PropertyAssignmentSection
+        propertyId={p.id}
+        currentCustomerName={currentCustomerName}
+        currentCustomerStatus={currentCustomer?.status ?? null}
+        currentCustomerId={p.customer_id}
+        customers={customers ?? []}
+        propertyStatus={p.status}
+      />
+
+      <PropertyDangerZone propertyId={p.id} />
     </div>
   )
 }

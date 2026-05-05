@@ -171,6 +171,188 @@ export async function applyParcelToProperty(
   return { error: null, success: 'Parcel data applied.' }
 }
 
+function val(formData: FormData, key: string): string {
+  return ((formData.get(key) as string) ?? '').trim()
+}
+
+export async function archiveProperty(
+  id: string,
+  prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  void prevState
+  void formData
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  // TODO: Future: restrict archive/delete controls to owner/admin company roles once company_members exists.
+  const { error } = await supabase
+    .from('properties')
+    .update({ status: 'archived' })
+    .eq('id', id)
+    .eq('created_by', user.id)
+
+  if (error) return { error: 'Unable to archive property right now. Please try again.' }
+
+  revalidatePath('/properties')
+  revalidatePath(`/properties/${id}`)
+  redirect('/properties')
+}
+
+export async function deletePropertyPermanently(
+  id: string,
+  prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  void prevState
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  // TODO: Future: restrict archive/delete controls to owner/admin company roles once company_members exists.
+  if (val(formData, 'delete_confirmation') !== 'DELETE') {
+    return { error: 'Type DELETE to confirm permanent property deletion.' }
+  }
+
+  const { data: property, error: propertyError } = await supabase
+    .from('properties')
+    .select('id')
+    .eq('id', id)
+    .eq('created_by', user.id)
+    .maybeSingle()
+
+  if (propertyError || !property) {
+    return { error: 'Property not found.' }
+  }
+
+  const [{ count: jobsCount }, { count: estimatesCount }, { count: messagesCount }] = await Promise.all([
+    supabase
+      .from('jobs')
+      .select('id', { count: 'exact', head: true })
+      .eq('created_by', user.id)
+      .eq('property_id', id),
+    supabase
+      .from('estimates')
+      .select('id', { count: 'exact', head: true })
+      .eq('created_by', user.id)
+      .eq('property_id', id),
+    supabase
+      .from('message_logs')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('property_id', id),
+  ])
+
+  if ((jobsCount ?? 0) > 0 || (estimatesCount ?? 0) > 0 || (messagesCount ?? 0) > 0) {
+    return { error: 'This property has business history. Archive this property instead of deleting permanently.' }
+  }
+
+  const { error: deleteError } = await supabase
+    .from('properties')
+    .delete()
+    .eq('id', id)
+    .eq('created_by', user.id)
+
+  if (deleteError) {
+    return { error: 'Unable to permanently delete property right now. Please try again.' }
+  }
+
+  revalidatePath('/properties')
+  redirect('/properties')
+}
+
+export async function reassignProperty(
+  id: string,
+  prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  void prevState
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const newCustomerId = str(formData, 'new_customer_id')
+  if (!newCustomerId) return { error: 'Please select a customer to reassign this property.' }
+
+  const { data: property, error: propertyError } = await supabase
+    .from('properties')
+    .select('id, customer_id')
+    .eq('id', id)
+    .eq('created_by', user.id)
+    .maybeSingle()
+
+  if (propertyError || !property) {
+    return { error: 'Property not found.' }
+  }
+
+  const { data: customer, error: customerError } = await supabase
+    .from('customers')
+    .select('id')
+    .eq('id', newCustomerId)
+    .eq('created_by', user.id)
+    .maybeSingle()
+
+  if (customerError || !customer) {
+    return { error: 'Selected customer not found.' }
+  }
+
+  const previousCustomerId = property.customer_id
+
+  const { error: updateError } = await supabase
+    .from('properties')
+    .update({ customer_id: newCustomerId })
+    .eq('id', id)
+    .eq('created_by', user.id)
+
+  if (updateError) {
+    return { error: 'Unable to reassign property right now. Please try again.' }
+  }
+
+  revalidatePath('/properties')
+  revalidatePath(`/properties/${id}`)
+  if (previousCustomerId) revalidatePath(`/customers/${previousCustomerId}`)
+  revalidatePath(`/customers/${newCustomerId}`)
+  return { error: null, success: 'Property reassigned.' }
+}
+
+export async function restoreProperty(
+  id: string,
+  prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  void prevState
+  void formData
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: property, error: propertyError } = await supabase
+    .from('properties')
+    .select('id')
+    .eq('id', id)
+    .eq('created_by', user.id)
+    .maybeSingle()
+
+  if (propertyError || !property) {
+    return { error: 'Property not found.' }
+  }
+
+  const { error: updateError } = await supabase
+    .from('properties')
+    .update({ status: 'active' })
+    .eq('id', id)
+    .eq('created_by', user.id)
+
+  if (updateError) {
+    return { error: 'Unable to restore property right now. Please try again.' }
+  }
+
+  revalidatePath('/properties')
+  revalidatePath(`/properties/${id}`)
+  return { error: null, success: 'Property restored.' }
+}
+
 /**
  * Backfill latitude/longitude for all properties owned by the current user
  * that are missing coordinates. Runs sequentially with a 1.1s pause between
