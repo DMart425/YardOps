@@ -518,8 +518,10 @@ export function EstimateForm({
       {(!inlineEnabled || propertyMode === 'existing') && (
         <div className="form-field">
           <label className="form-label">Look up parcel by address</label>
-          <ParcelLookup onImport={({ mowingMinutes }) => set('mowingMinutes', mowingMinutes)} />
-          <p className="form-hint">Search the Houston Co. parcel DB to auto-fill mow time</p>
+          <ParcelLookup onImport={({ mowingMinutes }) => {
+            if (mowingMinutes != null) set('mowingMinutes', mowingMinutes)
+          }} />
+          <p className="form-hint">Search parcel data to auto-fill mow time when lot size is available</p>
         </div>
       )}
       <div className="form-row">

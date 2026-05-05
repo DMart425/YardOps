@@ -246,11 +246,19 @@ src/
 - `land_use`, `lot_sqft`, `lat`, `lon`
 - `raw_json` (full response from parcel API)
 
+#### **parcel_sources** (parcel dataset metadata)
+- `id`, `source_key` (unique)
+- `display_name`, `state`, `county`
+- `provider`, `active`, `notes`
+- `created_at`, `updated_at`
+- `parcels.source` matches `parcel_sources.source_key` for source metadata joins
+
 #### **expenses**
 - `id`, `user_id`, `job_id` (nullable)
 - `category` ('fuel' | 'equipment' | 'supplies' | 'repairs' | 'insurance' | 'labor' | 'other')
 - `vendor`, `description`, `amount`, `purchased_at`
 - `notes`, `receipt_url`
+
 
 #### **equipment**
 - `id`, `created_by`, `name`, `category`, `purchase_date`, `purchase_price`
@@ -283,6 +291,18 @@ auth.users
   ├→ message_logs (1:many)
   └→ push_subscriptions (1:many)
 ```
+
+#### Parcel Import Metadata
+
+- Parcel lookup returns cached `parcels` rows plus joined `parcel_sources` metadata.
+- `parcels.source` is matched to `parcel_sources.source_key` for source metadata.
+- County fallback uses parcel raw fields first, then `parcel_sources.county` when parcel attributes do not include county.
+- State fallback uses parcel raw fields first, then `parcel_sources.state` when parcel attributes do not include state.
+- Parcel raw payloads can provide import-ready location fields such as `PhysAddr`, `CityName`, `StateAbbr`, and `ZipCode`.
+- City and ZIP are imported only when present in parcel data and are not guessed.
+
+- In `PropertyForm`, `service_address`, `city`, `state`, and `county` are required fields at save time.
+- In `PropertyForm` customer selection, lead-status customers remain selectable and are labeled `(Lead)`.
 
 ### Lead → Customer → Property → Job Flow
 

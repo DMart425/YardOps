@@ -17,6 +17,12 @@ function num(formData: FormData, key: string): number | null {
   return isNaN(n) ? null : n
 }
 
+function requiredField(formData: FormData, key: string, label: string): string | { error: string } {
+  const value = ((formData.get(key) as string) ?? '').trim()
+  if (!value) return { error: `${label} is required.` }
+  return value
+}
+
 export async function createProperty(
   prevState: FormState,
   formData: FormData
@@ -28,9 +34,14 @@ export async function createProperty(
   const customerId = str(formData, 'customer_id')
   if (!customerId) return { error: 'Please select a customer.' }
 
-  const address = (formData.get('service_address') as string).trim()
-  const city = str(formData, 'city')
-  const state = str(formData, 'state') ?? 'AL'
+  const address = requiredField(formData, 'service_address', 'Street address')
+  if (typeof address !== 'string') return address
+  const city = requiredField(formData, 'city', 'City')
+  if (typeof city !== 'string') return city
+  const state = requiredField(formData, 'state', 'State')
+  if (typeof state !== 'string') return state
+  const county = requiredField(formData, 'county', 'County')
+  if (typeof county !== 'string') return county
   const postalCode = str(formData, 'postal_code')
 
   // Geocode the address (best-effort, non-blocking on failure)
@@ -44,9 +55,10 @@ export async function createProperty(
     city,
     state,
     postal_code: postalCode,
-    county: str(formData, 'county'),
+    county,
     latitude: geo?.latitude ?? null,
     longitude: geo?.longitude ?? null,
+    parcel_id: str(formData, 'parcel_id'),
     parcel_acres: num(formData, 'parcel_acres'),
     estimated_mowable_acres: num(formData, 'estimated_mowable_acres'),
     lot_size_source: str(formData, 'lot_size_source') ?? 'manual',
@@ -83,9 +95,14 @@ export async function updateProperty(
   const customerId = str(formData, 'customer_id')
   if (!customerId) return { error: 'Please select a customer.' }
 
-  const address = (formData.get('service_address') as string).trim()
-  const city = str(formData, 'city')
-  const state = str(formData, 'state') ?? 'AL'
+  const address = requiredField(formData, 'service_address', 'Street address')
+  if (typeof address !== 'string') return address
+  const city = requiredField(formData, 'city', 'City')
+  if (typeof city !== 'string') return city
+  const state = requiredField(formData, 'state', 'State')
+  if (typeof state !== 'string') return state
+  const county = requiredField(formData, 'county', 'County')
+  if (typeof county !== 'string') return county
   const postalCode = str(formData, 'postal_code')
 
   // If property has no lat/lon yet, geocode it now
@@ -109,11 +126,12 @@ export async function updateProperty(
       city,
       state,
       postal_code: postalCode,
-      county: str(formData, 'county'),
+      county,
       ...geoUpdate,
+      parcel_id: str(formData, 'parcel_id'),
       parcel_acres: num(formData, 'parcel_acres'),
       estimated_mowable_acres: num(formData, 'estimated_mowable_acres'),
-      lot_size_source: str(formData, 'lot_size_source'),
+      lot_size_source: str(formData, 'lot_size_source') ?? 'manual',
       default_service_package: str(formData, 'default_service_package'),
       default_price: num(formData, 'default_price'),
       service_frequency: (formData.get('service_frequency') as string) || 'one_time',

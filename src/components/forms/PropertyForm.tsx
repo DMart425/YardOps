@@ -1,11 +1,13 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useState } from 'react'
 import Link from 'next/link'
 import type { FormState, Property } from '@/types/database'
 import { Toast } from '@/components/Toast'
+import ParcelLookup from '@/components/ParcelLookup'
+import type { ImportedParcel } from '@/components/ParcelLookup'
 
-type CustomerOption = { id: string; first_name: string; last_name: string | null }
+type CustomerOption = { id: string; first_name: string; last_name: string | null; status?: string | null }
 
 type Props = {
   action: (prevState: FormState, formData: FormData) => Promise<FormState>
@@ -25,11 +27,41 @@ export function PropertyForm({
   defaultCustomerId,
 }: Props) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(action, { error: null })
+  const [serviceAddress, setServiceAddress] = useState(defaultValues?.service_address ?? '')
+  const [city, setCity] = useState(defaultValues?.city ?? '')
+  const [stateCode, setStateCode] = useState(defaultValues?.state ?? '')
+  const [postalCode, setPostalCode] = useState(defaultValues?.postal_code ?? '')
+  const [county, setCounty] = useState(defaultValues?.county ?? '')
+  const [parcelId, setParcelId] = useState(defaultValues?.parcel_id ?? '')
+  const [parcelAcres, setParcelAcres] = useState(defaultValues?.parcel_acres?.toFixed(2) ?? '')
+  const [mowableAcres, setMowableAcres] = useState(defaultValues?.estimated_mowable_acres?.toFixed(2) ?? '')
+  const [lotSizeSource, setLotSizeSource] = useState(defaultValues?.lot_size_source ?? 'manual')
+  const [parcelHelper, setParcelHelper] = useState<string | null>(null)
+
+  function handleParcelImport(parcel: ImportedParcel) {
+    setServiceAddress(parcel.streetAddress || parcel.address)
+    if (parcel.city) setCity(parcel.city)
+    if (parcel.state) setStateCode(parcel.state)
+    if (parcel.postalCode) setPostalCode(parcel.postalCode)
+    if (parcel.county) setCounty(parcel.county)
+    setParcelId(parcel.parcelId ?? '')
+    setParcelAcres(parcel.parcelAcres != null ? parcel.parcelAcres.toFixed(2) : '')
+    setMowableAcres(parcel.mowableAcres != null ? parcel.mowableAcres.toFixed(2) : '')
+    setLotSizeSource(parcel.lotSizeSource)
+
+    const helperBits = [
+      parcel.landUse ? `Land use: ${parcel.landUse}` : null,
+      parcel.source ? `Source: ${parcel.source}` : null,
+    ].filter(Boolean)
+    setParcelHelper(helperBits.length > 0 ? helperBits.join(' · ') : null)
+  }
 
   return (
     <form action={formAction} className="form">
       <Toast message={state.success} />
       {state.error && <div className="alert alert-error">{state.error}</div>}
+      <input type="hidden" name="parcel_id" value={parcelId} />
+      <input type="hidden" name="lot_size_source" value={lotSizeSource} />
 
       {/* Customer */}
       <div className="form-section-label">Customer</div>
@@ -45,10 +77,19 @@ export function PropertyForm({
           <option value="">Select a customer…</option>
           {customers.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.first_name}{c.last_name ? ` ${c.last_name}` : ''}
+              {c.first_name}{c.last_name ? ` ${c.last_name}` : ''}{c.status === 'lead' ? ' (Lead)' : ''}
             </option>
           ))}
         </select>
+      </div>
+
+      {/* Parcel lookup */}
+      <div className="form-section-label">Parcel Lookup</div>
+      <div className="form-field">
+        <label className="form-label">Search parcel by address</label>
+        <ParcelLookup onImport={handleParcelImport} />
+        <span className="form-hint">Import parcel-backed address and acreage, then adjust any fields below before saving.</span>
+        {parcelHelper && <span className="form-hint">{parcelHelper}</span>}
       </div>
 
       {/* Address */}
@@ -74,22 +115,26 @@ export function PropertyForm({
           required
           className="form-input"
           placeholder="123 Main St"
-          defaultValue={defaultValues?.service_address ?? ''}
+          value={serviceAddress}
+          onChange={e => setServiceAddress(e.target.value)}
           autoCapitalize="words"
         />
       </div>
 
       <div className="form-row">
         <div className="form-field">
-          <label className="form-label" htmlFor="city">City</label>
+          <label className="form-label" htmlFor="city">City *</label>
           <input
             id="city"
             name="city"
             className="form-input"
             placeholder="Wicksburg"
-            defaultValue={defaultValues?.city ?? ''}
+            value={city}
+            onChange={e => setCity(e.target.value)}
             autoCapitalize="words"
+            required
           />
+          <span className="form-hint">Parcel import may not include city. Verify before saving.</span>
         </div>
         <div className="form-field">
           <label className="form-label" htmlFor="postal_code">ZIP</label>
@@ -98,7 +143,8 @@ export function PropertyForm({
             name="postal_code"
             className="form-input"
             placeholder="36352"
-            defaultValue={defaultValues?.postal_code ?? ''}
+            value={postalCode}
+            onChange={e => setPostalCode(e.target.value)}
             inputMode="numeric"
           />
         </div>
@@ -106,24 +152,30 @@ export function PropertyForm({
 
       <div className="form-row">
         <div className="form-field">
-          <label className="form-label" htmlFor="county">County</label>
+          <label className="form-label" htmlFor="county">County *</label>
           <input
             id="county"
             name="county"
             className="form-input"
-            placeholder="Houston"
-            defaultValue={defaultValues?.county ?? ''}
+            placeholder="County name"
+            value={county}
+            onChange={e => setCounty(e.target.value)}
             autoCapitalize="words"
+            required
           />
+          <span className="form-hint">Parcel import may not include county. Verify before saving.</span>
         </div>
         <div className="form-field">
-          <label className="form-label" htmlFor="state">State</label>
+          <label className="form-label" htmlFor="state">State *</label>
           <input
             id="state"
             name="state"
             className="form-input"
-            defaultValue={defaultValues?.state ?? 'AL'}
+            value={stateCode}
+            onChange={e => setStateCode(e.target.value.toUpperCase())}
+            required
           />
+          <span className="form-hint">Parcel import may not include state. Verify before saving.</span>
         </div>
       </div>
 
@@ -140,7 +192,8 @@ export function PropertyForm({
             min="0"
             className="form-input"
             placeholder="0.00"
-            defaultValue={defaultValues?.parcel_acres ?? ''}
+            value={parcelAcres}
+            onChange={e => setParcelAcres(e.target.value)}
             inputMode="decimal"
           />
           <span className="form-hint">From county records</span>
@@ -155,7 +208,8 @@ export function PropertyForm({
             min="0"
             className="form-input"
             placeholder="0.00"
-            defaultValue={defaultValues?.estimated_mowable_acres ?? ''}
+            value={mowableAcres}
+            onChange={e => setMowableAcres(e.target.value)}
             inputMode="decimal"
           />
           <span className="form-hint">Your estimate — used for pricing</span>
