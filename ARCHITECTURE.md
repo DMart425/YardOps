@@ -316,6 +316,18 @@ auth.users
 8. **Complete job** → `job.status = 'completed'`, captures `completed_at` and `amount_paid`.
 9. **Auto-schedule next** → If property `auto_schedule_next = true` and job is recurring, create next job automatically.
 
+### Current Lead Cleanup Controls (Verified)
+
+- Website lead delete requires typed `DELETE` confirmation and redirects to `/leads` on success.
+- Website lead one-click red X delete is removed from lead list cards.
+- Website lead "Clear All" control is removed.
+- Manual lead cleanup routes through customer detail Danger Zone controls.
+- Destructive controls are intentionally separated from normal convert/dismiss/status actions.
+
+### Current Estimate Parcel Lookup Limitation (Verified)
+
+- `EstimateForm` currently uses parcel lookup to fill mowing-time inputs only; it does not yet render a full parcel summary card.
+
 ---
 
 ## 6. Core Business Workflow
