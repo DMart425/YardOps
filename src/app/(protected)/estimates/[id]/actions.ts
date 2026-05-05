@@ -3,11 +3,60 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import type { MessageType } from '@/types/database'
+import type { FormState, MessageType } from '@/types/database'
 
-export async function deleteEstimate(estimateId: string) {
+function val(formData: FormData, key: string): string {
+  return ((formData.get(key) as string) ?? '').trim()
+}
+
+export async function deleteEstimate(
+  estimateId: string,
+  prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  void prevState
   const supabase = await createClient()
-  await supabase.from('estimates').delete().eq('id', estimateId)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  if (val(formData, 'delete_confirmation') !== 'DELETE') {
+    return { error: 'Type DELETE to confirm estimate deletion.' }
+  }
+
+  const { data: estimate, error: estimateError } = await supabase
+    .from('estimates')
+    .select('id, created_by, status, customer_id, property_id')
+    .eq('id', estimateId)
+    .eq('created_by', user.id)
+    .maybeSingle()
+
+  if (estimateError || !estimate) {
+    return { error: 'Estimate not found.' }
+  }
+
+  const { error: deleteItemsError } = await supabase
+    .from('estimate_items')
+    .delete()
+    .eq('created_by', user.id)
+    .eq('estimate_id', estimateId)
+
+  if (deleteItemsError) {
+    return { error: 'Unable to delete estimate line items right now. Please try again.' }
+  }
+
+  const { error: deleteEstimateError } = await supabase
+    .from('estimates')
+    .delete()
+    .eq('created_by', user.id)
+    .eq('id', estimateId)
+
+  if (deleteEstimateError) {
+    return { error: 'Unable to delete estimate right now. Please try again.' }
+  }
+
+  revalidatePath('/estimates')
+  if (estimate.customer_id) revalidatePath(`/customers/${estimate.customer_id}`)
+  if (estimate.property_id) revalidatePath(`/properties/${estimate.property_id}`)
   redirect('/estimates')
 }
 

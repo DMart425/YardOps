@@ -7,7 +7,7 @@ import type { EstimateInputs } from '@/lib/pricing'
 import type { Estimate } from '@/types/database'
 import SendSmsButton from './SendSmsButton'
 import ScheduleVisitForm from './ScheduleVisitForm'
-import DeleteEstimateButton from './DeleteEstimateButton'
+import EstimateDangerZone from './EstimateDangerZone'
 
 function fmtDate(d: string) {
   const date = d.includes('T') ? new Date(d) : new Date(d + 'T12:00:00')
@@ -282,9 +282,7 @@ export default async function EstimateDetailPage({
         <Link href={'/properties/' + estimate.property_id} className="btn btn-sm btn-secondary">Property</Link>
       </div>
 
-      {(estimate.status === 'draft' || estimate.status === 'pending') && (
-        <DeleteEstimateButton estimateId={estimate.id} />
-      )}
+      <EstimateDangerZone estimateId={estimate.id} />
     </div>
   )
 }
