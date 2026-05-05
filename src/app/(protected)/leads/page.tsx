@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { DeleteWebsiteLeadButton, ClearAllWebsiteLeadsButton } from './WebsiteLeadButtons'
 
 export default async function LeadsPage() {
   const supabase = await createClient()
@@ -49,10 +48,7 @@ export default async function LeadsPage() {
           {/* Website leads */}
           {websiteCount > 0 && (
             <div className="detail-section">
-              <div className="section-heading" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>From Website ({websiteCount})</span>
-                <ClearAllWebsiteLeadsButton />
-              </div>
+              <div className="section-heading">From Website ({websiteCount})</div>
               {websiteLeads!.map((lead) => (
                 <div key={lead.id} style={{ position: 'relative', marginBottom: '8px' }}>
                   <Link href={`/leads/website/${lead.id}`} style={{ display: 'block' }}>
@@ -72,9 +68,6 @@ export default async function LeadsPage() {
                       </div>
                     </div>
                   </Link>
-                  <div style={{ position: 'absolute', top: '50%', right: '8px', transform: 'translateY(-50%)', zIndex: 1 }}>
-                    <DeleteWebsiteLeadButton leadId={lead.id} />
-                  </div>
                 </div>
               ))}
             </div>
@@ -83,7 +76,7 @@ export default async function LeadsPage() {
           {/* Manual leads */}
           {manualCount > 0 && (
             <div className="detail-section">
-              <div className="section-heading">Leads ({manualCount})</div>
+              <div className="section-heading">Manual Leads ({manualCount})</div>
               {manualLeads!.map((c) => {
                 const props = c.properties as Array<{
                   id: string
@@ -93,13 +86,14 @@ export default async function LeadsPage() {
                 }> | null
                 const prop = props?.[0]
                 return (
-                  <Link key={c.id} href={`/leads/${c.id}`} style={{ display: 'block' }}>
+                  <Link key={c.id} href={`/customers/${c.id}`} style={{ display: 'block' }}>
                     <div className="card">
                       <div className="card-row">
                         <div>
                           <div className="card-title">
                             {c.first_name}{c.last_name ? ` ${c.last_name}` : ''}
                           </div>
+                          <div className="card-meta">Customer record</div>
                           {prop && (
                             <div className="card-subtitle">
                               {prop.service_address}{prop.city ? `, ${prop.city}` : ''}

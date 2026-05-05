@@ -5,7 +5,7 @@ import type { FormState } from '@/types/database'
 import { convertWebsiteLead, dismissWebsiteLead } from '../../actions'
 import { deleteWebsiteLead } from '../../actions'
 
-export function WebsiteLeadActions({ leadId }: { leadId: string }) {
+export function WebsiteLeadStatusActions({ leadId }: { leadId: string }) {
   const [convertState, convertAction, convertPending] = useActionState<FormState, FormData>(
     convertWebsiteLead.bind(null, leadId),
     { error: null }
@@ -14,12 +14,7 @@ export function WebsiteLeadActions({ leadId }: { leadId: string }) {
     dismissWebsiteLead.bind(null, leadId),
     { error: null }
   )
-  const [deleteState, deleteAction, deletePending] = useActionState<FormState, FormData>(
-    deleteWebsiteLead,
-    { error: null }
-  )
-
-  const anyError = convertState.error ?? dismissState.error ?? deleteState.error
+  const anyError = convertState.error ?? dismissState.error
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -34,17 +29,41 @@ export function WebsiteLeadActions({ leadId }: { leadId: string }) {
           {dismissPending ? '…' : 'Dismiss (keep archived)'}
         </button>
       </form>
-      <form
-        action={deleteAction}
-        onSubmit={(e) => {
-          if (!confirm('Permanently delete this lead?')) e.preventDefault()
-        }}
-      >
-        <input type="hidden" name="lead_id" value={leadId} />
-        <button type="submit" disabled={deletePending} className="btn btn-sm btn-danger btn-full">
-          {deletePending ? '…' : 'Delete'}
-        </button>
-      </form>
+    </div>
+  )
+}
+
+export function WebsiteLeadDangerZone({ leadId }: { leadId: string }) {
+  const [deleteState, deleteAction, deletePending] = useActionState<FormState, FormData>(
+    deleteWebsiteLead,
+    { error: null }
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      {deleteState.error && <div className="alert alert-error">{deleteState.error}</div>}
+      <div className="card" style={{ borderColor: '#fca5a5', background: 'var(--color-bg-secondary)' }}>
+        <div className="section-heading" style={{ color: 'var(--color-danger)', marginBottom: '8px' }}>Danger Zone</div>
+        <p className="text-small text-muted" style={{ marginBottom: '8px' }}>
+          Permanently deletes only this website lead request. This cannot be undone.
+        </p>
+        <form action={deleteAction} className="form">
+          <input type="hidden" name="lead_id" value={leadId} />
+          <div className="form-field" style={{ marginBottom: '8px' }}>
+            <label className="form-label" htmlFor="website_lead_delete_confirmation">Type DELETE to confirm</label>
+            <input
+              id="website_lead_delete_confirmation"
+              name="delete_confirmation"
+              className="form-input"
+              placeholder="DELETE"
+              autoComplete="off"
+            />
+          </div>
+          <button type="submit" disabled={deletePending} className="btn btn-sm btn-danger btn-full">
+            {deletePending ? '…' : 'Permanently Delete Website Lead'}
+          </button>
+        </form>
+      </div>
     </div>
   )
 }

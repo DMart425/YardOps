@@ -5,6 +5,7 @@ import type { Customer, Property } from '@/types/database'
 import { CustomerEditForm } from './_form'
 import { CopyPortalLinkButton } from '@/components/CopyPortalLinkButton'
 import { CustomerDangerZone } from './CustomerDangerZone'
+import { LeadStatusActions } from './LeadStatusActions'
 
 type CustomerWithTags = Customer & { tags?: string[] | null }
 
@@ -76,12 +77,24 @@ export default async function CustomerDetailPage({
           </h1>
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
             <span className={`pill pill-${customerRow.status}`}>{customerRow.status}</span>
-            {(customerRow.tags ?? []).map((tag: string) => (
+            {customerRow.status !== 'lead' && (customerRow.tags ?? []).map((tag: string) => (
               <span key={tag} className="pill pill-draft">{tag}</span>
             ))}
           </div>
         </div>
       </div>
+
+      {customerRow.status === 'lead' && (
+        <div className="detail-section">
+          <div className="section-heading">Lead Status</div>
+          <div className="card">
+            <p className="text-small text-muted" style={{ marginBottom: '10px' }}>
+              This contact is currently a lead.
+            </p>
+            <LeadStatusActions customerId={customerRow.id} />
+          </div>
+        </div>
+      )}
 
       {/* Contact quick info */}
       {(customerRow.phone || customerRow.email || mapsAddress) && (

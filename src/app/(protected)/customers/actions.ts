@@ -90,6 +90,33 @@ export async function archiveCustomer(
   redirect('/customers')
 }
 
+export async function markLeadCustomerActive(
+  customerId: string,
+  prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  void prevState
+  void formData
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { error } = await supabase
+    .from('customers')
+    .update({ status: 'active' })
+    .eq('id', customerId)
+    .eq('created_by', user.id)
+
+  if (error) {
+    return { error: 'Unable to mark this lead as active right now. Please try again.' }
+  }
+
+  revalidatePath('/customers')
+  revalidatePath('/leads')
+  revalidatePath(`/customers/${customerId}`)
+  return { error: null, success: 'Lead marked as active customer.' }
+}
+
 export async function deleteCustomerPermanently(
   id: string,
   prevState: FormState,

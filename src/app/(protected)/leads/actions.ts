@@ -194,34 +194,16 @@ export async function deleteWebsiteLead(
 
   const leadId = formData.get('lead_id') as string
   if (!leadId) return { error: 'Missing lead ID.' }
+  const deleteConfirmation = (formData.get('delete_confirmation') as string | null)?.trim()
+
+  if (deleteConfirmation !== 'DELETE') {
+    return { error: 'Type DELETE to permanently remove this website lead.' }
+  }
 
   const { error } = await supabase
     .from('leads')
     .delete()
     .eq('id', leadId)
-
-  if (error) return { error: error.message }
-
-  revalidatePath('/leads')
-  return { error: null, success: 'Deleted.' }
-}
-
-// ── clearAllWebsiteLeads ────────────────────────────────────────────────────
-// Hard-deletes ALL leads with status='new'
-export async function clearAllWebsiteLeads(
-  _prevState: FormState,
-  _formData: FormData
-): Promise<FormState> {
-  void _prevState
-  void _formData
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { error } = await supabase
-    .from('leads')
-    .delete()
-    .eq('status', 'new')
 
   if (error) return { error: error.message }
 

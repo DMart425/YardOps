@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { WebsiteLeadActions } from './WebsiteLeadActions'
+import { WebsiteLeadDangerZone, WebsiteLeadStatusActions } from './WebsiteLeadActions'
 import { estimateMowableAcres } from '@/lib/pricing'
 
 export default async function WebsiteLeadDetailPage({
@@ -61,147 +61,179 @@ export default async function WebsiteLeadDetailPage({
     <div className="page">
       <Link href="/leads" className="back-link">← Leads</Link>
       <div className="page-header">
-        <h1 className="page-title">{lead.name}</h1>
+        <div>
+          <h1 className="page-title">{lead.name}</h1>
+          <p className="page-subtitle">Website request</p>
+        </div>
         <span className="pill pill-lead">Website</span>
       </div>
 
-      {/* Lead info */}
-      <div className="card">
-        <div className="section-heading">Contact Info</div>
-        {lead.phone && (
-          <div className="card-row">
-            <span className="text-muted text-small">Phone</span>
-            <a href={`tel:${lead.phone}`} className="font-bold">{lead.phone}</a>
-          </div>
-        )}
-        {lead.email && (
-          <div className="card-row">
-            <span className="text-muted text-small">Email</span>
-            <a href={`mailto:${lead.email}`} className="font-bold">{lead.email}</a>
-          </div>
-        )}
-        <div className="card-row">
-          <span className="text-muted text-small">Address</span>
-          <span className="font-bold">{lead.address}</span>
-        </div>
-        <div className="card-row">
-          <span className="text-muted text-small">Frequency</span>
-          <span>{lead.frequency}</span>
-        </div>
-        {lead.notes && (
-          <div style={{ marginTop: '8px', padding: '8px', background: 'var(--color-bg-secondary)', borderRadius: '6px' }}>
-            <div className="text-small text-muted" style={{ marginBottom: '2px' }}>Notes from customer</div>
-            <div className="text-small">{lead.notes}</div>
-          </div>
-        )}
-        <div style={{ marginTop: '8px' }}>
-          <a
-            href={`https://maps.google.com/?q=${encodeURIComponent(lead.address)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-sm btn-secondary"
-          >
-            Open in Maps
-          </a>
+      <div className="detail-section">
+        <div className="section-heading">Lead Status</div>
+        <div className="card">
+          <p className="text-small text-muted" style={{ marginBottom: '10px' }}>
+            This contact came from your website.
+          </p>
+          <WebsiteLeadStatusActions leadId={id} />
         </div>
       </div>
 
-      {/* Parcel Snapshot */}
-      {parcel && (
+      <div className="detail-section">
+        <div className="section-heading">Contact Info</div>
         <div className="card">
-          <div className="section-heading" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>Parcel Data</span>
-            <span className="pill pill-active" style={{ fontSize: '0.7rem' }}>Houston Co.</span>
+          {lead.phone && (
+            <a href={`tel:${lead.phone}`} className="contact-row">
+              📞 {lead.phone}
+            </a>
+          )}
+          {lead.email && (
+            <a href={`mailto:${lead.email}`} className="contact-row">
+              ✉ {lead.email}
+            </a>
+          )}
+          <div className="contact-row text-muted">
+            📍 {lead.address}
           </div>
-          {parcel.situs_address && (
-            <div className="card-row">
-              <span className="text-muted text-small">Parcel Address</span>
-              <span className="text-small">{parcel.situs_address}</span>
-            </div>
-          )}
-          {parcel.owner_name && (
-            <div className="card-row">
-              <span className="text-muted text-small">Owner on Record</span>
-              <span className="text-small">{parcel.owner_name}</span>
-            </div>
-          )}
-          {parcel.land_use && (
-            <div className="card-row">
-              <span className="text-muted text-small">Property Type</span>
-              <span className="text-small">{parcel.land_use}</span>
-            </div>
-          )}
-          {subdivision && subdivision.trim() !== '' && (
-            <div className="card-row">
-              <span className="text-muted text-small">Subdivision</span>
-              <span className="text-small">{subdivision}</span>
-            </div>
-          )}
-          {homesteadCode && homesteadCode.trim() !== '' && homesteadCode !== '0' && (
-            <div className="card-row">
-              <span className="text-muted text-small">Homestead</span>
-              <span className="text-small" style={{ color: 'var(--color-primary)' }}>✓ Primary residence</span>
-            </div>
-          )}
-          {parcelAcres != null && (
-            <div className="card-row">
-              <span className="text-muted text-small">Total Lot</span>
-              <span className="font-bold">{parcelAcres.toFixed(3)} ac</span>
-            </div>
-          )}
-          {timberAcres != null && timberAcres > 0 && (
-            <div className="card-row">
-              <span className="text-muted text-small">Wooded / Timber</span>
-              <span className="text-small" style={{ color: 'var(--color-warning, #b45309)' }}>🌲 {timberAcres.toFixed(2)} ac</span>
-            </div>
-          )}
-          {mowableAcres != null && (
-            <div className="card-row">
-              <span className="text-muted text-small">Est. Mowable</span>
-              <span className="font-bold" style={{ color: 'var(--color-primary)' }}>
-                ~{mowableAcres.toFixed(2)} ac
-              </span>
-            </div>
-          )}
-          {salePrice != null && salePrice > 0 && (
-            <div className="card-row">
-              <span className="text-muted text-small">Last Sale</span>
-              <span className="text-small">
-                ${salePrice.toLocaleString()}
-                {deedDate && <span className="text-muted"> · {deedDate.toLocaleDateString()}</span>}
-              </span>
-            </div>
-          )}
-          {totalMktValue != null && totalMktValue > 0 && (
-            <div className="card-row">
-              <span className="text-muted text-small">Market Value</span>
-              <span className="text-small">${totalMktValue.toLocaleString()}</span>
-            </div>
-          )}
-          {parcel.lat && parcel.lon && (
-            <div className="card-row">
-              <span className="text-muted text-small">Coordinates</span>
+          <div className="divider" />
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {lead.phone && (
+              <a href={`tel:${lead.phone}`} className="btn btn-sm btn-secondary">📞 Call</a>
+            )}
+            {lead.phone && (
+              <a href={`sms:${lead.phone}`} className="btn btn-sm btn-secondary">💬 Text</a>
+            )}
+            {lead.email && (
+              <a href={`mailto:${lead.email}`} className="btn btn-sm btn-secondary">✉ Email</a>
+            )}
+            {lead.address && (
               <a
-                href={`https://maps.google.com/?q=${parcel.lat},${parcel.lon}`}
+                href={`https://maps.google.com/?q=${encodeURIComponent(lead.address)}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-small"
-                style={{ color: 'var(--color-primary)' }}
+                className="btn btn-sm btn-secondary"
               >
-                {parcel.lat.toFixed(5)}, {parcel.lon.toFixed(5)}
+                📍 Maps
               </a>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="detail-section">
+        <div className="section-heading">Request Details</div>
+        <div className="card">
+          <div className="card-row">
+            <span className="text-muted text-small">Requested Service</span>
+            <span>{lead.frequency || 'Not specified'}</span>
+          </div>
+
+          {lead.notes ? (
+            <div style={{ marginTop: '8px', padding: '8px', background: 'var(--color-bg-secondary)', borderRadius: '6px' }}>
+              <div className="text-small text-muted" style={{ marginBottom: '2px' }}>Customer Notes</div>
+              <div className="text-small">{lead.notes}</div>
+            </div>
+          ) : (
+            <div className="text-small text-muted" style={{ marginTop: '8px' }}>
+              No customer notes provided.
             </div>
           )}
-        </div>
-      )}
 
-      {/* Actions */}
-      <div className="card">
-        <div className="section-heading">Actions</div>
-        <p className="text-small text-muted" style={{ marginBottom: '12px' }}>
-          Converting creates a customer and property record in YardOps so you can build an estimate.
-        </p>
-        <WebsiteLeadActions leadId={id} />
+          {parcel && (
+            <>
+              <div className="divider" />
+              <div className="section-heading" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span>Parcel Data</span>
+                <span className="pill pill-active" style={{ fontSize: '0.7rem' }}>Houston Co.</span>
+              </div>
+              {parcel.situs_address && (
+                <div className="card-row">
+                  <span className="text-muted text-small">Parcel Address</span>
+                  <span className="text-small">{parcel.situs_address}</span>
+                </div>
+              )}
+              {parcel.owner_name && (
+                <div className="card-row">
+                  <span className="text-muted text-small">Owner on Record</span>
+                  <span className="text-small">{parcel.owner_name}</span>
+                </div>
+              )}
+              {parcel.land_use && (
+                <div className="card-row">
+                  <span className="text-muted text-small">Property Type</span>
+                  <span className="text-small">{parcel.land_use}</span>
+                </div>
+              )}
+              {subdivision && subdivision.trim() !== '' && (
+                <div className="card-row">
+                  <span className="text-muted text-small">Subdivision</span>
+                  <span className="text-small">{subdivision}</span>
+                </div>
+              )}
+              {homesteadCode && homesteadCode.trim() !== '' && homesteadCode !== '0' && (
+                <div className="card-row">
+                  <span className="text-muted text-small">Homestead</span>
+                  <span className="text-small" style={{ color: 'var(--color-primary)' }}>✓ Primary residence</span>
+                </div>
+              )}
+              {parcelAcres != null && (
+                <div className="card-row">
+                  <span className="text-muted text-small">Total Lot</span>
+                  <span className="font-bold">{parcelAcres.toFixed(3)} ac</span>
+                </div>
+              )}
+              {timberAcres != null && timberAcres > 0 && (
+                <div className="card-row">
+                  <span className="text-muted text-small">Wooded / Timber</span>
+                  <span className="text-small" style={{ color: 'var(--color-warning, #b45309)' }}>🌲 {timberAcres.toFixed(2)} ac</span>
+                </div>
+              )}
+              {mowableAcres != null && (
+                <div className="card-row">
+                  <span className="text-muted text-small">Est. Mowable</span>
+                  <span className="font-bold" style={{ color: 'var(--color-primary)' }}>
+                    ~{mowableAcres.toFixed(2)} ac
+                  </span>
+                </div>
+              )}
+              {salePrice != null && salePrice > 0 && (
+                <div className="card-row">
+                  <span className="text-muted text-small">Last Sale</span>
+                  <span className="text-small">
+                    ${salePrice.toLocaleString()}
+                    {deedDate && <span className="text-muted"> · {deedDate.toLocaleDateString()}</span>}
+                  </span>
+                </div>
+              )}
+              {totalMktValue != null && totalMktValue > 0 && (
+                <div className="card-row">
+                  <span className="text-muted text-small">Market Value</span>
+                  <span className="text-small">${totalMktValue.toLocaleString()}</span>
+                </div>
+              )}
+              {parcel.lat && parcel.lon && (
+                <div className="card-row">
+                  <span className="text-muted text-small">Coordinates</span>
+                  <a
+                    href={`https://maps.google.com/?q=${parcel.lat},${parcel.lon}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-small"
+                    style={{ color: 'var(--color-primary)' }}
+                  >
+                    {parcel.lat.toFixed(5)}, {parcel.lon.toFixed(5)}
+                  </a>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="detail-section">
+        <div className="section-heading" style={{ color: 'var(--color-danger)' }}>Danger Zone</div>
+        <div className="card" style={{ borderColor: '#fca5a5' }}>
+          <WebsiteLeadDangerZone leadId={id} />
+        </div>
       </div>
     </div>
   )
