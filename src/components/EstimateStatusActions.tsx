@@ -57,7 +57,7 @@ export function EstimateStatusActions({ estimate }: { estimate: { id: string; st
       )}
 
       {/* Convert to job */}
-      {(estimate.status === 'approved' || estimate.status === 'sent') && (
+      {estimate.status === 'approved' && (
         <>
           <button
             type="button"
