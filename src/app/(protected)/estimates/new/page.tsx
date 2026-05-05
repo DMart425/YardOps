@@ -38,6 +38,7 @@ export default async function NewEstimatePage({
         action={createEstimate}
         customers={customers ?? []}
         properties={properties ?? []}
+        enableInlineEntry
         defaultCustomerId={customer_id}
         defaultPropertyId={property_id}
         defaultHourlyRate={pricingSettings?.target_hourly_rate ?? undefined}

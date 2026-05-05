@@ -4,7 +4,7 @@ import { useActionState, useState, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import type { FormState } from '@/types/database'
 import { Toast } from '@/components/Toast'
-import { calculateEstimate, DEFAULT_SETTINGS, formatMinutes, acrestoMowMinutes } from '@/lib/pricing'
+import { calculateEstimate, DEFAULT_SETTINGS, formatMinutes, acrestoMowMinutes, estimateMowableAcres } from '@/lib/pricing'
 import type { EstimateInputs } from '@/lib/pricing'
 import ParcelLookup from '@/components/ParcelLookup'
 
@@ -13,6 +13,15 @@ interface PropertyOption {
   id: string; customer_id: string; property_name: string | null
   service_address: string; city: string | null
   parcel_acres: number | null; estimated_mowable_acres: number | null
+}
+
+interface ParcelResult {
+  id: string
+  situs_address: string | null
+  owner_name: string | null
+  land_use: string | null
+  lot_sqft: number | null
+  raw_json: { attributes?: Record<string, unknown> } | null
 }
 
 const S = DEFAULT_SETTINGS
@@ -58,6 +67,7 @@ export function EstimateForm({
   action,
   customers,
   properties,
+  enableInlineEntry,
   defaultCustomerId,
   defaultPropertyId,
   defaultHourlyRate,
@@ -72,6 +82,7 @@ export function EstimateForm({
   action: (prevState: FormState, formData: FormData) => Promise<FormState>
   customers: CustomerOption[]
   properties: PropertyOption[]
+  enableInlineEntry?: boolean
   defaultCustomerId?: string
   defaultPropertyId?: string
   defaultHourlyRate?: number
@@ -84,10 +95,16 @@ export function EstimateForm({
   cancelHref?: string
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(action, { error: null })
+  const inlineEnabled = enableInlineEntry === true
   const [customerMode, setCustomerMode] = useState<'existing' | 'new'>('existing')
   const [propertyMode, setPropertyMode] = useState<'existing' | 'new'>('existing')
+  const [propertyReassignmentConfirmed, setPropertyReassignmentConfirmed] = useState(false)
   const [customerId, setCustomerId] = useState(defaultCustomerId ?? '')
   const [propertyId, setPropertyId] = useState(defaultPropertyId ?? '')
+  const [newCustomerFirstName, setNewCustomerFirstName] = useState('')
+  const [newCustomerLastName, setNewCustomerLastName] = useState('')
+  const [newCustomerPhone, setNewCustomerPhone] = useState('')
+  const [newCustomerEmail, setNewCustomerEmail] = useState('')
   const [inputs, setInputs] = useState<EstimateInputs>(() => initialInputs ?? defaultInputs(defaultHourlyRate))
   const [validUntil, setValidUntil] = useState(() => {
     if (initialValidUntil !== undefined) return initialValidUntil ?? ''
@@ -98,6 +115,14 @@ export function EstimateForm({
   const [notes, setNotes] = useState(initialNotes ?? '')
   const [rateStr, setRateStr] = useState(() => String(inputs.hourlyRate))
   const [priceOverride, setPriceOverride] = useState<number | null>(initialPriceOverride ?? null)
+  const [newPropertyAddress, setNewPropertyAddress] = useState('')
+  const [newPropertyCity, setNewPropertyCity] = useState('')
+  const [newPropertyCounty, setNewPropertyCounty] = useState('')
+  const [newPropertyState, setNewPropertyState] = useState('AL')
+  const [newPropertyParcelAcres, setNewPropertyParcelAcres] = useState('')
+  const [newPropertyMowableAcres, setNewPropertyMowableAcres] = useState('')
+  const [newPropertyParcelMessage, setNewPropertyParcelMessage] = useState<string | null>(null)
+  const [parcelLookupPending, setParcelLookupPending] = useState(false)
   const autoFillReadyRef = useRef(initialInputs == null)
 
   const filteredProps = customerId ? properties.filter(p => p.customer_id === customerId) : properties
@@ -127,6 +152,51 @@ export function EstimateForm({
     }))
   }
 
+  async function handleNewPropertyParcelLookup() {
+    const query = newPropertyAddress.trim()
+
+    if (!query) {
+      setNewPropertyParcelMessage('Enter a street address to search parcels.')
+      return
+    }
+
+    setParcelLookupPending(true)
+    setNewPropertyParcelMessage(null)
+
+    try {
+      const res = await fetch('/api/parcels/search?q=' + encodeURIComponent(query))
+      if (!res.ok) throw new Error('Parcel search failed')
+
+      const results = (await res.json()) as ParcelResult[]
+      const best = results.find(r => (r.lot_sqft ?? 0) > 0)
+      if (!best || !best.lot_sqft) {
+        setNewPropertyParcelMessage('No parcel with lot size data found for that address search.')
+        return
+      }
+
+      const parcelAcresRaw = best.lot_sqft / 43560
+      const parcelAcres = Math.round(parcelAcresRaw * 100) / 100
+      const toNum = (value: unknown) => {
+        const n = parseFloat(String(value))
+        return Number.isNaN(n) ? null : n
+      }
+      const timberAcres = toNum(best.raw_json?.attributes?.TimberAcres)
+      const effectiveTimber = (timberAcres != null && timberAcres > 0 && timberAcres < parcelAcres) ? timberAcres : 0
+      const mowableAcresRaw = estimateMowableAcres(parcelAcres, effectiveTimber, best.land_use)
+      const mowableAcres = Math.round(mowableAcresRaw * 100) / 100
+      const mowMinutes = acrestoMowMinutes(mowableAcres)
+
+      setNewPropertyParcelAcres(parcelAcres.toFixed(2))
+      setNewPropertyMowableAcres(mowableAcres.toFixed(2))
+      set('mowingMinutes', mowMinutes)
+      setNewPropertyParcelMessage(`Parcel imported. ${parcelAcres.toFixed(2)} ac total, ~${mowableAcres.toFixed(2)} mowable, ${mowMinutes} min mow time.`)
+    } catch {
+      setNewPropertyParcelMessage('Unable to search parcels right now. You can enter acres manually.')
+    } finally {
+      setParcelLookupPending(false)
+    }
+  }
+
   const pricingOverride = useMemo(() => ({
     ...DEFAULT_SETTINGS,
     ...(defaultMinimumPrice != null ? { minimumServicePrice: defaultMinimumPrice } : {}),
@@ -150,6 +220,9 @@ export function EstimateForm({
     setHidden('final_estimate',       String(priceOverride ?? finalEstimate))
     setHidden('estimated_minutes',    String(totalMinutes))
     setHidden('frequency',            inputs.frequency)
+    if (inlineEnabled && customerMode === 'new' && propertyMode === 'existing') {
+      setHidden('property_reassignment_confirmed', propertyReassignmentConfirmed ? 'true' : 'false')
+    }
   }
 
   const acres      = selectedProp ? (selectedProp.estimated_mowable_acres ?? selectedProp.parcel_acres) : null
@@ -161,171 +234,294 @@ export function EstimateForm({
     <form action={formAction} onSubmit={handleSubmit} className="form">
       <Toast message={state.success} />
       {state.error && <div className="alert alert-error">{state.error}</div>}
+      <input type="hidden" name="customer_mode" value={inlineEnabled ? customerMode : 'existing'} />
+      <input type="hidden" name="property_mode" value={inlineEnabled ? propertyMode : 'existing'} />
 
       <div className="form-section-label">Customer &amp; Property</div>
 
-      <div className="form-field">
-        <label className="form-label">Customer Entry Mode</label>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <label className="checkbox-label" style={{ margin: 0 }}>
-            <input
-              type="radio"
-              name="customer_mode_ui"
-              value="existing"
-              checked={customerMode === 'existing'}
-              onChange={() => setCustomerMode('existing')}
-            />
-            Existing Customer
-          </label>
-          <label className="checkbox-label" style={{ margin: 0 }}>
-            <input
-              type="radio"
-              name="customer_mode_ui"
-              value="new"
-              checked={customerMode === 'new'}
-              onChange={() => setCustomerMode('new')}
-            />
-            New Customer
-          </label>
-        </div>
-      </div>
-
-      {customerMode === 'new' && (
-        <div className="card" style={{ marginBottom: '0.75rem', padding: '10px' }}>
-          <div className="text-small text-muted" style={{ marginBottom: '8px' }}>
-            New customer inline creation is coming next. For now, select an existing customer to save.
+      {inlineEnabled && (
+        <div className="form-field">
+          <label className="form-label">Customer Entry Mode</label>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <label className="checkbox-label" style={{ margin: 0 }}>
+              <input
+                type="radio"
+                name="customer_mode_ui"
+                value="existing"
+                checked={customerMode === 'existing'}
+                onChange={() => setCustomerMode('existing')}
+              />
+              Existing Customer
+            </label>
+            <label className="checkbox-label" style={{ margin: 0 }}>
+              <input
+                type="radio"
+                name="customer_mode_ui"
+                value="new"
+                checked={customerMode === 'new'}
+                onChange={() => setCustomerMode('new')}
+              />
+              New Customer
+            </label>
           </div>
+        </div>
+      )}
+
+      {inlineEnabled && customerMode === 'new' && (
+        <div className="card" style={{ marginBottom: '0.75rem', padding: '10px' }}>
           <div className="form-row">
             <div className="form-field">
               <label className="form-label">First name</label>
-              <input className="form-input" placeholder="Coming next" disabled />
+              <input
+                name="new_customer_first_name"
+                className="form-input"
+                placeholder="First name"
+                autoCapitalize="words"
+                value={newCustomerFirstName}
+                onChange={e => setNewCustomerFirstName(e.target.value)}
+                required
+              />
             </div>
             <div className="form-field">
               <label className="form-label">Last name</label>
-              <input className="form-input" placeholder="Coming next" disabled />
+              <input
+                name="new_customer_last_name"
+                className="form-input"
+                placeholder="Last name"
+                autoCapitalize="words"
+                value={newCustomerLastName}
+                onChange={e => setNewCustomerLastName(e.target.value)}
+                required
+              />
             </div>
           </div>
           <div className="form-row">
             <div className="form-field">
               <label className="form-label">Phone</label>
-              <input className="form-input" placeholder="Coming next" disabled />
+              <input
+                name="new_customer_phone"
+                type="tel"
+                className="form-input"
+                placeholder="(334) 555-0123"
+                value={newCustomerPhone}
+                onChange={e => setNewCustomerPhone(e.target.value)}
+                required
+              />
             </div>
             <div className="form-field">
               <label className="form-label">Email (optional)</label>
-              <input className="form-input" placeholder="Coming next" disabled />
+              <input
+                name="new_customer_email"
+                type="email"
+                className="form-input"
+                placeholder="name@example.com"
+                value={newCustomerEmail}
+                onChange={e => setNewCustomerEmail(e.target.value)}
+              />
             </div>
           </div>
         </div>
       )}
 
-      <div className="form-field">
-        <label className="form-label">Customer *</label>
-        <select name="customer_id" className="form-select" required value={customerId}
-          onChange={e => { setCustomerId(e.target.value); if (selectedProp?.customer_id !== e.target.value) setPropertyId('') }}>
-          <option value="">— Select customer —</option>
-          {customers.map(c => (
-            <option key={c.id} value={c.id}>{c.first_name}{c.last_name ? ' ' + c.last_name : ''}</option>
-          ))}
-        </select>
-        {selectedCustomer && (
-          selectedCustomer.phone ? (
-            <p className="form-hint">
-              SMS phone on file: {selectedCustomer.phone}
-            </p>
-          ) : (
-            <p className="form-hint" style={{ color: 'var(--color-warning)' }}>
-              No customer phone on file. SMS estimate sending will not be available until a phone number is added.
-            </p>
-          )
-        )}
-      </div>
+      {(!inlineEnabled || customerMode === 'existing') && (
+        <div className="form-field">
+          <label className="form-label">Customer *</label>
+          <select
+            name="customer_id"
+            className="form-select"
+            required={!inlineEnabled || customerMode === 'existing'}
+            value={customerId}
+            onChange={e => { setCustomerId(e.target.value); if (selectedProp?.customer_id !== e.target.value) setPropertyId('') }}>
+            <option value="">— Select customer —</option>
+            {customers.map(c => (
+              <option key={c.id} value={c.id}>{c.first_name}{c.last_name ? ' ' + c.last_name : ''}</option>
+            ))}
+          </select>
+          {selectedCustomer && (
+            selectedCustomer.phone ? (
+              <p className="form-hint">
+                SMS phone on file: {selectedCustomer.phone}
+              </p>
+            ) : (
+              <p className="form-hint" style={{ color: 'var(--color-warning)' }}>
+                No customer phone on file. SMS estimate sending will not be available until a phone number is added.
+              </p>
+            )
+          )}
+        </div>
+      )}
 
-      <div className="form-field">
-        <label className="form-label">Property Entry Mode</label>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <label className="checkbox-label" style={{ margin: 0 }}>
+      {inlineEnabled && (
+        <div className="form-field">
+          <label className="form-label">Property Entry Mode</label>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <label className="checkbox-label" style={{ margin: 0 }}>
+              <input
+                type="radio"
+                name="property_mode_ui"
+                value="existing"
+                checked={propertyMode === 'existing'}
+                onChange={() => setPropertyMode('existing')}
+              />
+              Existing Property
+            </label>
+            <label className="checkbox-label" style={{ margin: 0 }}>
+              <input
+                type="radio"
+                name="property_mode_ui"
+                value="new"
+                checked={propertyMode === 'new'}
+                onChange={() => setPropertyMode('new')}
+              />
+              New Property
+            </label>
+          </div>
+        </div>
+      )}
+
+      {inlineEnabled && customerMode === 'new' && propertyMode === 'existing' && (
+        <div className="alert alert-warning" style={{ marginBottom: '0.75rem' }}>
+          <div style={{ marginBottom: '8px', fontWeight: 600 }}>⚠ Property Reassignment</div>
+          <p style={{ marginBottom: '8px', fontSize: '0.875rem' }}>
+            This will move the selected property from its current customer to the new customer. This is typically used for tenant/customer turnover.
+          </p>
+          <label className="checkbox-label">
             <input
-              type="radio"
-              name="property_mode_ui"
-              value="existing"
-              checked={propertyMode === 'existing'}
-              onChange={() => setPropertyMode('existing')}
+              type="checkbox"
+              checked={propertyReassignmentConfirmed}
+              onChange={e => setPropertyReassignmentConfirmed(e.target.checked)}
             />
-            Existing Property
-          </label>
-          <label className="checkbox-label" style={{ margin: 0 }}>
-            <input
-              type="radio"
-              name="property_mode_ui"
-              value="new"
-              checked={propertyMode === 'new'}
-              onChange={() => setPropertyMode('new')}
-            />
-            New Property
+            I understand this will move the property to the new customer
           </label>
         </div>
-      </div>
+      )}
 
-      {propertyMode === 'new' && (
+      {inlineEnabled && propertyMode === 'new' && (
         <div className="card" style={{ marginBottom: '0.75rem', padding: '10px' }}>
-          <div className="text-small text-muted" style={{ marginBottom: '8px' }}>
-            New property inline creation is coming next. For now, select an existing property to save.
-          </div>
           <div className="form-row">
             <div className="form-field">
               <label className="form-label">Street address</label>
-              <input className="form-input" placeholder="Coming next" disabled />
+              <input
+                name="new_property_service_address"
+                className="form-input"
+                placeholder="123 Main St"
+                autoCapitalize="words"
+                value={newPropertyAddress}
+                onChange={e => setNewPropertyAddress(e.target.value)}
+                required
+              />
             </div>
             <div className="form-field">
               <label className="form-label">City</label>
-              <input className="form-input" placeholder="Coming next" disabled />
+              <input
+                name="new_property_city"
+                className="form-input"
+                placeholder="Wicksburg"
+                autoCapitalize="words"
+                value={newPropertyCity}
+                onChange={e => setNewPropertyCity(e.target.value)}
+                required
+              />
             </div>
           </div>
           <div className="form-row">
             <div className="form-field">
               <label className="form-label">County</label>
-              <input className="form-input" placeholder="Coming next" disabled />
+              <input
+                name="new_property_county"
+                className="form-input"
+                placeholder="Houston"
+                autoCapitalize="words"
+                value={newPropertyCounty}
+                onChange={e => setNewPropertyCounty(e.target.value)}
+                required
+              />
             </div>
             <div className="form-field">
               <label className="form-label">State</label>
-              <input className="form-input" value="AL" disabled />
+              <input
+                name="new_property_state"
+                className="form-input"
+                value={newPropertyState}
+                onChange={e => setNewPropertyState(e.target.value.toUpperCase())}
+                required
+              />
             </div>
+          </div>
+          <div className="form-field">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleNewPropertyParcelLookup}
+              disabled={parcelLookupPending}
+            >
+              {parcelLookupPending ? 'Searching Parcel…' : 'Lookup Parcel From Address'}
+            </button>
+            {newPropertyParcelMessage && (
+              <p className="form-hint" style={{ marginTop: '6px' }}>{newPropertyParcelMessage}</p>
+            )}
           </div>
           <div className="form-row">
             <div className="form-field">
               <label className="form-label">Parcel acres (optional)</label>
-              <input className="form-input" placeholder="Coming next" disabled />
+              <input
+                name="new_property_parcel_acres"
+                type="number"
+                step="0.01"
+                min="0"
+                className="form-input"
+                placeholder="0.00"
+                value={newPropertyParcelAcres}
+                onChange={e => setNewPropertyParcelAcres(e.target.value)}
+              />
             </div>
             <div className="form-field">
               <label className="form-label">Mowable acres (optional)</label>
-              <input className="form-input" placeholder="Coming next" disabled />
+              <input
+                name="new_property_estimated_mowable_acres"
+                type="number"
+                step="0.01"
+                min="0"
+                className="form-input"
+                placeholder="0.00"
+                value={newPropertyMowableAcres}
+                onChange={e => setNewPropertyMowableAcres(e.target.value)}
+              />
             </div>
           </div>
         </div>
       )}
 
-      <div className="form-field">
-        <label className="form-label">Property *</label>
-        <select name="property_id" className="form-select" required value={propertyId}
-          onChange={e => setPropertyId(e.target.value)}>
-          <option value="">— Select property —</option>
-          {filteredProps.map(p => (
-            <option key={p.id} value={p.id}>{p.property_name ?? p.service_address}{p.city ? ', ' + p.city : ''}</option>
-          ))}
-        </select>
-        {acres && (
-          <p className="form-hint">
-            ~{Number(acres).toFixed(2)} mowable acres — mow time set to {acrestoMowMinutes(acres)} min
-          </p>
-        )}
-      </div>
+      {(!inlineEnabled || propertyMode === 'existing') && (
+        <div className="form-field">
+          <label className="form-label">Property *</label>
+          <select
+            name="property_id"
+            className="form-select"
+            required={!inlineEnabled || propertyMode === 'existing'}
+            value={propertyId}
+            onChange={e => setPropertyId(e.target.value)}>
+            <option value="">— Select property —</option>
+            {filteredProps.map(p => (
+              <option key={p.id} value={p.id}>{p.property_name ?? p.service_address}{p.city ? ', ' + p.city : ''}</option>
+            ))}
+          </select>
+          {acres && (
+            <p className="form-hint">
+              ~{Number(acres).toFixed(2)} mowable acres — mow time set to {acrestoMowMinutes(acres)} min
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="form-section-label">Mowing &amp; Setup</div>
-      <div className="form-field">
-        <label className="form-label">Look up parcel by address</label>
-        <ParcelLookup onImport={({ mowingMinutes }) => set('mowingMinutes', mowingMinutes)} />
-        <p className="form-hint">Search the Houston Co. parcel DB to auto-fill mow time</p>
-      </div>
+      {(!inlineEnabled || propertyMode === 'existing') && (
+        <div className="form-field">
+          <label className="form-label">Look up parcel by address</label>
+          <ParcelLookup onImport={({ mowingMinutes }) => set('mowingMinutes', mowingMinutes)} />
+          <p className="form-hint">Search the Houston Co. parcel DB to auto-fill mow time</p>
+        </div>
+      )}
       <div className="form-row">
         <div className="form-field">
           <label className="form-label">Mow time (min)</label>
