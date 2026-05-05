@@ -15,9 +15,8 @@ type EstimateListRow = {
 
 const STATUS_FILTERS = [
   ['all',       'All'],
+  ['open',      'Open'],
   ['draft',     'Draft'],
-  ['sent',      'Sent'],
-  ['approved',  'Approved'],
   ['converted', 'Converted'],
   ['declined',  'Declined'],
 ] as const
@@ -39,7 +38,9 @@ export default async function EstimatesPage({
     .select('id, status, total, valid_until, created_at, visit_scheduled_date, visit_scheduled_time, customers(first_name, last_name), properties(service_address, city)')
     .order('created_at', { ascending: false })
 
-  if (filter !== 'all') {
+  if (filter === 'open') {
+    query = query.in('status', ['sent', 'approved', 'pending'])
+  } else if (filter !== 'all') {
     query = query.eq('status', filter)
   }
 

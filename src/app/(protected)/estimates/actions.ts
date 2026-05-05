@@ -11,21 +11,23 @@ function str(fd: FormData, key: string) {
   return v || null
 }
 
-// ── createEstimate ──────────────────────────────────────────────────────────
-export async function createEstimate(
-  prevState: FormState,
-  formData: FormData
-): Promise<FormState> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+type EstimatePayload = {
+  customer_id: string
+  property_id: string
+  frequency: string
+  valid_until: string | null
+  notes: string | null
+  subtotal: number
+  total: number
+  estimated_minutes: number
+  estimate_inputs: Record<string, unknown>
+}
 
-  const customerId = str(formData, 'customer_id')
-  const propertyId = str(formData, 'property_id')
-  if (!customerId) return { error: 'Please select a customer.' }
-  if (!propertyId)  return { error: 'Please select a property.' }
+type EstimatePayloadParseResult =
+  | { payload: EstimatePayload }
+  | { error: string }
 
-  // Parse structured inputs from the pricing engine form
+function parseEstimatePayload(formData: FormData): EstimatePayloadParseResult {
   let estimateInputs: Record<string, unknown> | null = null
   try {
     const raw = formData.get('estimate_inputs_json') as string
@@ -36,24 +38,49 @@ export async function createEstimate(
 
   if (!estimateInputs) return { error: 'Missing estimate inputs.' }
 
-  const finalEstimate    = parseFloat(formData.get('final_estimate') as string ?? '0')
+  const customerId = str(formData, 'customer_id')
+  const propertyId = str(formData, 'property_id')
+  if (!customerId) return { error: 'Please select a customer.' }
+  if (!propertyId) return { error: 'Please select a property.' }
+
+  const finalEstimate = parseFloat(formData.get('final_estimate') as string ?? '0')
   const estimatedMinutes = parseInt(formData.get('estimated_minutes') as string ?? '0')
-  const frequency        = str(formData, 'frequency') ?? 'weekly'
+  const frequency = str(formData, 'frequency') ?? 'weekly'
+
+  return {
+    payload: {
+      customer_id: customerId,
+      property_id: propertyId,
+      frequency,
+      valid_until: str(formData, 'valid_until'),
+      notes: str(formData, 'notes'),
+      subtotal: finalEstimate,
+      total: finalEstimate,
+      estimated_minutes: estimatedMinutes,
+      estimate_inputs: estimateInputs,
+    },
+  }
+}
+
+// ── createEstimate ──────────────────────────────────────────────────────────
+export async function createEstimate(
+  prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  void prevState
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const parsed = parseEstimatePayload(formData)
+  if ('error' in parsed) return { error: parsed.error }
 
   const { data: estimate, error } = await supabase
     .from('estimates')
     .insert({
       created_by:        user.id,
-      customer_id:       customerId,
-      property_id:       propertyId,
       status:            'draft',
-      frequency,
-      valid_until:       str(formData, 'valid_until'),
-      notes:             str(formData, 'notes'),
-      subtotal:          finalEstimate,
-      total:             finalEstimate,
-      estimated_minutes: estimatedMinutes,
-      estimate_inputs:   estimateInputs,
+      ...parsed.payload,
     })
     .select('id')
     .single()
@@ -62,6 +89,32 @@ export async function createEstimate(
 
   revalidatePath('/estimates')
   redirect(`/estimates/${estimate.id}`)
+}
+
+export async function updateEstimate(
+  estimateId: string,
+  prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  void prevState
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const parsed = parseEstimatePayload(formData)
+  if ('error' in parsed) return { error: parsed.error }
+
+  const { error } = await supabase
+    .from('estimates')
+    .update(parsed.payload)
+    .eq('id', estimateId)
+    .eq('created_by', user.id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/estimates')
+  revalidatePath(`/estimates/${estimateId}`)
+  redirect(`/estimates/${estimateId}`)
 }
 
 // ── convertToJob ────────────────────────────────────────────────────────────
@@ -153,6 +206,7 @@ export async function scheduleEstimateVisit(
   prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
+  void prevState
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -174,4 +228,29 @@ export async function scheduleEstimateVisit(
   revalidatePath(`/estimates/${estimateId}`)
   revalidatePath('/today')
   return { error: null, success: 'Visit scheduled.' }
+}
+
+export async function clearEstimateVisit(
+  estimateId: string,
+  prevState: FormState,
+  _formData: FormData
+): Promise<FormState> {
+  void prevState
+  void _formData
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { error } = await supabase
+    .from('estimates')
+    .update({ visit_scheduled_date: null, visit_scheduled_time: null })
+    .eq('id', estimateId)
+    .eq('created_by', user.id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/estimates')
+  revalidatePath(`/estimates/${estimateId}`)
+  revalidatePath('/today')
+  return { error: null, success: 'Visit cleared.' }
 }

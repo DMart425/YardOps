@@ -275,6 +275,9 @@ export default async function EstimateDetailPage({
       </div>
 
       <div style={{ display: 'flex', gap: '8px' }}>
+        {estimate.status !== 'converted' && (
+          <Link href={`/estimates/${estimate.id}/edit`} className="btn btn-sm btn-secondary">Edit</Link>
+        )}
         <Link href={'/customers/' + estimate.customer_id} className="btn btn-sm btn-secondary">Customer</Link>
         <Link href={'/properties/' + estimate.property_id} className="btn btn-sm btn-secondary">Property</Link>
       </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState, useMemo, useEffect } from 'react'
+import { useActionState, useState, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import type { FormState } from '@/types/database'
 import { Toast } from '@/components/Toast'
@@ -55,7 +55,19 @@ const OBSTACLE_OPTIONS = [
 ]
 
 export function EstimateForm({
-  action, customers, properties, defaultCustomerId, defaultPropertyId, defaultHourlyRate, defaultMinimumPrice,
+  action,
+  customers,
+  properties,
+  defaultCustomerId,
+  defaultPropertyId,
+  defaultHourlyRate,
+  defaultMinimumPrice,
+  initialInputs,
+  initialValidUntil,
+  initialNotes,
+  initialPriceOverride,
+  submitLabel,
+  cancelHref,
 }: {
   action: (prevState: FormState, formData: FormData) => Promise<FormState>
   customers: CustomerOption[]
@@ -64,25 +76,37 @@ export function EstimateForm({
   defaultPropertyId?: string
   defaultHourlyRate?: number
   defaultMinimumPrice?: number
+  initialInputs?: EstimateInputs
+  initialValidUntil?: string | null
+  initialNotes?: string | null
+  initialPriceOverride?: number | null
+  submitLabel?: string
+  cancelHref?: string
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(action, { error: null })
   const [customerId, setCustomerId] = useState(defaultCustomerId ?? '')
   const [propertyId, setPropertyId] = useState(defaultPropertyId ?? '')
-  const [inputs, setInputs] = useState<EstimateInputs>(() => defaultInputs(defaultHourlyRate))
+  const [inputs, setInputs] = useState<EstimateInputs>(() => initialInputs ?? defaultInputs(defaultHourlyRate))
   const [validUntil, setValidUntil] = useState(() => {
+    if (initialValidUntil !== undefined) return initialValidUntil ?? ''
     const d = new Date()
     d.setDate(d.getDate() + 14)
     return d.toISOString().split('T')[0]
   })
-  const [notes, setNotes] = useState('')
+  const [notes, setNotes] = useState(initialNotes ?? '')
   const [rateStr, setRateStr] = useState(() => String(inputs.hourlyRate))
-  const [priceOverride, setPriceOverride] = useState<number | null>(null)
+  const [priceOverride, setPriceOverride] = useState<number | null>(initialPriceOverride ?? null)
+  const autoFillReadyRef = useRef(initialInputs == null)
 
   const filteredProps = customerId ? properties.filter(p => p.customer_id === customerId) : properties
   const selectedProp  = properties.find(p => p.id === propertyId)
 
   useEffect(() => {
     if (!selectedProp) return
+    if (!autoFillReadyRef.current) {
+      autoFillReadyRef.current = true
+      return
+    }
     const acres = selectedProp.estimated_mowable_acres ?? selectedProp.parcel_acres
     if (acres && acres > 0) set('mowingMinutes', acrestoMowMinutes(acres))
   }, [propertyId]) // eslint-disable-line
@@ -485,9 +509,9 @@ export function EstimateForm({
       </div>
 
       <div style={{ display: 'flex', gap: '12px' }}>
-        <Link href="/estimates" className="btn btn-secondary" style={{ flex: 1 }}>Cancel</Link>
+        <Link href={cancelHref ?? '/estimates'} className="btn btn-secondary" style={{ flex: 1 }}>Cancel</Link>
         <button type="submit" disabled={pending} className="btn btn-primary" style={{ flex: 2 }}>
-          {pending ? 'Saving...' : 'Create Estimate'}
+          {pending ? 'Saving...' : (submitLabel ?? 'Create Estimate')}
         </button>
       </div>
     </form>

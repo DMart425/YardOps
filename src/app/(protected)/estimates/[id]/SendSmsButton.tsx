@@ -14,7 +14,7 @@ export default function SendSmsButton({ phone, smsBody, estimateId, customerId, 
   function handleClick() {
     logSmsSent(estimateId, customerId, smsBody).catch(() => {})
     if (currentStatus === 'draft') {
-      updateEstimateStatus(estimateId, 'pending').catch(() => {})
+      updateEstimateStatus(estimateId, 'sent').catch(() => {})
     }
     window.location.href = 'sms:' + phone + '?body=' + encodeURIComponent(smsBody)
   }
