@@ -9,13 +9,19 @@ export default async function ProtectedLayout({ children }: { children: React.Re
 
   if (!user) redirect('/login')
 
+  const { count: estimateNotificationCount } = await supabase
+    .from('app_notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('notification_type', 'estimate_approved')
+    .eq('is_reviewed', false)
+
   return (
     <div className="app-shell">
-      <DesktopSidebar />
+      <DesktopSidebar estimateNotificationCount={estimateNotificationCount ?? 0} />
       <main className="app-main">
         {children}
       </main>
-      <MobileNav />
+      <MobileNav estimateNotificationCount={estimateNotificationCount ?? 0} />
     </div>
   )
 }

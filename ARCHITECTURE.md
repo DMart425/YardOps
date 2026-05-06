@@ -150,6 +150,7 @@ src/
 
 - **`/login`** — Login form (calls `login` server action in `lib/actions/auth.ts`).
 - **`/quote/[token]`** — No auth required. Uses `createAdminClient()` to look up estimate by public token. Customer can view & accept.
+- Customer quote acceptance preserves the existing push notification and also attempts to create a persistent in-app `app_notifications` record for the estimate owner.
 - **`/portal/[token]`** — Page exists and uses `createAdminClient()` to look up portal data by token, but it is **not currently public in practice** because `middleware.ts` redirects unauthenticated `/portal/*` requests to `/login`.
 
 ### Customer Portal TODO
@@ -160,6 +161,8 @@ src/
 
 - Everything under `(protected)/` requires authentication.
 - Failing auth redirects to `/login`.
+- The Today page includes a compact review list for unreviewed approved-estimate notifications.
+- Protected navigation shows an Estimates badge count for unreviewed approved-estimate notifications.
 
 ### Logout
 
@@ -227,10 +230,20 @@ src/
 - `valid_until` (date)
 - `public_token` (for public quote link)
 - `accepted_at` (approval timestamp)
+- `approved_by_source` ('customer_quote' | 'manual' | null)
+- `manually_approved_at` (timestamp for internal/manual approval)
+- `approval_note` (required for manual approval path)
 - `revision_number` (int, default 1)
 - `last_revised_at` (timestamp of latest revision)
 - `last_sent_at` (timestamp of latest send)
 - `notes`, `created_at`
+
+#### **app_notifications**
+- `id`, `user_id` (FK → auth.users)
+- `notification_type` (currently `estimate_approved`)
+- `title`, `body`, `link_path`
+- `estimate_id` (nullable FK → estimates)
+- `is_reviewed`, `reviewed_at`, `created_at`
 
 #### **estimate_items**
 - `id`, `created_by`, `estimate_id`, `sort_order`

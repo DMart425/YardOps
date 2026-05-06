@@ -251,6 +251,9 @@ export async function updateEstimate(
     revisionUpdate.last_revised_at = new Date().toISOString()
     revisionUpdate.status = 'draft'
     revisionUpdate.accepted_at = null
+    revisionUpdate.approved_by_source = null
+    revisionUpdate.manually_approved_at = null
+    revisionUpdate.approval_note = null
   }
 
   const { error } = await supabase
@@ -267,6 +270,55 @@ export async function updateEstimate(
   revalidatePath('/estimates')
   revalidatePath(`/estimates/${estimateId}`)
   redirect(`/estimates/${estimateId}`)
+}
+
+export async function manuallyApproveEstimate(
+  estimateId: string,
+  prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  void prevState
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const approvalNote = str(formData, 'approval_note')
+  if (!approvalNote) {
+    return { error: 'Approval note is required.' }
+  }
+
+  const { data: estimate, error: estimateError } = await supabase
+    .from('estimates')
+    .select('id, status')
+    .eq('id', estimateId)
+    .eq('created_by', user.id)
+    .maybeSingle()
+
+  if (estimateError || !estimate) return { error: 'Estimate not found.' }
+
+  if (estimate.status === 'converted') {
+    return { error: 'Converted estimates are locked.' }
+  }
+
+  const approvedAt = new Date().toISOString()
+  const { error } = await supabase
+    .from('estimates')
+    .update({
+      status: 'approved',
+      accepted_at: approvedAt,
+      approved_by_source: 'manual',
+      manually_approved_at: approvedAt,
+      approval_note: approvalNote,
+    })
+    .eq('id', estimateId)
+    .eq('created_by', user.id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/estimates')
+  revalidatePath(`/estimates/${estimateId}`)
+  revalidatePath('/today')
+  return { error: null, success: 'Marked as approved.' }
 }
 
 // ── convertToJob ────────────────────────────────────────────────────────────
@@ -367,6 +419,12 @@ export async function updateEstimateStatus(
   }
   if (status === 'draft') {
     updates.accepted_at = null
+    updates.approved_by_source = null
+    updates.manually_approved_at = null
+    updates.approval_note = null
+  }
+  if (status !== 'approved') {
+    updates.manually_approved_at = null
   }
 
   const { error } = await supabase
@@ -379,6 +437,7 @@ export async function updateEstimateStatus(
 
   revalidatePath('/estimates')
   revalidatePath(`/estimates/${estimateId}`)
+  revalidatePath('/today')
   return { error: null, success: `Marked as ${status}.` }
 }
 

@@ -9,7 +9,33 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + '/')
 }
 
-export default function DesktopSidebar() {
+function NotificationBadge({ count }: { count: number }) {
+  if (count <= 0) return null
+
+  return (
+    <span
+      aria-label={`${count} unreviewed estimate approvals`}
+      style={{
+        marginLeft: 'auto',
+        minWidth: '20px',
+        height: '20px',
+        padding: '0 6px',
+        borderRadius: '999px',
+        background: 'var(--color-primary)',
+        color: 'white',
+        fontSize: '0.75rem',
+        fontWeight: 700,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {count > 99 ? '99+' : count}
+    </span>
+  )
+}
+
+export default function DesktopSidebar({ estimateNotificationCount = 0 }: { estimateNotificationCount?: number }) {
   const pathname = usePathname()
   const [isPending, startTransition] = useTransition()
 
@@ -122,6 +148,7 @@ export default function DesktopSidebar() {
         >
           {icon}
           {label}
+          {href === '/estimates' && <NotificationBadge count={estimateNotificationCount} />}
         </Link>
       ))}
 

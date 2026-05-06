@@ -8,7 +8,35 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + '/')
 }
 
-export default function MobileNav() {
+function NotificationBadge({ count }: { count: number }) {
+  if (count <= 0) return null
+
+  return (
+    <span
+      aria-label={`${count} unreviewed estimate approvals`}
+      style={{
+        position: 'absolute',
+        top: '6px',
+        right: '10px',
+        minWidth: '18px',
+        height: '18px',
+        padding: '0 5px',
+        borderRadius: '999px',
+        background: 'var(--color-primary)',
+        color: 'white',
+        fontSize: '0.6875rem',
+        fontWeight: 700,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {count > 99 ? '99+' : count}
+    </span>
+  )
+}
+
+export default function MobileNav({ estimateNotificationCount = 0 }: { estimateNotificationCount?: number }) {
   const pathname = usePathname()
   const scrollRef = useRef<HTMLElement>(null)
   const [showLeft, setShowLeft] = useState(false)
@@ -81,7 +109,7 @@ export default function MobileNav() {
         Leads
       </Link>
 
-      <Link href="/estimates" className={isActive(pathname, '/estimates') ? 'active' : ''} aria-label="Estimates">
+      <Link href="/estimates" className={isActive(pathname, '/estimates') ? 'active' : ''} aria-label="Estimates" style={{ position: 'relative' }}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
           <polyline points="14,2 14,8 20,8" />
@@ -89,6 +117,7 @@ export default function MobileNav() {
           <line x1="16" y1="17" x2="8" y2="17" />
         </svg>
         Estimates
+        <NotificationBadge count={estimateNotificationCount} />
       </Link>
 
       <Link href="/properties" className={isActive(pathname, '/properties') ? 'active' : ''} aria-label="Properties">

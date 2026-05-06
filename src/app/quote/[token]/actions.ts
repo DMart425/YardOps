@@ -13,6 +13,11 @@ type QuoteEstimate = {
   created_by: string | null
 }
 
+type QuoteCustomer = {
+  first_name: string
+  last_name: string | null
+}
+
 export interface AcceptState {
   success?: boolean
   error?: string
@@ -80,7 +85,7 @@ export async function acceptEstimate(
   // 3. Flip lead → active
   const { data: customer } = await supabase
     .from('customers')
-    .select('status')
+    .select('status, first_name, last_name')
     .eq('id', estimate.customer_id)
     .single()
 
@@ -100,14 +105,46 @@ export async function acceptEstimate(
   }
 
   // 5. Mark estimate approved
+  const acceptedAt = new Date().toISOString()
   await supabase
     .from('estimates')
-    .update({ status: 'approved', accepted_at: new Date().toISOString() })
+    .update({
+      status: 'approved',
+      accepted_at: acceptedAt,
+      approved_by_source: 'customer_quote',
+      manually_approved_at: null,
+      approval_note: 'Accepted via public quote page',
+    })
     .eq('id', estimate.id)
 
-  // 6. Push notification to the owner
   if (estimate.created_by) {
-    const customerName = `${firstName}${lastName ? ' ' + lastName : ''}`
+    const fallbackName = `${firstName}${lastName ? ' ' + lastName : ''}`
+    const dbCustomer = customer as QuoteCustomer | null
+    const customerName = dbCustomer
+      ? `${dbCustomer.first_name}${dbCustomer.last_name ? ' ' + dbCustomer.last_name : ''}`
+      : fallbackName
+
+    try {
+      const { error } = await supabase
+        .from('app_notifications')
+        .insert({
+          user_id: estimate.created_by,
+          notification_type: 'estimate_approved',
+          title: 'New Estimate Approved',
+          body: `${customerName} approved their estimate.`,
+          link_path: `/estimates/${estimate.id}`,
+          estimate_id: estimate.id,
+          is_reviewed: false,
+        })
+
+      if (error && error.code !== '23505') {
+        console.error('Failed to create estimate approval notification', error)
+      }
+    } catch (error) {
+      console.error('Failed to create estimate approval notification', error)
+    }
+
+    // 6. Push notification to the owner
     await sendPushToUser(estimate.created_by, {
       title: '✅ Quote accepted',
       body:  `${customerName} approved their estimate.`,
@@ -117,8 +154,10 @@ export async function acceptEstimate(
   }
 
   revalidatePath('/estimates')
+  revalidatePath(`/estimates/${estimate.id}`)
   revalidatePath('/leads')
   revalidatePath('/customers')
+  revalidatePath('/today')
 
   return { success: true }
 }
@@ -170,7 +209,9 @@ export async function declineEstimate(
   }
 
   revalidatePath('/estimates')
+  revalidatePath(`/estimates/${estimate.id}`)
   revalidatePath('/leads')
+  revalidatePath('/today')
 
   return { success: true }
 }

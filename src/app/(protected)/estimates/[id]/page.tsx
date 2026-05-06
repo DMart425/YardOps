@@ -16,6 +16,12 @@ function fmtDate(d: string) {
   })
 }
 
+function fmtDateTime(d: string) {
+  return new Date(d).toLocaleString('en-US', {
+    weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  })
+}
+
 const FREQ_LABELS: Record<string, string> = {
   weekly: 'Weekly', biweekly: 'Bi-Weekly', one_time: 'One-Time', monthly: 'Monthly',
 }
@@ -169,6 +175,30 @@ export default async function EstimateDetailPage({
               <span className="text-small text-muted">Valid until</span>
               <span className="text-small">{fmtDate(estimate.valid_until)}</span>
             </div>
+          )}
+          {(estimate.status === 'approved' || estimate.status === 'converted') && (
+            <>
+              <div className="card-row">
+                <span className="text-small text-muted">Approval</span>
+                <span className="text-small">
+                  {estimate.approved_by_source === 'customer_quote' && 'Accepted by customer via quote link'}
+                  {estimate.approved_by_source === 'manual' && 'Manually approved'}
+                  {!estimate.approved_by_source && 'Approved'}
+                </span>
+              </div>
+              {estimate.approved_by_source === 'manual' && estimate.approval_note && (
+                <div className="card-row" style={{ alignItems: 'flex-start' }}>
+                  <span className="text-small text-muted">Approval note</span>
+                  <span className="text-small" style={{ maxWidth: '70%', textAlign: 'right' }}>{estimate.approval_note}</span>
+                </div>
+              )}
+              {estimate.approved_by_source === 'manual' && estimate.manually_approved_at && (
+                <div className="card-row">
+                  <span className="text-small text-muted">Manual approval time</span>
+                  <span className="text-small">{fmtDateTime(estimate.manually_approved_at)}</span>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

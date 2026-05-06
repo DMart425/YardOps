@@ -74,6 +74,9 @@ export async function updateEstimateStatus(estimateId: string, status: string) {
   }
   if (status === 'draft') {
     updates.accepted_at = null
+    updates.approved_by_source = null
+    updates.manually_approved_at = null
+    updates.approval_note = null
   }
 
   await supabase
@@ -84,6 +87,7 @@ export async function updateEstimateStatus(estimateId: string, status: string) {
 
   revalidatePath('/estimates')
   revalidatePath(`/estimates/${estimateId}`)
+  revalidatePath('/today')
 }
 
 export async function logSmsSent(estimateId: string, customerId: string, body: string) {

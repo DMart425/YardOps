@@ -2,17 +2,17 @@
 
 import { useActionState, useState } from 'react'
 import type { FormState } from '@/types/database'
-import { convertToJob, updateEstimateStatus } from '@/app/(protected)/estimates/actions'
+import { convertToJob, manuallyApproveEstimate, updateEstimateStatus } from '@/app/(protected)/estimates/actions'
 import { Toast } from '@/components/Toast'
 
 export function EstimateStatusActions({ estimate }: { estimate: { id: string; status: string; total: number; revision_number: number } }) {
-  const [panel, setPanel] = useState<'convert' | null>(null)
+  const [panel, setPanel] = useState<'approve' | 'convert' | null>(null)
 
   const [sentState,     sentAction,     sentPending]     = useActionState<FormState, FormData>(
     updateEstimateStatus.bind(null, estimate.id, 'sent'), { error: null }
   )
   const [approvedState, approvedAction, approvedPending] = useActionState<FormState, FormData>(
-    updateEstimateStatus.bind(null, estimate.id, 'approved'), { error: null }
+    manuallyApproveEstimate.bind(null, estimate.id), { error: null }
   )
   const [declinedState, declinedAction, declinedPending] = useActionState<FormState, FormData>(
     updateEstimateStatus.bind(null, estimate.id, 'declined'), { error: null }
@@ -49,11 +49,34 @@ export function EstimateStatusActions({ estimate }: { estimate: { id: string; st
 
       {/* Mark approved */}
       {(estimate.status === 'draft' || estimate.status === 'sent') && (
-        <form action={approvedAction}>
-          <button type="submit" disabled={approvedPending} className="btn btn-secondary btn-full">
-            {approvedPending ? '…' : '✓ Mark as Approved'}
+        <>
+          <button
+            type="button"
+            className="btn btn-secondary btn-full"
+            onClick={() => setPanel(panel === 'approve' ? null : 'approve')}
+          >
+            ✓ Mark as Approved
           </button>
-        </form>
+
+          {panel === 'approve' && (
+            <form action={approvedAction} className="form action-panel">
+              <div className="form-field">
+                <label className="form-label" htmlFor="approval_note">Approval note</label>
+                <textarea
+                  id="approval_note"
+                  name="approval_note"
+                  className="form-textarea"
+                  rows={3}
+                  required
+                  placeholder="How was this approved? Text, call, or in-person details..."
+                />
+              </div>
+              <button type="submit" disabled={approvedPending} className="btn btn-secondary btn-full">
+                {approvedPending ? 'Saving…' : 'Confirm Manual Approval'}
+              </button>
+            </form>
+          )}
+        </>
       )}
 
       {/* Convert to job */}

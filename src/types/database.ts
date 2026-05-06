@@ -14,6 +14,9 @@ export type MessageType =
   | 'payment_reminder'
   | 'estimate_follow_up'
 
+export type EstimateApprovalSource = 'customer_quote' | 'manual'
+export type AppNotificationType = 'estimate_approved'
+
 export interface Profile {
   id: string
   business_name: string | null
@@ -194,6 +197,9 @@ export interface Estimate {
   estimate_inputs: Record<string, unknown> | null
   public_token: string | null
   accepted_at: string | null
+  approved_by_source: EstimateApprovalSource | null
+  manually_approved_at: string | null
+  approval_note: string | null
   revision_number: number
   last_revised_at: string | null
   last_sent_at: string | null
@@ -202,6 +208,19 @@ export interface Estimate {
   notes: string | null
   created_at: string
   updated_at: string
+}
+
+export interface AppNotification {
+  id: string
+  user_id: string
+  notification_type: AppNotificationType
+  title: string
+  body: string | null
+  link_path: string
+  estimate_id: string | null
+  is_reviewed: boolean
+  reviewed_at: string | null
+  created_at: string
 }
 
 export interface EstimateItem {

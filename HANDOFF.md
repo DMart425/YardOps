@@ -157,6 +157,18 @@ Phase B.5 (lead -> property -> estimate handoff fixes) was completed after Phase
 - Estimate property queries for `/estimates/new` and `/estimates/[id]/edit` now include `service_frequency` and `default_service_package`.
 - Estimate form now auto-applies selected property defaults for mow-time (from acres), frequency, and service package-derived service levels, while parcel lookup remains available as an override tool.
 
+### Phase B.6 Status
+
+Phase B.6 (estimate approval source tracking + persistent in-app notifications) was completed after Phase B.5.
+
+- `estimates` approval metadata is now tracked with `approved_by_source`, `manually_approved_at`, and `approval_note` in the local code and migration file.
+- Public quote acceptance now records `approved_by_source = 'customer_quote'`, preserves push behavior, and attempts to create an `app_notifications` row for the estimate owner without failing the customer flow if notification creation fails.
+- Manual approval from estimate detail now requires an approval note and records `approved_by_source = 'manual'`, `manually_approved_at`, and `approval_note`.
+- Revising a sent/approved estimate back to draft now also clears approval metadata in addition to clearing `accepted_at`.
+- Today page now shows a compact approved-estimate notification card for unreviewed notifications, and marking one reviewed clears it for that user.
+- Protected navigation now shows an Estimates badge count for unreviewed approved-estimate notifications.
+- Migration file was created locally only and was not applied to Supabase.
+
 ### Current Workflow Drift (Confirmed in Phase A Audit)
 
 1. **Website lead conversion previously created sparse property records (resolved in Phase B.2).** `convertWebsiteLead()` no longer inserts properties during conversion.

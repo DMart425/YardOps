@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { getTodayForecastForCoords, coordKey } from '@/lib/weather'
+import { EstimateApprovalNotifications } from '@/components/EstimateApprovalNotifications'
 
 function getLocalDate(timeZone: string) {
   return new Intl.DateTimeFormat('en-CA', {
@@ -39,6 +40,14 @@ export default async function TodayPage() {
   const today = getLocalDate(timeZone)
   const todayStartMs = dateOnlyToUtcMs(today)
   const tomorrowForCompletedStr = addOneDay(today)
+
+  const { data: approvalNotifications } = await supabase
+    .from('app_notifications')
+    .select('id, user_id, notification_type, title, body, link_path, estimate_id, is_reviewed, reviewed_at, created_at')
+    .eq('notification_type', 'estimate_approved')
+    .eq('is_reviewed', false)
+    .order('created_at', { ascending: false })
+    .limit(10)
 
   // Fetch today's jobs with customer and property info
   const { data: todayJobs } = await supabase
@@ -215,6 +224,8 @@ export default async function TodayPage() {
           <p className="page-subtitle">{formatDisplayDate(today)}</p>
         </div>
       </div>
+
+      <EstimateApprovalNotifications notifications={approvalNotifications ?? []} />
 
       {/* Rain warning banner */}
       {anyRainToday && (
