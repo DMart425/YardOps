@@ -324,9 +324,11 @@ auth.users
 - Manual lead cleanup routes through customer detail Danger Zone controls.
 - Destructive controls are intentionally separated from normal convert/dismiss/status actions.
 
-### Current Estimate Parcel Lookup Limitation (Verified)
+### Current Estimate Parcel Lookup (Verified)
 
-- `EstimateForm` currently uses parcel lookup to fill mowing-time inputs only; it does not yet render a full parcel summary card.
+- `EstimateForm` now renders a full imported parcel summary card (address, city/state/ZIP, county, parcel acres, mowable acres, estimated mowing minutes, or explicit "No usable lot size data" when acreage is missing or zero).
+- Parcel lookup in `EstimateForm` still uses the shared `ParcelLookup` component for display; it does not save imported parcel data back to the property record.
+- The inline new-property parcel lookup within `EstimateForm` is a separate direct fetch, not the shared `ParcelLookup` component, and does not yet apply the zero-acre normalization from `ParcelLookup`.
 
 ---
 
