@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { PropertyForm } from '@/components/forms/PropertyForm'
 import { createProperty } from '../actions'
 import type { Property } from '@/types/database'
+import { normalizeFrequency } from '@/lib/frequency'
 
 function parseOptionalNumber(value?: string): number | null {
   if (!value) return null
@@ -76,7 +77,7 @@ export default async function NewPropertyPage({
     state: state ?? undefined,
     county: county ?? undefined,
     postal_code: postal_code ?? undefined,
-    service_frequency: (service_frequency as Property['service_frequency'] | undefined) ?? undefined,
+    service_frequency: (normalizeFrequency(service_frequency) as Property['service_frequency'] | undefined) ?? undefined,
     default_service_package: default_service_package ?? undefined,
     parcel_acres: parseOptionalNumber(parcel_acres),
     estimated_mowable_acres: parseOptionalNumber(estimated_mowable_acres),

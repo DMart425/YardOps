@@ -8,8 +8,9 @@ import { calculateEstimate, DEFAULT_SETTINGS, formatMinutes, acrestoMowMinutes, 
 import type { EstimateInputs } from '@/lib/pricing'
 import ParcelLookup from '@/components/ParcelLookup'
 import type { ImportedParcel } from '@/components/ParcelLookup'
+import { parseWebsiteServiceInterests } from '@/lib/frequency'
 
-interface CustomerOption { id: string; first_name: string; last_name: string | null; phone?: string | null }
+interface CustomerOption { id: string; first_name: string; last_name: string | null; phone?: string | null; notes?: string | null }
 interface PropertyOption {
   id: string; customer_id: string; property_name: string | null
   service_address: string; city: string | null
@@ -109,6 +110,16 @@ function packageDefaults(packageCode: string | null): Partial<EstimateInputs> {
   }
 }
 
+function serviceInterestDefaults(interests: Set<string>): Partial<EstimateInputs> {
+  if (interests.size === 0) return {}
+  
+  return {
+    weedEatingLevel: interests.has('weed_eating') ? 'normal' : 'none',
+    edgingLevel: interests.has('edging') ? 'normal' : 'none',
+    blowOffLevel: interests.has('blow_off') ? 'normal' : 'none',
+  }
+}
+
 export function EstimateForm({
   action,
   customers,
@@ -184,14 +195,17 @@ export function EstimateForm({
     const acres = selectedProp.estimated_mowable_acres ?? selectedProp.parcel_acres
     const mappedFrequency = mapPropertyFrequency(selectedProp.service_frequency)
     const defaultsFromPackage = packageDefaults(selectedProp.default_service_package)
+    const serviceInterests = selectedCustomer?.notes ? parseWebsiteServiceInterests(selectedCustomer.notes) : new Set<string>()
+    const defaultsFromInterests = serviceInterestDefaults(serviceInterests)
 
     setInputs(prev => ({
       ...prev,
       ...(acres && acres > 0 ? { mowingMinutes: acrestoMowMinutes(acres) } : {}),
       ...(mappedFrequency ? { frequency: mappedFrequency } : {}),
       ...defaultsFromPackage,
+      ...defaultsFromInterests,
     }))
-  }, [propertyId]) // eslint-disable-line
+  }, [propertyId, customerId]) // eslint-disable-line
 
   function set<K extends keyof EstimateInputs>(key: K, value: EstimateInputs[K]) {
     setInputs(prev => ({ ...prev, [key]: value }))

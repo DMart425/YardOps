@@ -1,18 +1,22 @@
 # YardOps Handoff (Source of Truth)
 
-Last updated: 2026-05-05
+Last updated: 2026-05-06
 
 ## Official Source of Truth
 
 - Repo: DMart425/YardOps
 - Branch: main
 - Official commits:
+  - 124c22a - B.6: distinguish customer quote acceptance vs manual approval + persistent notifications
   - 628d77a - customer/property cleanup, reassignment, restore, archived-property separation
   - a306d6b - safe estimate delete control
   - 745fa01 - customer quick actions
   - 9c1915c - parcel source metadata and property parcel import
   - 4642128 - hardened/aligned lead cleanup controls
   - d02df30 - feat: show imported parcel summary on estimates (zero-acre normalization + EstimateForm summary card)
+- Pending commits:
+  - B.7a: Website B.7a (6c8bada in DMart425/WicksburgLawnService) - canonical frequency values + service interests in lead notes
+  - B.7b: YardOps consumes website B.7a leads - normalize frequency, parse service interests, apply estimate defaults
 
 ## Standing Coding Workflow
 

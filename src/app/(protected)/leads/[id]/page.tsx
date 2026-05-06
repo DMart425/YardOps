@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { LeadActions } from './LeadActions'
 import { ApplyParcelButton } from './ApplyParcelButton'
+import { normalizeFrequency } from '@/lib/frequency'
 
 function getIntakeValue(notes: string | null, label: string): string | null {
   if (!notes) return null
@@ -65,6 +66,7 @@ export default async function LeadDetailPage({
   const property = props?.[0]
   const intakeAddress = getIntakeValue(customer.notes, 'Intake address')
   const requestedFrequency = getIntakeValue(customer.notes, 'Requested frequency')
+  const normalizedFrequency = normalizeFrequency(requestedFrequency)
   const requestedPackage = getIntakeValue(customer.notes, 'Requested package')
   const addressPrefill = parseAddressParts(intakeAddress)
 
@@ -73,7 +75,7 @@ export default async function LeadDetailPage({
   if (addressPrefill.city) addPropertyParams.set('city', addressPrefill.city)
   if (addressPrefill.state) addPropertyParams.set('state', addressPrefill.state)
   if (addressPrefill.postal_code) addPropertyParams.set('postal_code', addressPrefill.postal_code)
-  if (requestedFrequency) addPropertyParams.set('service_frequency', requestedFrequency)
+  if (normalizedFrequency) addPropertyParams.set('service_frequency', normalizedFrequency)
   if (requestedPackage) addPropertyParams.set('default_service_package', requestedPackage)
   const addPropertyHref = `/properties/new?${addPropertyParams.toString()}`
 

@@ -14,7 +14,7 @@ export default async function NewEstimatePage({
   const [{ data: customers }, { data: properties }, { data: pricingSettings }] = await Promise.all([
     supabase
       .from('customers')
-      .select('id, first_name, last_name, phone, status')
+      .select('id, first_name, last_name, phone, status, notes')
       .neq('status', 'archived')
       .order('first_name'),
     supabase
