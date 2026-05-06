@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { LeadActions } from './LeadActions'
 import { ApplyParcelButton } from './ApplyParcelButton'
-import { normalizeFrequency } from '@/lib/frequency'
+import { normalizeFrequency, parseWebsiteServiceInterests } from '@/lib/frequency'
 
 function getIntakeValue(notes: string | null, label: string): string | null {
   if (!notes) return null
@@ -67,7 +67,6 @@ export default async function LeadDetailPage({
   const intakeAddress = getIntakeValue(customer.notes, 'Intake address')
   const requestedFrequency = getIntakeValue(customer.notes, 'Requested frequency')
   const normalizedFrequency = normalizeFrequency(requestedFrequency)
-  const requestedPackage = getIntakeValue(customer.notes, 'Requested package')
   const addressPrefill = parseAddressParts(intakeAddress)
 
   const addPropertyParams = new URLSearchParams({ customer_id: customer.id })
@@ -76,7 +75,13 @@ export default async function LeadDetailPage({
   if (addressPrefill.state) addPropertyParams.set('state', addressPrefill.state)
   if (addressPrefill.postal_code) addPropertyParams.set('postal_code', addressPrefill.postal_code)
   if (normalizedFrequency) addPropertyParams.set('service_frequency', normalizedFrequency)
-  if (requestedPackage) addPropertyParams.set('default_service_package', requestedPackage)
+  const serviceInterests = parseWebsiteServiceInterests(customer.notes)
+  if (serviceInterests.size > 0) {
+    addPropertyParams.set('default_mowing_enabled',      serviceInterests.has('mowing')     ? 'true' : 'false')
+    addPropertyParams.set('default_weed_eating_enabled', serviceInterests.has('weed_eating') ? 'true' : 'false')
+    addPropertyParams.set('default_edging_enabled',      serviceInterests.has('edging')     ? 'true' : 'false')
+    addPropertyParams.set('default_blow_off_enabled',    serviceInterests.has('blow_off')   ? 'true' : 'false')
+  }
   const addPropertyHref = `/properties/new?${addPropertyParams.toString()}`
 
   // Fetch any estimates already created for this lead

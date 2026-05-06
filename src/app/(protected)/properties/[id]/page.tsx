@@ -148,12 +148,24 @@ export default async function PropertyDetailPage({
           <span className="text-small text-muted">Frequency</span>
           <span className={`pill pill-${p.service_frequency}`}>{p.service_frequency?.replace('_', ' ')}</span>
         </div>
-        {p.default_service_package && (
+        {(p.default_mowing_enabled != null || p.default_weed_eating_enabled != null || p.default_edging_enabled != null || p.default_blow_off_enabled != null) ? (
+          <div className="card-row" style={{ marginTop: '8px' }}>
+            <span className="text-small text-muted">Default services</span>
+            <span className="text-small">
+              {[
+                p.default_mowing_enabled !== false ? 'Mowing' : null,
+                p.default_weed_eating_enabled ? 'Weed eating' : null,
+                p.default_edging_enabled ? 'Edging' : null,
+                p.default_blow_off_enabled ? 'Blow off' : null,
+              ].filter(Boolean).join(', ') || 'None'}
+            </span>
+          </div>
+        ) : p.default_service_package ? (
           <div className="card-row" style={{ marginTop: '8px' }}>
             <span className="text-small text-muted">Package</span>
             <span className="text-small">{p.default_service_package.replace(/_/g, ' ')}</span>
           </div>
-        )}
+        ) : null}
         {p.default_price != null && (
           <div className="card-row" style={{ marginTop: '8px' }}>
             <span className="text-small text-muted">Default price</span>

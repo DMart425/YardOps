@@ -11,6 +11,12 @@ function parseOptionalNumber(value?: string): number | null {
   return Number.isNaN(parsed) ? null : parsed
 }
 
+function parseBoolParam(value?: string): boolean | undefined {
+  if (value === 'true' || value === '1') return true
+  if (value === 'false' || value === '0') return false
+  return undefined
+}
+
 export default async function NewPropertyPage({
   searchParams,
 }: {
@@ -25,6 +31,10 @@ export default async function NewPropertyPage({
     default_service_package?: string
     parcel_acres?: string
     estimated_mowable_acres?: string
+    default_mowing_enabled?: string
+    default_weed_eating_enabled?: string
+    default_edging_enabled?: string
+    default_blow_off_enabled?: string
   }>
 }) {
   const {
@@ -38,6 +48,10 @@ export default async function NewPropertyPage({
     default_service_package,
     parcel_acres,
     estimated_mowable_acres,
+    default_mowing_enabled,
+    default_weed_eating_enabled,
+    default_edging_enabled,
+    default_blow_off_enabled,
   } = await searchParams
 
   // No customer context — block standalone creation and direct user to Leads
@@ -79,6 +93,10 @@ export default async function NewPropertyPage({
     postal_code: postal_code ?? undefined,
     service_frequency: (normalizeFrequency(service_frequency) as Property['service_frequency'] | undefined) ?? undefined,
     default_service_package: default_service_package ?? undefined,
+    default_mowing_enabled:      parseBoolParam(default_mowing_enabled)      ?? null,
+    default_weed_eating_enabled: parseBoolParam(default_weed_eating_enabled) ?? null,
+    default_edging_enabled:      parseBoolParam(default_edging_enabled)      ?? null,
+    default_blow_off_enabled:    parseBoolParam(default_blow_off_enabled)    ?? null,
     parcel_acres: parseOptionalNumber(parcel_acres),
     estimated_mowable_acres: parseOptionalNumber(estimated_mowable_acres),
   }

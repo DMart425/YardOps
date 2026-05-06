@@ -16,6 +16,10 @@ type PropertyOption = {
   estimated_mowable_acres: number | null
   service_frequency: string | null
   default_service_package: string | null
+  default_mowing_enabled: boolean | null
+  default_weed_eating_enabled: boolean | null
+  default_edging_enabled: boolean | null
+  default_blow_off_enabled: boolean | null
 }
 
 export default async function EditEstimatePage({
@@ -53,7 +57,7 @@ export default async function EditEstimatePage({
       .order('first_name'),
     supabase
       .from('properties')
-      .select('id, customer_id, property_name, service_address, city, parcel_acres, estimated_mowable_acres, service_frequency, default_service_package, status')
+      .select('id, customer_id, property_name, service_address, city, parcel_acres, estimated_mowable_acres, service_frequency, default_service_package, default_mowing_enabled, default_weed_eating_enabled, default_edging_enabled, default_blow_off_enabled, status')
       .order('service_address'),
     supabase
       .from('pricing_settings')
@@ -75,7 +79,7 @@ export default async function EditEstimatePage({
   if (!properties.some(property => property.id === estimate.property_id)) {
     const { data: currentProperty } = await supabase
       .from('properties')
-      .select('id, customer_id, property_name, service_address, city, parcel_acres, estimated_mowable_acres, service_frequency, default_service_package')
+      .select('id, customer_id, property_name, service_address, city, parcel_acres, estimated_mowable_acres, service_frequency, default_service_package, default_mowing_enabled, default_weed_eating_enabled, default_edging_enabled, default_blow_off_enabled')
       .eq('id', estimate.property_id)
       .single()
     if (currentProperty) properties = [currentProperty as PropertyOption, ...properties]
@@ -102,7 +106,7 @@ export default async function EditEstimatePage({
       <EstimateForm
         action={updateEstimate.bind(null, id)}
         customers={customers.map(({ id: customerId, first_name, last_name }) => ({ id: customerId, first_name, last_name }))}
-        properties={properties.map(({ id: propertyId, customer_id, property_name, service_address, city, parcel_acres, estimated_mowable_acres, service_frequency, default_service_package }) => ({
+        properties={properties.map(({ id: propertyId, customer_id, property_name, service_address, city, parcel_acres, estimated_mowable_acres, service_frequency, default_service_package, default_mowing_enabled, default_weed_eating_enabled, default_edging_enabled, default_blow_off_enabled }) => ({
           id: propertyId,
           customer_id,
           property_name,
@@ -112,6 +116,10 @@ export default async function EditEstimatePage({
           estimated_mowable_acres,
           service_frequency,
           default_service_package,
+          default_mowing_enabled,
+          default_weed_eating_enabled,
+          default_edging_enabled,
+          default_blow_off_enabled,
         }))}
         defaultCustomerId={estimate.customer_id}
         defaultPropertyId={estimate.property_id}

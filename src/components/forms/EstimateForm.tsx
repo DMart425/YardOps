@@ -16,6 +16,10 @@ interface PropertyOption {
   service_address: string; city: string | null
   parcel_acres: number | null; estimated_mowable_acres: number | null
   service_frequency: string | null; default_service_package: string | null
+  default_mowing_enabled: boolean | null
+  default_weed_eating_enabled: boolean | null
+  default_edging_enabled: boolean | null
+  default_blow_off_enabled: boolean | null
 }
 
 interface ParcelResult {
@@ -120,6 +124,26 @@ function serviceInterestDefaults(interests: Set<string>): Partial<EstimateInputs
   }
 }
 
+function propertyBooleanDefaults(prop: PropertyOption): Partial<EstimateInputs> | null {
+  if (
+    prop.default_mowing_enabled      == null &&
+    prop.default_weed_eating_enabled == null &&
+    prop.default_edging_enabled      == null &&
+    prop.default_blow_off_enabled    == null
+  ) return null
+  const result: Partial<EstimateInputs> = {}
+  if (prop.default_weed_eating_enabled != null) {
+    result.weedEatingLevel = prop.default_weed_eating_enabled ? 'normal' : 'none'
+  }
+  if (prop.default_edging_enabled != null) {
+    result.edgingLevel = prop.default_edging_enabled ? 'normal' : 'none'
+  }
+  if (prop.default_blow_off_enabled != null) {
+    result.blowOffLevel = prop.default_blow_off_enabled ? 'normal' : 'none'
+  }
+  return result
+}
+
 export function EstimateForm({
   action,
   customers,
@@ -194,16 +218,22 @@ export function EstimateForm({
     }
     const acres = selectedProp.estimated_mowable_acres ?? selectedProp.parcel_acres
     const mappedFrequency = mapPropertyFrequency(selectedProp.service_frequency)
-    const defaultsFromPackage = packageDefaults(selectedProp.default_service_package)
+    const boolDefaults = propertyBooleanDefaults(selectedProp)
     const serviceInterests = selectedCustomer?.notes ? parseWebsiteServiceInterests(selectedCustomer.notes) : new Set<string>()
-    const defaultsFromInterests = serviceInterestDefaults(serviceInterests)
+    const resolvedServiceDefaults =
+      boolDefaults !== null
+        ? boolDefaults
+        : serviceInterests.size > 0
+          ? serviceInterestDefaults(serviceInterests)
+          : packageDefaults(selectedProp.default_service_package)
+    const shouldZeroMowing = selectedProp.default_mowing_enabled === false
 
     setInputs(prev => ({
       ...prev,
-      ...(acres && acres > 0 ? { mowingMinutes: acrestoMowMinutes(acres) } : {}),
+      ...(acres && acres > 0 && !shouldZeroMowing ? { mowingMinutes: acrestoMowMinutes(acres) } : {}),
+      ...(shouldZeroMowing ? { mowingMinutes: 0 } : {}),
       ...(mappedFrequency ? { frequency: mappedFrequency } : {}),
-      ...defaultsFromPackage,
-      ...defaultsFromInterests,
+      ...resolvedServiceDefaults,
     }))
   }, [propertyId, customerId]) // eslint-disable-line
 

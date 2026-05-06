@@ -19,7 +19,7 @@ export default async function NewEstimatePage({
       .order('first_name'),
     supabase
       .from('properties')
-      .select('id, customer_id, property_name, service_address, city, parcel_acres, estimated_mowable_acres, service_frequency, default_service_package')
+      .select('id, customer_id, property_name, service_address, city, parcel_acres, estimated_mowable_acres, service_frequency, default_service_package, default_mowing_enabled, default_weed_eating_enabled, default_edging_enabled, default_blow_off_enabled')
       .eq('status', 'active')
       .order('service_address'),
     supabase

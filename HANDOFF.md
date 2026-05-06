@@ -14,10 +14,11 @@ Last updated: 2026-05-06
   - 9c1915c - parcel source metadata and property parcel import
   - 4642128 - hardened/aligned lead cleanup controls
   - d02df30 - feat: show imported parcel summary on estimates (zero-acre normalization + EstimateForm summary card)
+  - 58879bc - B.7c-a: property default service boolean columns (migration + types)
 - Pending commits:
   - B.7a: Website B.7a (6c8bada in DMart425/WicksburgLawnService) - canonical frequency values + service interests in lead notes
   - B.7b: YardOps consumes website B.7a leads - normalize frequency, parse service interests, apply estimate defaults
-  - B.7c-a: Property default service booleans - migration applied and verified, types updated, pending commit/push
+  - B.7c-b: Replace Service Package dropdown with Default Services checkboxes; wire EstimateForm to use property boolean defaults
 
 ## Standing Coding Workflow
 
@@ -191,6 +192,22 @@ Phase B.7c-a (property default service boolean columns — schema + types only) 
 - No UI behavior changed: `PropertyForm.tsx`, `EstimateForm.tsx`, `properties/actions.ts`, estimate queries, and job behavior are all untouched.
 
 Next: B.7c-b — replace the Service Package dropdown in `PropertyForm` with checkboxes and wire up `EstimateForm` defaults from property boolean columns.
+
+### Phase B.7c-b Status
+
+Phase B.7c-b (PropertyForm Default Services checkboxes + EstimateForm property boolean defaults) was implemented locally on 2026-05-06. No migration was created or applied.
+
+- `src/components/forms/PropertyForm.tsx` — Service Package `<select>` replaced with four Default Services checkboxes: Mowing, Weed eating / trimming, Edging, Blow off hard surfaces. Initial state derived from: property boolean columns (if any non-null) → legacy `default_service_package` string fallback → safe defaults (mowing=true, others=false). Controlled checkboxes save `true`/`false` to DB (unchecked = `false`, not `null`).
+- `src/app/(protected)/properties/actions.ts` — `createProperty` and `updateProperty` now save the four boolean columns from form checkboxes. `default_service_package` is no longer written from form submissions (existing DB values are preserved on update, new properties get `null`).
+- `src/app/(protected)/properties/new/page.tsx` — Added `parseBoolParam` helper and accepts four boolean query params (`default_mowing_enabled`, `default_weed_eating_enabled`, `default_edging_enabled`, `default_blow_off_enabled`). Values are passed to `PropertyForm` `defaultValues`.
+- `src/app/(protected)/leads/[id]/page.tsx` — Add Property link now passes website service interests as boolean query params. Removed `default_service_package` from URL params. Falls back to no params (PropertyForm defaults) when no service interests block exists.
+- `src/components/forms/EstimateForm.tsx` — `PropertyOption` interface updated with 4 boolean fields. New `propertyBooleanDefaults()` helper maps boolean columns to `weedEatingLevel`/`edgingLevel`/`blowOffLevel`. Default priority: property booleans (if any non-null) > website service interests (only when all booleans are null) > legacy package fallback (only when booleans are null and no website interests exist) > hardcoded defaults. `default_mowing_enabled === false` sets `mowingMinutes: 0`.
+- `src/app/(protected)/estimates/new/page.tsx` — Property select query updated to include 4 boolean fields.
+- `src/app/(protected)/estimates/[id]/edit/page.tsx` — Local `PropertyOption` type, property select queries, and properties mapping updated to include 4 boolean fields.
+- `src/app/(protected)/properties/[id]/page.tsx` — Detail card now shows "Default services" row based on boolean columns. Falls back to legacy "Package" display if booleans are all null and `default_service_package` is set.
+- `default_service_package` DB column is NOT dropped or cleared.
+- No migration was created.
+- No commit or push was made.
 
 ### Current Workflow Drift (Confirmed in Phase A Audit)
 

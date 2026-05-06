@@ -9,6 +9,31 @@ import type { ImportedParcel } from '@/components/ParcelLookup'
 
 type CustomerOption = { id: string; first_name: string; last_name: string | null; status?: string | null }
 
+function deriveDefaultServiceBooleans(defaultValues?: Partial<Property>): {
+  mowing: boolean; weedEating: boolean; edging: boolean; blowOff: boolean
+} {
+  const hasAny =
+    defaultValues?.default_mowing_enabled      != null ||
+    defaultValues?.default_weed_eating_enabled != null ||
+    defaultValues?.default_edging_enabled      != null ||
+    defaultValues?.default_blow_off_enabled    != null
+  if (hasAny) {
+    return {
+      mowing:     defaultValues?.default_mowing_enabled      ?? true,
+      weedEating: defaultValues?.default_weed_eating_enabled ?? false,
+      edging:     defaultValues?.default_edging_enabled      ?? false,
+      blowOff:    defaultValues?.default_blow_off_enabled    ?? false,
+    }
+  }
+  switch (defaultValues?.default_service_package) {
+    case 'mow_only':                        return { mowing: true, weedEating: false, edging: false, blowOff: false }
+    case 'mow_blow':                        return { mowing: true, weedEating: false, edging: false, blowOff: true  }
+    case 'full_service_mow_edge_trim_blow': return { mowing: true, weedEating: true,  edging: true,  blowOff: true  }
+    case 'first_cut_overgrown':             return { mowing: true, weedEating: true,  edging: true,  blowOff: true  }
+    default:                                return { mowing: true, weedEating: false, edging: false, blowOff: false }
+  }
+}
+
 type Props = {
   action: (prevState: FormState, formData: FormData) => Promise<FormState>
   submitLabel: string
@@ -37,6 +62,12 @@ export function PropertyForm({
   const [mowableAcres, setMowableAcres] = useState(defaultValues?.estimated_mowable_acres?.toFixed(2) ?? '')
   const [lotSizeSource, setLotSizeSource] = useState(defaultValues?.lot_size_source ?? 'manual')
   const [parcelHelper, setParcelHelper] = useState<string | null>(null)
+
+  const initSvc = deriveDefaultServiceBooleans(defaultValues)
+  const [svcMowing,     setSvcMowing]     = useState(initSvc.mowing)
+  const [svcWeedEating, setSvcWeedEating] = useState(initSvc.weedEating)
+  const [svcEdging,     setSvcEdging]     = useState(initSvc.edging)
+  const [svcBlowOff,    setSvcBlowOff]    = useState(initSvc.blowOff)
 
   function handleParcelImport(parcel: ImportedParcel) {
     setServiceAddress(parcel.streetAddress || parcel.address)
@@ -253,38 +284,64 @@ export function PropertyForm({
         </div>
       </div>
 
-      <div className="form-row">
-        <div className="form-field">
-          <label className="form-label" htmlFor="default_service_package">Service Package</label>
-          <select
-            id="default_service_package"
-            name="default_service_package"
-            className="form-select"
-            defaultValue={defaultValues?.default_service_package ?? ''}
-          >
-            <option value="">Not set</option>
-            <option value="mow_only">Mow Only</option>
-            <option value="mow_blow">Mow + Blow</option>
-            <option value="full_service_mow_edge_trim_blow">Full Service</option>
-            <option value="first_cut_overgrown">First Cut / Overgrown</option>
-            <option value="leaf_cleanup">Leaf Cleanup</option>
-            <option value="custom">Custom</option>
-          </select>
-        </div>
-        <div className="form-field">
-          <label className="form-label" htmlFor="default_price">Default Price ($)</label>
+      <div className="form-field">
+        <div className="form-label">Default Services</div>
+        <span className="form-hint">Used as starting defaults for estimates and recurring work. You can still change each estimate before sending.</span>
+        <div className="check-row" style={{ marginTop: '8px' }}>
           <input
-            id="default_price"
-            name="default_price"
-            type="number"
-            step="0.01"
-            min="0"
-            className="form-input"
-            placeholder="0.00"
-            defaultValue={defaultValues?.default_price ?? ''}
-            inputMode="decimal"
+            id="default_mowing_enabled"
+            name="default_mowing_enabled"
+            type="checkbox"
+            checked={svcMowing}
+            onChange={e => setSvcMowing(e.target.checked)}
           />
+          <label htmlFor="default_mowing_enabled">Mowing</label>
         </div>
+        <div className="check-row">
+          <input
+            id="default_weed_eating_enabled"
+            name="default_weed_eating_enabled"
+            type="checkbox"
+            checked={svcWeedEating}
+            onChange={e => setSvcWeedEating(e.target.checked)}
+          />
+          <label htmlFor="default_weed_eating_enabled">Weed eating / trimming</label>
+        </div>
+        <div className="check-row">
+          <input
+            id="default_edging_enabled"
+            name="default_edging_enabled"
+            type="checkbox"
+            checked={svcEdging}
+            onChange={e => setSvcEdging(e.target.checked)}
+          />
+          <label htmlFor="default_edging_enabled">Edging</label>
+        </div>
+        <div className="check-row">
+          <input
+            id="default_blow_off_enabled"
+            name="default_blow_off_enabled"
+            type="checkbox"
+            checked={svcBlowOff}
+            onChange={e => setSvcBlowOff(e.target.checked)}
+          />
+          <label htmlFor="default_blow_off_enabled">Blow off hard surfaces</label>
+        </div>
+      </div>
+
+      <div className="form-field" style={{ marginTop: '16px' }}>
+        <label className="form-label" htmlFor="default_price">Default Price ($)</label>
+        <input
+          id="default_price"
+          name="default_price"
+          type="number"
+          step="0.01"
+          min="0"
+          className="form-input"
+          placeholder="0.00"
+          defaultValue={defaultValues?.default_price ?? ''}
+          inputMode="decimal"
+        />
       </div>
 
       <div className="check-row">
