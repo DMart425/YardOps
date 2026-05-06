@@ -22,16 +22,15 @@ export default async function CustomersPage() {
           <h1 className="page-title">Customers</h1>
           <p className="page-subtitle">{customers?.length ?? 0} total</p>
         </div>
-        <Link href="/customers/new" className="btn btn-header btn-sm">+ Add</Link>
       </div>
 
       {customerRows.length === 0 ? (
         <div className="empty-state">
           <p style={{ fontSize: '2rem' }}>👷</p>
           <p style={{ fontWeight: 600, marginTop: '8px' }}>No customers yet</p>
-          <p>Add your first customer to get started.</p>
-          <Link href="/customers/new" className="btn btn-primary" style={{ marginTop: '1rem' }}>
-            Add Customer
+          <p>New contacts start as leads. Add a lead first, then promote them to active customer after an estimate is approved.</p>
+          <Link href="/leads/new" className="btn btn-primary" style={{ marginTop: '1rem' }}>
+            Add Lead
           </Link>
         </div>
       ) : (

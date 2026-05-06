@@ -9,6 +9,30 @@ export default async function NewPropertyPage({
   searchParams: Promise<{ customer_id?: string }>
 }) {
   const { customer_id } = await searchParams
+
+  // No customer context — block standalone creation and direct user to Leads
+  if (!customer_id) {
+    return (
+      <div className="page">
+        <Link href="/properties" className="back-link">← Properties</Link>
+        <div className="page-header">
+          <h1 className="page-title">Add Property</h1>
+        </div>
+        <div className="card" style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+          <p style={{ fontSize: '2rem' }}>🏡</p>
+          <p style={{ fontWeight: 600, marginTop: '8px' }}>Properties must be added from a contact</p>
+          <p style={{ marginTop: '8px', color: 'var(--text-muted, #888)' }}>
+            Open a lead or customer record and use the &ldquo;Add Property&rdquo; option from there.
+          </p>
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '1.5rem', flexWrap: 'wrap' }}>
+            <Link href="/leads" className="btn btn-primary">Go to Leads</Link>
+            <Link href="/customers" className="btn btn-secondary">Go to Customers</Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const supabase = await createClient()
 
   const { data: customers } = await supabase
@@ -19,8 +43,8 @@ export default async function NewPropertyPage({
 
   return (
     <div className="page">
-      <Link href={customer_id ? `/customers/${customer_id}` : '/properties'} className="back-link">
-        ← {customer_id ? 'Customer' : 'Properties'}
+      <Link href={`/customers/${customer_id}`} className="back-link">
+        ← Customer
       </Link>
       <div className="page-header">
         <h1 className="page-title">Add Property</h1>
@@ -30,7 +54,7 @@ export default async function NewPropertyPage({
         <PropertyForm
           action={createProperty}
           submitLabel="Add Property"
-          cancelHref={customer_id ? `/customers/${customer_id}` : '/properties'}
+          cancelHref={`/customers/${customer_id}`}
           customers={customers ?? []}
           defaultCustomerId={customer_id}
         />

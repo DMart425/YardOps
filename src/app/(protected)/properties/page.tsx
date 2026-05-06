@@ -40,7 +40,6 @@ export default async function PropertiesPage({
           <h1 className="page-title">Properties</h1>
           <p className="page-subtitle">{filtered.length} shown</p>
         </div>
-        <Link href="/properties/new" className="btn btn-header btn-sm">+ Add</Link>
       </div>
 
       {/* Filter tabs */}
@@ -62,7 +61,7 @@ export default async function PropertiesPage({
           <p style={{ fontWeight: 600, marginTop: '8px' }}>No properties here</p>
           {filter === 'leads'  && <p>No lead properties yet.</p>}
           {filter === 'active' && <p>No active customer properties yet.</p>}
-          {filter === 'all'    && <Link href="/properties/new" className="btn btn-primary" style={{ marginTop: '1rem' }}>Add Property</Link>}
+          {filter === 'all'    && <p>Properties are added from a lead, contact, or customer record. Open a contact to add a property.</p>}
         </div>
       ) : (
         filtered.map((p) => {
