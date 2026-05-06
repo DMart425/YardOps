@@ -17,6 +17,7 @@ Last updated: 2026-05-06
 - Pending commits:
   - B.7a: Website B.7a (6c8bada in DMart425/WicksburgLawnService) - canonical frequency values + service interests in lead notes
   - B.7b: YardOps consumes website B.7a leads - normalize frequency, parse service interests, apply estimate defaults
+  - B.7c-a: Property default service booleans - migration applied and verified, types updated, pending commit/push
 
 ## Standing Coding Workflow
 
@@ -172,6 +173,24 @@ Phase B.6 (estimate approval source tracking + persistent in-app notifications) 
 - Today page now shows a compact approved-estimate notification card for unreviewed notifications, and marking one reviewed clears it for that user.
 - Protected navigation now shows an Estimates badge count for unreviewed approved-estimate notifications.
 - Migration file was created locally only and was not applied to Supabase.
+
+### Phase B.7c-a Status
+
+Phase B.7c-a (property default service boolean columns — schema + types only) was completed after Phase B.7b.
+
+- Migration `supabase/migrations/20260506000200_property_default_service_booleans.sql` was applied and verified on the confirmed Supabase project (`lewzqavgvltzwfeypvam`).
+- Adds four nullable boolean columns to `public.properties`:
+  - `default_mowing_enabled boolean`
+  - `default_weed_eating_enabled boolean`
+  - `default_edging_enabled boolean`
+  - `default_blow_off_enabled boolean`
+- All four columns are nullable. `null` means "not yet reviewed." `true`/`false` mean explicitly set.
+- Backfill applied for `mow_only`, `mow_blow`, `full_service_mow_edge_trim_blow`, `first_cut_overgrown`. `leaf_cleanup`, `custom`, and `null` are left as `null` (not reviewed / ambiguous).
+- `default_service_package` column is NOT dropped and NOT removed from types or forms in this phase.
+- `src/types/database.ts` — `Property` interface updated with the four new boolean fields.
+- No UI behavior changed: `PropertyForm.tsx`, `EstimateForm.tsx`, `properties/actions.ts`, estimate queries, and job behavior are all untouched.
+
+Next: B.7c-b — replace the Service Package dropdown in `PropertyForm` with checkboxes and wire up `EstimateForm` defaults from property boolean columns.
 
 ### Current Workflow Drift (Confirmed in Phase A Audit)
 

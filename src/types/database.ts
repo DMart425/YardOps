@@ -77,6 +77,10 @@ export interface Property {
   estimated_lot_sqft: number | null
   lot_size_source: string | null
   default_service_package: string | null
+  default_mowing_enabled: boolean | null
+  default_weed_eating_enabled: boolean | null
+  default_edging_enabled: boolean | null
+  default_blow_off_enabled: boolean | null
   default_price: number | null
   service_frequency: ServiceFrequency
   preferred_service_day: string | null
