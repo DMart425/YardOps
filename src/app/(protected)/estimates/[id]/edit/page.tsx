@@ -85,6 +85,18 @@ export default async function EditEstimatePage({
       <div className="page-header">
         <h1 className="page-title">Edit Estimate</h1>
       </div>
+
+      {estimate.status === 'sent' && (
+        <div className="warning-banner" style={{ marginBottom: '1rem' }}>
+          ⚠️ Saving changes will mark this estimate as draft and it must be sent again.
+        </div>
+      )}
+      {estimate.status === 'approved' && (
+        <div className="warning-banner" style={{ marginBottom: '1rem' }}>
+          ⚠️ Saving changes will revoke the prior approval. The customer will need to approve the revised estimate again.
+        </div>
+      )}
+
       <EstimateForm
         action={updateEstimate.bind(null, id)}
         customers={customers.map(({ id: customerId, first_name, last_name }) => ({ id: customerId, first_name, last_name }))}

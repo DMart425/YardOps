@@ -67,8 +67,11 @@ export default async function EstimateDetailPage({
   }
 
   // Build SMS text
+  const isRevised = estimate.revision_number > 1
   const smsLines = [
-    'Hi ' + customer.first_name + ', here is your lawn service estimate from Wicksburg Lawn Service:',
+    isRevised
+      ? 'Hi ' + customer.first_name + ', here is your revised lawn service estimate from Wicksburg Lawn Service:'
+      : 'Hi ' + customer.first_name + ', here is your lawn service estimate from Wicksburg Lawn Service:',
     '',
     'Address: ' + address,
     '',
@@ -124,6 +127,13 @@ export default async function EstimateDetailPage({
           <div className="text-small text-muted">{formatMinutes(totalMinutes)}</div>
         </div>
       </div>
+
+      {/* Revised-draft notice */}
+      {estimate.revision_number > 1 && estimate.status === 'draft' && (
+        <div className="warning-banner" style={{ marginBottom: '1rem' }}>
+          ⚠️ This estimate was revised and must be sent again before approval.
+        </div>
+      )}
 
       {/* Property info */}
       <div className="card" style={{ marginBottom: '1rem' }}>

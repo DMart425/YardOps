@@ -133,6 +133,17 @@ Phase B.3 (estimate workflow hardening + lightweight revisions) was completed af
 - Converted estimates are locked from editing.
 - Public quote and internal estimate detail now show revision context when `revision_number > 1`.
 
+### Phase B.4 Status
+
+Phase B.4 (estimate revision UX polish) was completed after Phase B.3.
+
+- Internal estimate detail: revised draft estimates now show a warning banner — "This estimate was revised and must be sent again before approval."
+- Internal estimate detail: SMS preview first line now reads "here is your revised lawn service estimate" when `revision_number > 1`.
+- Estimate edit page: editing a `sent` estimate shows an inline warning — "Saving changes will mark this estimate as draft and it must be sent again."
+- Estimate edit page: editing an `approved` estimate shows a stronger inline warning — "Saving changes will revoke the prior approval. The customer will need to approve the revised estimate again."
+- Status actions: "Mark as Sent" button label changes to "Send Revised Estimate" when `revision_number > 1`.
+- Public quote page: already showed "Revised Estimate v{N}" and "Updated <date>" from Phase B.3; no additional changes needed.
+
 ### Current Workflow Drift (Confirmed in Phase A Audit)
 
 1. **Website lead conversion previously created sparse property records (resolved in Phase B.2).** `convertWebsiteLead()` no longer inserts properties during conversion.

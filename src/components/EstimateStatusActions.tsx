@@ -5,7 +5,7 @@ import type { FormState } from '@/types/database'
 import { convertToJob, updateEstimateStatus } from '@/app/(protected)/estimates/actions'
 import { Toast } from '@/components/Toast'
 
-export function EstimateStatusActions({ estimate }: { estimate: { id: string; status: string; total: number } }) {
+export function EstimateStatusActions({ estimate }: { estimate: { id: string; status: string; total: number; revision_number: number } }) {
   const [panel, setPanel] = useState<'convert' | null>(null)
 
   const [sentState,     sentAction,     sentPending]     = useActionState<FormState, FormData>(
@@ -42,7 +42,7 @@ export function EstimateStatusActions({ estimate }: { estimate: { id: string; st
       {estimate.status === 'draft' && (
         <form action={sentAction}>
           <button type="submit" disabled={sentPending} className="btn btn-secondary btn-full">
-            {sentPending ? '…' : '📤 Mark as Sent'}
+            {sentPending ? '…' : estimate.revision_number > 1 ? '📤 Send Revised Estimate' : '📤 Mark as Sent'}
           </button>
         </form>
       )}
