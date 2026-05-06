@@ -16,6 +16,9 @@ export default function NewLeadPage() {
       </div>
 
       <div className="card">
+        <p className="text-small text-muted" style={{ marginBottom: '10px' }}>
+          Create the contact first. Add the full property from the lead detail page afterward.
+        </p>
         <form action={action} className="form">
           {state.error && <div className="alert alert-error">{state.error}</div>}
 
@@ -67,11 +70,10 @@ export default function NewLeadPage() {
           </div>
 
           <div className="form-field">
-            <label className="form-label" htmlFor="service_address">Service Address *</label>
+            <label className="form-label" htmlFor="service_address">Service Address (optional intake)</label>
             <input
               id="service_address"
               name="service_address"
-              required
               className="form-input"
               placeholder="123 Main St, Wicksburg"
               autoCapitalize="words"
@@ -79,13 +81,14 @@ export default function NewLeadPage() {
           </div>
 
           <div className="form-field">
-            <label className="form-label" htmlFor="service_frequency">Frequency</label>
+            <label className="form-label" htmlFor="service_frequency">Requested Frequency (optional intake)</label>
             <select
               id="service_frequency"
               name="service_frequency"
               className="form-select"
-              defaultValue="biweekly"
+              defaultValue=""
             >
+              <option value="">Not specified</option>
               <option value="weekly">Weekly</option>
               <option value="biweekly">Biweekly</option>
               <option value="one_time">One-Time</option>

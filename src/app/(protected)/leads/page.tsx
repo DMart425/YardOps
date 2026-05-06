@@ -86,7 +86,7 @@ export default async function LeadsPage() {
                 }> | null
                 const prop = props?.[0]
                 return (
-                  <Link key={c.id} href={`/customers/${c.id}`} style={{ display: 'block' }}>
+                  <Link key={c.id} href={`/leads/${c.id}`} style={{ display: 'block' }}>
                     <div className="card">
                       <div className="card-row">
                         <div>

@@ -164,6 +164,13 @@ export default async function LeadDetailPage({
       ) : (
         <div className="card">
           <p className="text-muted text-small">No property on record.</p>
+          <Link
+            href={`/properties/new?customer_id=${customer.id}`}
+            className="btn btn-sm btn-secondary"
+            style={{ marginTop: '10px' }}
+          >
+            + Add Property
+          </Link>
         </div>
       )}
 
@@ -299,7 +306,12 @@ export default async function LeadDetailPage({
               📋 Build Estimate
             </Link>
           ) : (
-            <p className="text-small text-muted">Add a property first to build an estimate.</p>
+            <>
+              <p className="text-small text-muted">Add a property first to build an estimate.</p>
+              <Link href={`/properties/new?customer_id=${customer.id}`} className="btn btn-secondary btn-full">
+                + Add Property
+              </Link>
+            </>
           )}
           <LeadActions customerId={customer.id} />
         </div>

@@ -308,13 +308,14 @@ auth.users
 
 1. **Public website lead arrives** → Website quote/contact flow writes a row to `public.leads`.
 2. **YardOps reviews website leads** → Protected lead pages read from `leads` and allow convert / dismiss / delete actions.
-3. **Convert accepted website lead** → `convertWebsiteLead()` creates a `customers` row with `status = 'lead'` plus a linked `properties` row, then marks the `leads` row as `converted`.
-4. **Manual lead path** → `createLead()` skips `leads` entirely and creates `customers` + `properties` directly, with the customer starting in `status = 'lead'`.
-5. **Create estimate** → Estimate references customer + property.
-6. **Approve / convert estimate** → Estimate status changes through review and conversion.
-7. **Convert to job** → Creates `jobs` row, sets `estimate.status = 'converted'`, and may promote customer to `active` depending on workflow.
-8. **Complete job** → `job.status = 'completed'`, captures `completed_at` and `amount_paid`.
-9. **Auto-schedule next** → If property `auto_schedule_next = true` and job is recurring, create next job automatically.
+3. **Convert accepted website lead** → `convertWebsiteLead()` creates a `customers` row with `status = 'lead'`, preserves intake address/frequency in notes, then marks the `leads` row as `converted`.
+4. **Manual lead path** → `createLead()` skips `leads` and creates only a lead/contact `customers` row with `status = 'lead'`; optional intake address/frequency is saved in notes.
+5. **Add full property from context** → Property is created afterward from lead/contact/customer context via `/properties/new?customer_id=...` using full `PropertyForm` validation.
+6. **Create estimate** → Estimate references customer + property.
+7. **Approve / convert estimate** → Estimate status changes through review and conversion.
+8. **Convert to job** → Creates `jobs` row, sets `estimate.status = 'converted'`, and may promote customer to `active` depending on workflow.
+9. **Complete job** → `job.status = 'completed'`, captures `completed_at` and `amount_paid`.
+10. **Auto-schedule next** → If property `auto_schedule_next = true` and job is recurring, create next job automatically.
 
 ### Current Lead Cleanup Controls (Verified)
 
@@ -359,7 +360,8 @@ auth.users
 4. **Lead management:**
    - Check **Leads** page (website `leads` rows + manual customer leads)
    - Review website lead or manual lead
-   - For accepted website leads, convert `leads` row into `customers` + `properties`
+   - For accepted website leads, convert `leads` row into a lead/contact customer record (`status = 'lead'`)
+   - Add the full property next from that lead/contact context
    - Review lead/property → Parcel lookup shows lot size, owner, land use when cached parcel data exists
    - Create estimate → Use pricing engine (hours + services)
    - Send estimate via device SMS composer from YardOps

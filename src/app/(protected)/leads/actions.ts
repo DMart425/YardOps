@@ -10,8 +10,26 @@ function str(fd: FormData, key: string) {
   return v || null
 }
 
+function buildLeadIntakeNotes(args: {
+  existingNotes: string | null
+  sourceLabel: string
+  intakeAddress?: string | null
+  requestedFrequency?: string | null
+}) {
+  const { existingNotes, sourceLabel, intakeAddress, requestedFrequency } = args
+  const lines: string[] = []
+
+  if (intakeAddress) lines.push(`Intake address: ${intakeAddress}`)
+  if (requestedFrequency) lines.push(`Requested frequency: ${requestedFrequency}`)
+
+  if (!lines.length) return existingNotes
+
+  const intakeBlock = `${sourceLabel} intake details:\n- ${lines.join('\n- ')}`
+  return existingNotes ? `${existingNotes}\n\n${intakeBlock}` : intakeBlock
+}
+
 // ── createLead ──────────────────────────────────────────────────────────────
-// Creates a manual lead: customer (status='lead') + property
+// Creates a manual lead/contact only: customer (status='lead')
 export async function createLead(
   prevState: FormState,
   formData: FormData
@@ -24,8 +42,14 @@ export async function createLead(
   const firstName = str(formData, 'first_name')
   if (!firstName) return { error: 'First name is required.' }
 
-  const address = str(formData, 'service_address')
-  if (!address) return { error: 'Service address is required.' }
+  const intakeAddress = str(formData, 'service_address')
+  const requestedFrequency = str(formData, 'service_frequency')
+  const notes = buildLeadIntakeNotes({
+    existingNotes: str(formData, 'notes'),
+    sourceLabel: 'Manual lead',
+    intakeAddress,
+    requestedFrequency,
+  })
 
   const { data: customer, error: custError } = await supabase
     .from('customers')
@@ -35,7 +59,7 @@ export async function createLead(
       last_name: str(formData, 'last_name'),
       phone: str(formData, 'phone'),
       email: str(formData, 'email'),
-      notes: str(formData, 'notes'),
+      notes,
       status: 'lead',
     })
     .select('id')
@@ -43,24 +67,12 @@ export async function createLead(
 
   if (custError) return { error: custError.message }
 
-  const { error: propError } = await supabase
-    .from('properties')
-    .insert({
-      created_by: user.id,
-      customer_id: customer.id,
-      service_address: address,
-      service_frequency: (str(formData, 'service_frequency') ?? 'biweekly') as 'weekly' | 'biweekly' | 'one_time' | 'custom' | 'paused',
-      status: 'active',
-    })
-
-  if (propError) return { error: propError.message }
-
   revalidatePath('/leads')
   redirect(`/leads/${customer.id}`)
 }
 
 // ── convertWebsiteLead ──────────────────────────────────────────────────────
-// Converts a website `leads` table row → customer (status='lead') + property
+// Converts a website `leads` table row → customer/contact (status='lead') only
 export async function convertWebsiteLead(
   leadId: string,
   prevState: FormState,
@@ -85,14 +97,12 @@ export async function convertWebsiteLead(
   const firstName = parts[0] ?? 'Unknown'
   const lastName = parts.length > 1 ? parts.slice(1).join(' ') : null
 
-  // Map website frequency values to DB enum
-  const freqMap: Record<string, 'weekly' | 'biweekly' | 'one_time' | 'custom' | 'paused'> = {
-    Weekly: 'weekly',
-    Biweekly: 'biweekly',
-    'One-Time Cut': 'one_time',
-    'Not Sure Yet': 'biweekly',
-  }
-  const frequency = freqMap[lead.frequency as string] ?? 'biweekly'
+  const notes = buildLeadIntakeNotes({
+    existingNotes: lead.notes ?? null,
+    sourceLabel: 'Website lead',
+    intakeAddress: lead.address ?? null,
+    requestedFrequency: lead.frequency ?? null,
+  })
 
   const { data: customer, error: custError } = await supabase
     .from('customers')
@@ -102,25 +112,13 @@ export async function convertWebsiteLead(
       last_name: lastName,
       phone: lead.phone ?? null,
       email: lead.email ?? null,
-      notes: lead.notes ?? null,
+      notes,
       status: 'lead',
     })
     .select('id')
     .single()
 
   if (custError) return { error: custError.message }
-
-  const { error: propError } = await supabase
-    .from('properties')
-    .insert({
-      created_by: user.id,
-      customer_id: customer.id,
-      service_address: lead.address,
-      service_frequency: frequency,
-      status: 'active',
-    })
-
-  if (propError) return { error: propError.message }
 
   // Mark website lead as converted so it won't show up again
   await supabase

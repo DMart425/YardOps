@@ -113,11 +113,20 @@ Last updated: 2026-05-05
 
 Phase A current workflow audit was completed on 2026-05-05. No code was changed. No commits or pushes were made. The audit produced a full workflow map and creation path matrix.
 
+### Phase B.2 Status
+
+Phase B.2 (lead-first creation hardening) was completed after Phase B.1.
+
+- `createLead()` now creates only a lead/contact (`customers.status = 'lead'`) and does not create a property row.
+- `convertWebsiteLead()` now creates only a lead/contact (`customers.status = 'lead'`), marks the website lead as converted, and does not create a property row.
+- Website/manual intake address and requested frequency are preserved in customer notes so details are not lost before full property creation.
+- Property creation now happens afterward from lead/contact/customer context via `/properties/new?customer_id=...`.
+
 ### Current Workflow Drift (Confirmed in Phase A Audit)
 
-1. **Website lead conversion creates sparse property records.** `convertWebsiteLead()` inserts a property row with only `service_address`, `service_frequency`, and `status`. City, state, county, and postal_code are not set. This makes the resulting property unusable for duplicate detection and geocoding.
+1. **Website lead conversion previously created sparse property records (resolved in Phase B.2).** `convertWebsiteLead()` no longer inserts properties during conversion.
 
-2. **Manual Add Lead creates sparse property records.** `createLead()` has the same problem — only `service_address` is captured. The full `PropertyForm` used on `/properties/new` requires city, state, and county.
+2. **Manual Add Lead previously created sparse property records (resolved in Phase B.2).** `createLead()` no longer inserts properties during manual lead creation.
 
 3. **Add Property via `/properties/new` uses full `PropertyForm` validation.** This path correctly requires all address fields, parcel import support, and geocoding. It is the only path that creates complete property records.
 
