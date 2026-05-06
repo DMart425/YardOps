@@ -17,6 +17,17 @@ function parseBoolParam(value?: string): boolean | undefined {
   return undefined
 }
 
+function parseSafeReturnTo(value?: string): string | undefined {
+  if (!value) return undefined
+  if (!value.startsWith('/') || value.startsWith('//')) return undefined
+  const [path] = value.split('?')
+  if (/^\/leads\/[0-9a-fA-F-]{36}$/.test(path)) return value
+  if (/^\/customers\/[0-9a-fA-F-]{36}$/.test(path)) return value
+  if (/^\/properties\/[0-9a-fA-F-]{36}$/.test(path)) return value
+  if (path === '/leads' || path === '/customers' || path === '/properties') return value
+  return undefined
+}
+
 export default async function NewPropertyPage({
   searchParams,
 }: {
@@ -35,6 +46,7 @@ export default async function NewPropertyPage({
     default_weed_eating_enabled?: string
     default_edging_enabled?: string
     default_blow_off_enabled?: string
+    return_to?: string
   }>
 }) {
   const {
@@ -52,7 +64,10 @@ export default async function NewPropertyPage({
     default_weed_eating_enabled,
     default_edging_enabled,
     default_blow_off_enabled,
+    return_to,
   } = await searchParams
+
+  const safeReturnTo = parseSafeReturnTo(return_to)
 
   // No customer context — block standalone creation and direct user to Leads
   if (!customer_id) {
@@ -103,7 +118,7 @@ export default async function NewPropertyPage({
 
   return (
     <div className="page">
-      <Link href={`/customers/${customer_id}`} className="back-link">
+      <Link href={safeReturnTo ?? `/customers/${customer_id}`} className="back-link">
         ← Customer
       </Link>
       <div className="page-header">
@@ -114,10 +129,11 @@ export default async function NewPropertyPage({
         <PropertyForm
           action={createProperty}
           submitLabel="Add Property"
-          cancelHref={`/customers/${customer_id}`}
+          cancelHref={safeReturnTo ?? `/customers/${customer_id}`}
           customers={customers ?? []}
           defaultCustomerId={customer_id}
           defaultValues={defaultValues}
+          returnTo={safeReturnTo}
         />
       </div>
     </div>

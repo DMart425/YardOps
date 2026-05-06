@@ -75,6 +75,7 @@ export default async function LeadDetailPage({
   if (addressPrefill.state) addPropertyParams.set('state', addressPrefill.state)
   if (addressPrefill.postal_code) addPropertyParams.set('postal_code', addressPrefill.postal_code)
   if (normalizedFrequency) addPropertyParams.set('service_frequency', normalizedFrequency)
+  addPropertyParams.set('return_to', `/leads/${customer.id}`)
   const serviceInterests = parseWebsiteServiceInterests(customer.notes)
   if (serviceInterests.size > 0) {
     addPropertyParams.set('default_mowing_enabled',      serviceInterests.has('mowing')     ? 'true' : 'false')
@@ -342,12 +343,20 @@ export default async function LeadDetailPage({
         <div className="section-heading">Actions</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {property ? (
-            <Link
-              href={`/estimates/new?customer_id=${customer.id}&property_id=${property.id}`}
-              className="btn btn-primary btn-full"
-            >
-              📋 Build Estimate
-            </Link>
+            <>
+              <Link
+                href={`/estimates/new?customer_id=${customer.id}&property_id=${property.id}`}
+                className="btn btn-primary btn-full"
+              >
+                📋 Build Estimate
+              </Link>
+              <Link
+                href={`/properties/${property.id}?return_to=${encodeURIComponent(`/leads/${customer.id}`)}`}
+                className="btn btn-secondary btn-full"
+              >
+                Edit Property
+              </Link>
+            </>
           ) : (
             <>
               <p className="text-small text-muted">Add a property first to build an estimate.</p>
@@ -356,6 +365,9 @@ export default async function LeadDetailPage({
               </Link>
             </>
           )}
+          <Link href={`/customers/${customer.id}`} className="btn btn-secondary btn-full">
+            Edit Lead / Contact
+          </Link>
           <LeadActions customerId={customer.id} />
         </div>
       </div>

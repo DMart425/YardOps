@@ -23,6 +23,17 @@ function requiredField(formData: FormData, key: string, label: string): string |
   return value
 }
 
+function safeReturnPath(value: string | null): string | null {
+  if (!value) return null
+  if (!value.startsWith('/') || value.startsWith('//')) return null
+  const [path] = value.split('?')
+  if (/^\/leads\/[0-9a-fA-F-]{36}$/.test(path)) return value
+  if (/^\/customers\/[0-9a-fA-F-]{36}$/.test(path)) return value
+  if (/^\/properties\/[0-9a-fA-F-]{36}$/.test(path)) return value
+  if (path === '/leads' || path === '/customers' || path === '/properties') return value
+  return null
+}
+
 export async function createProperty(
   prevState: FormState,
   formData: FormData
@@ -43,6 +54,7 @@ export async function createProperty(
   const county = requiredField(formData, 'county', 'County')
   if (typeof county !== 'string') return county
   const postalCode = str(formData, 'postal_code')
+  const returnTo = safeReturnPath(str(formData, 'return_to'))
 
   // Geocode the address (best-effort, non-blocking on failure)
   const geo = await geocodeAddress({ address, city, state, postalCode })
@@ -83,6 +95,10 @@ export async function createProperty(
 
   revalidatePath('/properties')
   revalidatePath(`/customers/${customerId}`)
+  if (returnTo) {
+    revalidatePath(returnTo)
+    redirect(returnTo)
+  }
   redirect(`/properties/${property.id}`)
 }
 
@@ -107,6 +123,7 @@ export async function updateProperty(
   const county = requiredField(formData, 'county', 'County')
   if (typeof county !== 'string') return county
   const postalCode = str(formData, 'postal_code')
+  const returnTo = safeReturnPath(str(formData, 'return_to'))
 
   // If property has no lat/lon yet, geocode it now
   const { data: existing } = await supabase
@@ -158,6 +175,10 @@ export async function updateProperty(
 
   revalidatePath('/properties')
   revalidatePath(`/properties/${id}`)
+  if (returnTo) {
+    revalidatePath(returnTo)
+    redirect(returnTo)
+  }
   return { error: null, success: 'Changes saved.' }
 }
 

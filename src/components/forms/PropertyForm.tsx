@@ -38,6 +38,7 @@ type Props = {
   action: (prevState: FormState, formData: FormData) => Promise<FormState>
   submitLabel: string
   cancelHref: string
+  returnTo?: string
   customers: CustomerOption[]
   defaultValues?: Partial<Property>
   defaultCustomerId?: string
@@ -47,6 +48,7 @@ export function PropertyForm({
   action,
   submitLabel,
   cancelHref,
+  returnTo,
   customers,
   defaultValues,
   defaultCustomerId,
@@ -93,6 +95,7 @@ export function PropertyForm({
       {state.error && <div className="alert alert-error">{state.error}</div>}
       <input type="hidden" name="parcel_id" value={parcelId} />
       <input type="hidden" name="lot_size_source" value={lotSizeSource} />
+      {returnTo && <input type="hidden" name="return_to" value={returnTo} />}
 
       {/* Customer */}
       <div className="form-section-label">Customer</div>

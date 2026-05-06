@@ -15,10 +15,11 @@ Last updated: 2026-05-06
   - 4642128 - hardened/aligned lead cleanup controls
   - d02df30 - feat: show imported parcel summary on estimates (zero-acre normalization + EstimateForm summary card)
   - 58879bc - B.7c-a: property default service boolean columns (migration + types)
+  - 701fed8 - B.7c-b: property default service checkboxes + estimate defaults
 - Pending commits:
   - B.7a: Website B.7a (6c8bada in DMart425/WicksburgLawnService) - canonical frequency values + service interests in lead notes
   - B.7b: YardOps consumes website B.7a leads - normalize frequency, parse service interests, apply estimate defaults
-  - B.7c-b: Replace Service Package dropdown with Default Services checkboxes; wire EstimateForm to use property boolean defaults
+  - B.7d: lead -> property workflow polish (lead-context return flow + lead detail edit actions)
 
 ## Standing Coding Workflow
 
@@ -195,7 +196,7 @@ Next: B.7c-b — replace the Service Package dropdown in `PropertyForm` with che
 
 ### Phase B.7c-b Status
 
-Phase B.7c-b (PropertyForm Default Services checkboxes + EstimateForm property boolean defaults) was implemented locally on 2026-05-06. No migration was created or applied.
+Phase B.7c-b (PropertyForm Default Services checkboxes + EstimateForm property boolean defaults) was completed on 2026-05-06 and committed in `701fed8`. No migration was created or applied.
 
 - `src/components/forms/PropertyForm.tsx` — Service Package `<select>` replaced with four Default Services checkboxes: Mowing, Weed eating / trimming, Edging, Blow off hard surfaces. Initial state derived from: property boolean columns (if any non-null) → legacy `default_service_package` string fallback → safe defaults (mowing=true, others=false). Controlled checkboxes save `true`/`false` to DB (unchecked = `false`, not `null`).
 - `src/app/(protected)/properties/actions.ts` — `createProperty` and `updateProperty` now save the four boolean columns from form checkboxes. `default_service_package` is no longer written from form submissions (existing DB values are preserved on update, new properties get `null`).
@@ -207,7 +208,18 @@ Phase B.7c-b (PropertyForm Default Services checkboxes + EstimateForm property b
 - `src/app/(protected)/properties/[id]/page.tsx` — Detail card now shows "Default services" row based on boolean columns. Falls back to legacy "Package" display if booleans are all null and `default_service_package` is set.
 - `default_service_package` DB column is NOT dropped or cleared.
 - No migration was created.
-- No commit or push was made.
+- Committed and pushed as `701fed8`.
+
+### Phase B.7d Status
+
+Phase B.7d (lead -> property flow polish) was implemented locally on 2026-05-06. No migration was created or applied.
+
+- `src/app/(protected)/leads/[id]/page.tsx` — Add Property flow now includes `return_to=/leads/:id`. Actions now include Edit Lead / Contact (`/customers/:id`) and Edit Property (`/properties/:id?return_to=/leads/:id`) when a property exists. Build Estimate and Archive Lead remain unchanged.
+- `src/app/(protected)/properties/new/page.tsx` — Added safe parsing for optional `return_to` query param and used it for back/cancel links plus form pass-through.
+- `src/components/forms/PropertyForm.tsx` — Added optional hidden `return_to` field support.
+- `src/app/(protected)/properties/actions.ts` — Added safe internal `return_to` validation and redirect support in both `createProperty` and `updateProperty`. Invalid or external targets are ignored.
+- `src/app/(protected)/properties/[id]/page.tsx` — Added safe `return_to` support for back link, cancel, and save flow so lead-context property edits return to the lead detail page.
+- No schema or RLS changes.
 
 ### Current Workflow Drift (Confirmed in Phase A Audit)
 

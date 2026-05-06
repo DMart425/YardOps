@@ -9,12 +9,27 @@ import { estimateMowableAcres } from '@/lib/pricing'
 import { PropertyDangerZone } from './PropertyDangerZone'
 import { PropertyAssignmentSection } from './PropertyAssignmentSection'
 
+function parseSafeReturnTo(value?: string): string | undefined {
+  if (!value) return undefined
+  if (!value.startsWith('/') || value.startsWith('//')) return undefined
+  const [path] = value.split('?')
+  if (/^\/leads\/[0-9a-fA-F-]{36}$/.test(path)) return value
+  if (/^\/customers\/[0-9a-fA-F-]{36}$/.test(path)) return value
+  if (/^\/properties\/[0-9a-fA-F-]{36}$/.test(path)) return value
+  if (path === '/leads' || path === '/customers' || path === '/properties') return value
+  return undefined
+}
+
 export default async function PropertyDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ return_to?: string }>
 }) {
   const { id } = await params
+  const { return_to } = await searchParams
+  const safeReturnTo = parseSafeReturnTo(return_to)
   const supabase = await createClient()
 
   const [{ data: property }, { data: customers }] = await Promise.all([
@@ -102,7 +117,7 @@ export default async function PropertyDetailPage({
 
   return (
     <div className="page">
-      <Link href="/properties" className="back-link">← Properties</Link>
+      <Link href={safeReturnTo ?? '/properties'} className="back-link">← Back</Link>
 
       <div className="page-header">
         <div>
@@ -307,7 +322,8 @@ export default async function PropertyDetailPage({
           <PropertyForm
             action={updateProperty.bind(null, id)}
             submitLabel="Save Changes"
-            cancelHref="/properties"
+            cancelHref={safeReturnTo ?? '/properties'}
+            returnTo={safeReturnTo}
             customers={customers ?? []}
             defaultValues={p}
           />
