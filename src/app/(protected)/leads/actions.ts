@@ -4,10 +4,24 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import type { FormState } from '@/types/database'
+import { geocodeAddress } from '@/lib/geocode'
 
 function str(fd: FormData, key: string) {
   const v = (fd.get(key) as string)?.trim()
   return v || null
+}
+
+function num(fd: FormData, key: string) {
+  const raw = (fd.get(key) as string | null)?.trim()
+  if (!raw) return null
+  const parsed = parseFloat(raw)
+  return Number.isNaN(parsed) ? null : parsed
+}
+
+function required(fd: FormData, key: string, label: string): string | { error: string } {
+  const value = ((fd.get(key) as string | null) ?? '').trim()
+  if (!value) return { error: `${label} is required.` }
+  return value
 }
 
 function buildLeadIntakeNotes(args: {
@@ -15,12 +29,14 @@ function buildLeadIntakeNotes(args: {
   sourceLabel: string
   intakeAddress?: string | null
   requestedFrequency?: string | null
+  requestedPackage?: string | null
 }) {
-  const { existingNotes, sourceLabel, intakeAddress, requestedFrequency } = args
+  const { existingNotes, sourceLabel, intakeAddress, requestedFrequency, requestedPackage } = args
   const lines: string[] = []
 
   if (intakeAddress) lines.push(`Intake address: ${intakeAddress}`)
   if (requestedFrequency) lines.push(`Requested frequency: ${requestedFrequency}`)
+  if (requestedPackage) lines.push(`Requested package: ${requestedPackage}`)
 
   if (!lines.length) return existingNotes
 
@@ -29,7 +45,7 @@ function buildLeadIntakeNotes(args: {
 }
 
 // ── createLead ──────────────────────────────────────────────────────────────
-// Creates a manual lead/contact only: customer (status='lead')
+// Creates a manual lead/contact with a full property: customer (status='lead') + properties row
 export async function createLead(
   prevState: FormState,
   formData: FormData
@@ -42,13 +58,28 @@ export async function createLead(
   const firstName = str(formData, 'first_name')
   if (!firstName) return { error: 'First name is required.' }
 
-  const intakeAddress = str(formData, 'service_address')
+  const serviceAddress = required(formData, 'service_address', 'Street address')
+  if (typeof serviceAddress !== 'string') return serviceAddress
+  const city = required(formData, 'city', 'City')
+  if (typeof city !== 'string') return city
+  const state = required(formData, 'state', 'State')
+  if (typeof state !== 'string') return state
+  const county = required(formData, 'county', 'County')
+  if (typeof county !== 'string') return county
+
+  const postalCode = str(formData, 'postal_code')
+  const serviceFrequency = str(formData, 'service_frequency') ?? 'one_time'
+  const defaultServicePackage = str(formData, 'default_service_package')
+
+  const intakeAddress = [serviceAddress, city, state, postalCode].filter(Boolean).join(', ')
   const requestedFrequency = str(formData, 'service_frequency')
+  const requestedPackage = str(formData, 'default_service_package')
   const notes = buildLeadIntakeNotes({
     existingNotes: str(formData, 'notes'),
     sourceLabel: 'Manual lead',
     intakeAddress,
     requestedFrequency,
+    requestedPackage,
   })
 
   const { data: customer, error: custError } = await supabase
@@ -67,7 +98,55 @@ export async function createLead(
 
   if (custError) return { error: custError.message }
 
+  const geo = await geocodeAddress({
+    address: serviceAddress,
+    city,
+    state,
+    postalCode,
+  })
+
+  const { error: propError } = await supabase
+    .from('properties')
+    .insert({
+      created_by: user.id,
+      customer_id: customer.id,
+      property_name: str(formData, 'property_name'),
+      service_address: serviceAddress,
+      city,
+      state,
+      postal_code: postalCode,
+      county,
+      latitude: geo?.latitude ?? null,
+      longitude: geo?.longitude ?? null,
+      parcel_id: str(formData, 'parcel_id'),
+      parcel_acres: num(formData, 'parcel_acres'),
+      estimated_mowable_acres: num(formData, 'estimated_mowable_acres'),
+      lot_size_source: str(formData, 'lot_size_source') ?? 'manual',
+      default_service_package: defaultServicePackage,
+      service_frequency: serviceFrequency,
+      access_notes: str(formData, 'access_notes'),
+      obstacle_notes: str(formData, 'obstacle_notes'),
+      parking_notes: str(formData, 'parking_notes'),
+      internal_notes: str(formData, 'internal_notes'),
+      status: 'active',
+      auto_schedule_next: true,
+    })
+
+  if (propError) {
+    const { error: rollbackError } = await supabase
+      .from('customers')
+      .delete()
+      .eq('id', customer.id)
+      .eq('created_by', user.id)
+
+    if (rollbackError) {
+      return { error: `Property save failed after lead creation and automatic rollback failed: ${propError.message}` }
+    }
+    return { error: `Property save failed. Lead was not created. ${propError.message}` }
+  }
+
   revalidatePath('/leads')
+  revalidatePath('/properties')
   redirect(`/leads/${customer.id}`)
 }
 

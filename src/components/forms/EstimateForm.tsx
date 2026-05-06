@@ -14,6 +14,7 @@ interface PropertyOption {
   id: string; customer_id: string; property_name: string | null
   service_address: string; city: string | null
   parcel_acres: number | null; estimated_mowable_acres: number | null
+  service_frequency: string | null; default_service_package: string | null
 }
 
 interface ParcelResult {
@@ -63,6 +64,50 @@ const OBSTACLE_OPTIONS = [
   { key: 'pool_area',          label: 'Pool area (+10 min)' },
   { key: 'ditch',              label: 'Ditch (+15 min)' },
 ]
+
+function mapPropertyFrequency(value: string | null): EstimateInputs['frequency'] | null {
+  if (!value) return null
+  if (value === 'weekly' || value === 'biweekly' || value === 'one_time' || value === 'monthly') {
+    return value
+  }
+  return null
+}
+
+function packageDefaults(packageCode: string | null): Partial<EstimateInputs> {
+  switch (packageCode) {
+    case 'mow_only':
+      return {
+        weedEatingLevel: 'none',
+        edgingLevel: 'none',
+        blowOffLevel: 'none',
+      }
+    case 'mow_blow':
+      return {
+        weedEatingLevel: 'none',
+        edgingLevel: 'none',
+        blowOffLevel: 'normal',
+      }
+    case 'full_service_mow_edge_trim_blow':
+      return {
+        weedEatingLevel: 'normal',
+        edgingLevel: 'normal',
+        blowOffLevel: 'normal',
+      }
+    case 'first_cut_overgrown':
+      return {
+        grassCondition: 'overgrown',
+        weedEatingLevel: 'heavy',
+        edgingLevel: 'normal',
+        blowOffLevel: 'heavy_cleanup',
+      }
+    case 'leaf_cleanup':
+      return {
+        leafCleanupLevel: 'medium',
+      }
+    default:
+      return {}
+  }
+}
 
 export function EstimateForm({
   action,
@@ -125,7 +170,7 @@ export function EstimateForm({
   const [newPropertyParcelMessage, setNewPropertyParcelMessage] = useState<string | null>(null)
   const [parcelLookupPending, setParcelLookupPending] = useState(false)
   const [importedEstimateParcel, setImportedEstimateParcel] = useState<ImportedParcel | null>(null)
-  const autoFillReadyRef = useRef(initialInputs == null)
+  const userChangedPropertyRef = useRef(false)
 
   const filteredProps = customerId ? properties.filter(p => p.customer_id === customerId) : properties
   const selectedProp  = properties.find(p => p.id === propertyId)
@@ -133,12 +178,19 @@ export function EstimateForm({
 
   useEffect(() => {
     if (!selectedProp) return
-    if (!autoFillReadyRef.current) {
-      autoFillReadyRef.current = true
+    if (initialInputs != null && !userChangedPropertyRef.current) {
       return
     }
     const acres = selectedProp.estimated_mowable_acres ?? selectedProp.parcel_acres
-    if (acres && acres > 0) set('mowingMinutes', acrestoMowMinutes(acres))
+    const mappedFrequency = mapPropertyFrequency(selectedProp.service_frequency)
+    const defaultsFromPackage = packageDefaults(selectedProp.default_service_package)
+
+    setInputs(prev => ({
+      ...prev,
+      ...(acres && acres > 0 ? { mowingMinutes: acrestoMowMinutes(acres) } : {}),
+      ...(mappedFrequency ? { frequency: mappedFrequency } : {}),
+      ...defaultsFromPackage,
+    }))
   }, [propertyId]) // eslint-disable-line
 
   function set<K extends keyof EstimateInputs>(key: K, value: EstimateInputs[K]) {
@@ -502,7 +554,10 @@ export function EstimateForm({
             className="form-select"
             required={!inlineEnabled || propertyMode === 'existing'}
             value={propertyId}
-            onChange={e => setPropertyId(e.target.value)}>
+            onChange={e => {
+              userChangedPropertyRef.current = true
+              setPropertyId(e.target.value)
+            }}>
             <option value="">— Select property —</option>
             {filteredProps.map(p => (
               <option key={p.id} value={p.id}>{p.property_name ?? p.service_address}{p.city ? ', ' + p.city : ''}</option>
@@ -523,6 +578,16 @@ export function EstimateForm({
               ~{Number(acres).toFixed(2)} mowable acres — mow time set to {acrestoMowMinutes(acres)} min
             </p>
           )}
+          {selectedProp?.service_frequency && (
+            <p className="form-hint">
+              Frequency defaulted from property: {selectedProp.service_frequency.replace(/_/g, ' ')}
+            </p>
+          )}
+          {selectedProp?.default_service_package && (
+            <p className="form-hint">
+              Service defaults applied from property package: {selectedProp.default_service_package.replace(/_/g, ' ')}
+            </p>
+          )}
         </div>
       )}
 
@@ -534,7 +599,7 @@ export function EstimateForm({
             setImportedEstimateParcel(parcel)
             if (parcel.mowingMinutes != null) set('mowingMinutes', parcel.mowingMinutes)
           }} />
-          <p className="form-hint">Search parcel data to auto-fill mow time when lot size is available</p>
+          <p className="form-hint">Search parcel data to override mow time when needed, even after property defaults are applied</p>
 
           {importedEstimateParcel && (
             <div className="card" style={{ marginTop: '10px' }}>

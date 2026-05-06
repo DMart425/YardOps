@@ -2,13 +2,42 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { PropertyForm } from '@/components/forms/PropertyForm'
 import { createProperty } from '../actions'
+import type { Property } from '@/types/database'
+
+function parseOptionalNumber(value?: string): number | null {
+  if (!value) return null
+  const parsed = parseFloat(value)
+  return Number.isNaN(parsed) ? null : parsed
+}
 
 export default async function NewPropertyPage({
   searchParams,
 }: {
-  searchParams: Promise<{ customer_id?: string }>
+  searchParams: Promise<{
+    customer_id?: string
+    service_address?: string
+    city?: string
+    state?: string
+    county?: string
+    postal_code?: string
+    service_frequency?: string
+    default_service_package?: string
+    parcel_acres?: string
+    estimated_mowable_acres?: string
+  }>
 }) {
-  const { customer_id } = await searchParams
+  const {
+    customer_id,
+    service_address,
+    city,
+    state,
+    county,
+    postal_code,
+    service_frequency,
+    default_service_package,
+    parcel_acres,
+    estimated_mowable_acres,
+  } = await searchParams
 
   // No customer context — block standalone creation and direct user to Leads
   if (!customer_id) {
@@ -41,6 +70,18 @@ export default async function NewPropertyPage({
     .neq('status', 'archived')
     .order('first_name')
 
+  const defaultValues: Partial<Property> = {
+    service_address: service_address ?? undefined,
+    city: city ?? undefined,
+    state: state ?? undefined,
+    county: county ?? undefined,
+    postal_code: postal_code ?? undefined,
+    service_frequency: (service_frequency as Property['service_frequency'] | undefined) ?? undefined,
+    default_service_package: default_service_package ?? undefined,
+    parcel_acres: parseOptionalNumber(parcel_acres),
+    estimated_mowable_acres: parseOptionalNumber(estimated_mowable_acres),
+  }
+
   return (
     <div className="page">
       <Link href={`/customers/${customer_id}`} className="back-link">
@@ -57,6 +98,7 @@ export default async function NewPropertyPage({
           cancelHref={`/customers/${customer_id}`}
           customers={customers ?? []}
           defaultCustomerId={customer_id}
+          defaultValues={defaultValues}
         />
       </div>
     </div>

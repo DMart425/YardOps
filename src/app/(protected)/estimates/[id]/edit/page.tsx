@@ -14,6 +14,8 @@ type PropertyOption = {
   city: string | null
   parcel_acres: number | null
   estimated_mowable_acres: number | null
+  service_frequency: string | null
+  default_service_package: string | null
 }
 
 export default async function EditEstimatePage({
@@ -51,7 +53,7 @@ export default async function EditEstimatePage({
       .order('first_name'),
     supabase
       .from('properties')
-      .select('id, customer_id, property_name, service_address, city, parcel_acres, estimated_mowable_acres, status')
+      .select('id, customer_id, property_name, service_address, city, parcel_acres, estimated_mowable_acres, service_frequency, default_service_package, status')
       .order('service_address'),
     supabase
       .from('pricing_settings')
@@ -73,7 +75,7 @@ export default async function EditEstimatePage({
   if (!properties.some(property => property.id === estimate.property_id)) {
     const { data: currentProperty } = await supabase
       .from('properties')
-      .select('id, customer_id, property_name, service_address, city, parcel_acres, estimated_mowable_acres')
+      .select('id, customer_id, property_name, service_address, city, parcel_acres, estimated_mowable_acres, service_frequency, default_service_package')
       .eq('id', estimate.property_id)
       .single()
     if (currentProperty) properties = [currentProperty as PropertyOption, ...properties]
@@ -100,7 +102,7 @@ export default async function EditEstimatePage({
       <EstimateForm
         action={updateEstimate.bind(null, id)}
         customers={customers.map(({ id: customerId, first_name, last_name }) => ({ id: customerId, first_name, last_name }))}
-        properties={properties.map(({ id: propertyId, customer_id, property_name, service_address, city, parcel_acres, estimated_mowable_acres }) => ({
+        properties={properties.map(({ id: propertyId, customer_id, property_name, service_address, city, parcel_acres, estimated_mowable_acres, service_frequency, default_service_package }) => ({
           id: propertyId,
           customer_id,
           property_name,
@@ -108,6 +110,8 @@ export default async function EditEstimatePage({
           city,
           parcel_acres,
           estimated_mowable_acres,
+          service_frequency,
+          default_service_package,
         }))}
         defaultCustomerId={estimate.customer_id}
         defaultPropertyId={estimate.property_id}

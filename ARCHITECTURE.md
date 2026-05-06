@@ -313,8 +313,8 @@ auth.users
 1. **Public website lead arrives** → Website quote/contact flow writes a row to `public.leads`.
 2. **YardOps reviews website leads** → Protected lead pages read from `leads` and allow convert / dismiss / delete actions.
 3. **Convert accepted website lead** → `convertWebsiteLead()` creates a `customers` row with `status = 'lead'`, preserves intake address/frequency in notes, then marks the `leads` row as `converted`.
-4. **Manual lead path** → `createLead()` skips `leads` and creates only a lead/contact `customers` row with `status = 'lead'`; optional intake address/frequency is saved in notes.
-5. **Add full property from context** → Property is created afterward from lead/contact/customer context via `/properties/new?customer_id=...` using full `PropertyForm` validation.
+4. **Manual lead path** → `createLead()` creates both a lead/contact `customers` row (`status = 'lead'`) and a full `properties` row together using required property validation fields.
+5. **Website-converted lead property path** → Property can be created from lead/customer context via `/properties/new?customer_id=...`, with intake address/frequency/package prefilled when those intake details are available.
 6. **Create estimate** → Estimate creation requires an existing customer/contact and an existing property; no inline customer/property creation is allowed in `/estimates/new`.
 7. **Revise estimate (when needed)** → Editing a `sent` or `approved` estimate increments `revision_number`, sets `last_revised_at`, and resets status to `draft` so it must be resent/reapproved.
 8. **Approve / convert estimate** → Estimate status changes through review and conversion.
@@ -333,8 +333,8 @@ auth.users
 ### Current Estimate Parcel Lookup (Verified)
 
 - `EstimateForm` now renders a full imported parcel summary card (address, city/state/ZIP, county, parcel acres, mowable acres, estimated mowing minutes, or explicit "No usable lot size data" when acreage is missing or zero).
-- Parcel lookup in `EstimateForm` still uses the shared `ParcelLookup` component for display; it does not save imported parcel data back to the property record.
-- The inline new-property parcel lookup within `EstimateForm` is a separate direct fetch, not the shared `ParcelLookup` component, and does not yet apply the zero-acre normalization from `ParcelLookup`.
+- `EstimateForm` now auto-applies selected property defaults (acres -> mow minutes, property frequency, and package-derived service levels) and still supports shared `ParcelLookup` as an override/search tool.
+- Parcel lookup in `EstimateForm` does not save imported parcel data back to the property record.
 
 ---
 

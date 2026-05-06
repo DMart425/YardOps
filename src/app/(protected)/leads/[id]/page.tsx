@@ -4,6 +4,33 @@ import { notFound } from 'next/navigation'
 import { LeadActions } from './LeadActions'
 import { ApplyParcelButton } from './ApplyParcelButton'
 
+function getIntakeValue(notes: string | null, label: string): string | null {
+  if (!notes) return null
+  const regex = new RegExp(`- ${label}:\\s*(.+)`, 'i')
+  const match = notes.match(regex)
+  return match?.[1]?.trim() || null
+}
+
+function parseAddressParts(address: string | null): { service_address?: string; city?: string; state?: string; postal_code?: string } {
+  if (!address) return {}
+  const parts = address.split(',').map(part => part.trim()).filter(Boolean)
+  const parsed: { service_address?: string; city?: string; state?: string; postal_code?: string } = {}
+
+  if (parts[0]) parsed.service_address = parts[0]
+  if (parts[1]) parsed.city = parts[1]
+  if (parts[2]) {
+    const stateZipMatch = parts[2].match(/^([A-Za-z]{2})(?:\s+(\d{5}(?:-\d{4})?))?$/)
+    if (stateZipMatch) {
+      parsed.state = stateZipMatch[1].toUpperCase()
+      if (stateZipMatch[2]) parsed.postal_code = stateZipMatch[2]
+    } else {
+      parsed.state = parts[2].slice(0, 2).toUpperCase()
+    }
+  }
+
+  return parsed
+}
+
 export default async function LeadDetailPage({
   params,
 }: {
@@ -36,6 +63,19 @@ export default async function LeadDetailPage({
     estimated_mowable_acres: number | null
   }> | null
   const property = props?.[0]
+  const intakeAddress = getIntakeValue(customer.notes, 'Intake address')
+  const requestedFrequency = getIntakeValue(customer.notes, 'Requested frequency')
+  const requestedPackage = getIntakeValue(customer.notes, 'Requested package')
+  const addressPrefill = parseAddressParts(intakeAddress)
+
+  const addPropertyParams = new URLSearchParams({ customer_id: customer.id })
+  if (addressPrefill.service_address) addPropertyParams.set('service_address', addressPrefill.service_address)
+  if (addressPrefill.city) addPropertyParams.set('city', addressPrefill.city)
+  if (addressPrefill.state) addPropertyParams.set('state', addressPrefill.state)
+  if (addressPrefill.postal_code) addPropertyParams.set('postal_code', addressPrefill.postal_code)
+  if (requestedFrequency) addPropertyParams.set('service_frequency', requestedFrequency)
+  if (requestedPackage) addPropertyParams.set('default_service_package', requestedPackage)
+  const addPropertyHref = `/properties/new?${addPropertyParams.toString()}`
 
   // Fetch any estimates already created for this lead
   const { data: estimates } = await supabase
@@ -164,13 +204,9 @@ export default async function LeadDetailPage({
       ) : (
         <div className="card">
           <p className="text-muted text-small">No property on record.</p>
-          <Link
-            href={`/properties/new?customer_id=${customer.id}`}
-            className="btn btn-sm btn-secondary"
-            style={{ marginTop: '10px' }}
-          >
-            + Add Property
-          </Link>
+          <p className="text-small text-muted" style={{ marginTop: '8px' }}>
+            Use the Add Property action below to create the full property record.
+          </p>
         </div>
       )}
 
@@ -308,7 +344,7 @@ export default async function LeadDetailPage({
           ) : (
             <>
               <p className="text-small text-muted">Add a property first to build an estimate.</p>
-              <Link href={`/properties/new?customer_id=${customer.id}`} className="btn btn-secondary btn-full">
+              <Link href={addPropertyHref} className="btn btn-secondary btn-full">
                 + Add Property
               </Link>
             </>

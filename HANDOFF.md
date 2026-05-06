@@ -144,11 +144,24 @@ Phase B.4 (estimate revision UX polish) was completed after Phase B.3.
 - Status actions: "Mark as Sent" button label changes to "Send Revised Estimate" when `revision_number > 1`.
 - Public quote page: already showed "Revised Estimate v{N}" and "Updated <date>" from Phase B.3; no additional changes needed.
 
+### Phase B.5 Status
+
+Phase B.5 (lead -> property -> estimate handoff fixes) was completed after Phase B.4.
+
+- Manual `/leads/new` now captures full property data up front and creates both `customers(status='lead')` and a complete `properties` row in one flow.
+- Manual lead creation now supports parcel import on `/leads/new` so address + acreage can be imported before save.
+- If property creation fails after customer insert in manual lead flow, customer insert is rolled back and a clear error is returned.
+- Lead detail no longer shows duplicate Add Property actions when no property exists; only one clear Add Property path remains.
+- Converted/manual lead Add Property path now prefills available intake data (address/frequency/package) into `/properties/new` via query params.
+- `/properties/new` now accepts prefill query params for address/frequency/package/acres and applies them to `PropertyForm` defaults.
+- Estimate property queries for `/estimates/new` and `/estimates/[id]/edit` now include `service_frequency` and `default_service_package`.
+- Estimate form now auto-applies selected property defaults for mow-time (from acres), frequency, and service package-derived service levels, while parcel lookup remains available as an override tool.
+
 ### Current Workflow Drift (Confirmed in Phase A Audit)
 
 1. **Website lead conversion previously created sparse property records (resolved in Phase B.2).** `convertWebsiteLead()` no longer inserts properties during conversion.
 
-2. **Manual Add Lead previously created sparse property records (resolved in Phase B.2).** `createLead()` no longer inserts properties during manual lead creation.
+2. **Manual Add Lead now creates a full property record (updated in Phase B.5).** `createLead()` now creates a lead contact and complete property together using required property validation fields.
 
 3. **Add Property via `/properties/new` uses full `PropertyForm` validation.** This path correctly requires all address fields, parcel import support, and geocoding. It is the only path that creates complete property records.
 
