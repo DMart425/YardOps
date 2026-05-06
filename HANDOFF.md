@@ -82,7 +82,7 @@ Confirmed parcel_sources seed:
 - City/ZIP are not guessed.
 - PropertyForm requires service_address, city, state, and county.
 - PropertyForm supports parcel import and manual override.
-- EstimateForm currently uses ParcelLookup only to fill mowing time; it does not yet show full parcel summary.
+- EstimateForm uses parcel lookup for mowing-time inputs and now shows the imported parcel summary display.
 
 ## Known Next Candidates
 
