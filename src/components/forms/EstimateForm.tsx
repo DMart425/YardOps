@@ -508,6 +508,16 @@ export function EstimateForm({
               <option key={p.id} value={p.id}>{p.property_name ?? p.service_address}{p.city ? ', ' + p.city : ''}</option>
             ))}
           </select>
+          {customerId && filteredProps.length === 0 && (
+            <>
+              <p className="form-hint" style={{ color: 'var(--color-warning)' }}>
+                This customer has no active properties yet. Add a full property from the customer/lead detail page first.
+              </p>
+              <Link href={`/customers/${customerId}`} className="btn btn-sm btn-secondary" style={{ marginTop: '8px' }}>
+                Open Contact
+              </Link>
+            </>
+          )}
           {acres && (
             <p className="form-hint">
               ~{Number(acres).toFixed(2)} mowable acres — mow time set to {acrestoMowMinutes(acres)} min

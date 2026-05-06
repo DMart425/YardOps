@@ -226,6 +226,10 @@ src/
 - `estimate_inputs` (JSON — pricing engine inputs)
 - `valid_until` (date)
 - `public_token` (for public quote link)
+- `accepted_at` (approval timestamp)
+- `revision_number` (int, default 1)
+- `last_revised_at` (timestamp of latest revision)
+- `last_sent_at` (timestamp of latest send)
 - `notes`, `created_at`
 
 #### **estimate_items**
@@ -311,11 +315,12 @@ auth.users
 3. **Convert accepted website lead** → `convertWebsiteLead()` creates a `customers` row with `status = 'lead'`, preserves intake address/frequency in notes, then marks the `leads` row as `converted`.
 4. **Manual lead path** → `createLead()` skips `leads` and creates only a lead/contact `customers` row with `status = 'lead'`; optional intake address/frequency is saved in notes.
 5. **Add full property from context** → Property is created afterward from lead/contact/customer context via `/properties/new?customer_id=...` using full `PropertyForm` validation.
-6. **Create estimate** → Estimate references customer + property.
-7. **Approve / convert estimate** → Estimate status changes through review and conversion.
-8. **Convert to job** → Creates `jobs` row, sets `estimate.status = 'converted'`, and may promote customer to `active` depending on workflow.
-9. **Complete job** → `job.status = 'completed'`, captures `completed_at` and `amount_paid`.
-10. **Auto-schedule next** → If property `auto_schedule_next = true` and job is recurring, create next job automatically.
+6. **Create estimate** → Estimate creation requires an existing customer/contact and an existing property; no inline customer/property creation is allowed in `/estimates/new`.
+7. **Revise estimate (when needed)** → Editing a `sent` or `approved` estimate increments `revision_number`, sets `last_revised_at`, and resets status to `draft` so it must be resent/reapproved.
+8. **Approve / convert estimate** → Estimate status changes through review and conversion.
+9. **Convert to job** → Creates `jobs` row, sets `estimate.status = 'converted'`, and may promote customer to `active` depending on workflow.
+10. **Complete job** → `job.status = 'completed'`, captures `completed_at` and `amount_paid`.
+11. **Auto-schedule next** → If property `auto_schedule_next = true` and job is recurring, create next job automatically.
 
 ### Current Lead Cleanup Controls (Verified)
 
@@ -442,11 +447,12 @@ See Supabase project `lewzqavgvltzwfeypvam` for live schema. Notable tables:
 
 - **Public website** (wicksburglawnservice.com) = lead funnel only
   - Captures lead name, phone, address, frequency request
-   - Writes website lead rows into `public.leads`
+  - Writes website lead rows into `public.leads`
 - **YardOps** (this app) = operations + admin
-   - Reviews website leads from `public.leads`
-   - Converts accepted leads into `customers` and `properties`
-   - Also supports manual lead creation directly in YardOps
+  - Reviews website leads from `public.leads`
+  - Converts accepted website leads into lead/contact `customers` rows (`status = 'lead'`)
+  - Supports manual lead/contact creation directly in YardOps
+  - Adds full properties afterward from customer/lead context
   - Schedules, completes, payments
   - No public website logic here
 

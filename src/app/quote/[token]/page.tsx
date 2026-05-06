@@ -109,6 +109,11 @@ export default async function QuotePage({
         }}>
           <div style={{ background: '#10b981', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
+              {estimate.revision_number > 1 && (
+                <div style={{ color: 'rgba(0,0,0,0.65)', fontSize: '0.75rem', fontWeight: 700, marginBottom: '3px' }}>
+                  Revised Estimate v{estimate.revision_number}
+                </div>
+              )}
               <div style={{ color: '#0a0a0a', fontWeight: 700, fontSize: '1rem' }}>
                 {FREQ_LABELS[frequency] ?? frequency} Lawn Service
               </div>
@@ -153,6 +158,14 @@ export default async function QuotePage({
             {estimate.valid_until && (
               <div style={{ fontSize: '0.8125rem', color: 'var(--q-text-subtle)', marginTop: '8px' }}>
                 ⏰ Valid until <strong>{fmtDate(estimate.valid_until)}</strong>
+              </div>
+            )}
+
+            {estimate.revision_number > 1 && estimate.last_revised_at && (
+              <div style={{ fontSize: '0.8125rem', color: 'var(--q-text-subtle)', marginTop: '4px' }}>
+                Updated <strong>{new Date(estimate.last_revised_at).toLocaleDateString('en-US', {
+                  year: 'numeric', month: 'long', day: 'numeric',
+                })}</strong>
               </div>
             )}
 

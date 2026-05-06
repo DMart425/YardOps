@@ -116,6 +116,7 @@ export default async function EstimateDetailPage({
           <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
             <span className={'pill pill-' + estimate.status}>{estimate.status}</span>
             {inputs && <span className="pill pill-one_time">{FREQ_LABELS[inputs.frequency] ?? inputs.frequency}</span>}
+            {estimate.revision_number > 1 && <span className="pill pill-draft">v{estimate.revision_number}</span>}
           </div>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -141,6 +142,18 @@ export default async function EstimateDetailPage({
             <span className="text-small text-muted">Created</span>
             <span className="text-small">{fmtDate(estimate.created_at)}</span>
           </div>
+          {estimate.revision_number > 1 && estimate.last_revised_at && (
+            <div className="card-row">
+              <span className="text-small text-muted">Last revised</span>
+              <span className="text-small">{fmtDate(estimate.last_revised_at)}</span>
+            </div>
+          )}
+          {estimate.last_sent_at && (
+            <div className="card-row">
+              <span className="text-small text-muted">Last sent</span>
+              <span className="text-small">{fmtDate(estimate.last_sent_at)}</span>
+            </div>
+          )}
           {estimate.valid_until && (
             <div className="card-row">
               <span className="text-small text-muted">Valid until</span>

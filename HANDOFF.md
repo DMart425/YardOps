@@ -122,6 +122,17 @@ Phase B.2 (lead-first creation hardening) was completed after Phase B.1.
 - Website/manual intake address and requested frequency are preserved in customer notes so details are not lost before full property creation.
 - Property creation now happens afterward from lead/contact/customer context via `/properties/new?customer_id=...`.
 
+### Phase B.3 Status
+
+Phase B.3 (estimate workflow hardening + lightweight revisions) was completed after Phase B.2.
+
+- `/estimates/new` no longer supports inline customer creation or inline property creation.
+- Estimate creation now requires selecting an existing contact/customer and an existing property.
+- Editing a `sent` or `approved` estimate now increments `revision_number`, sets `last_revised_at`, resets `status` to `draft`, and clears `accepted_at`.
+- Marking an estimate as sent now sets `last_sent_at`.
+- Converted estimates are locked from editing.
+- Public quote and internal estimate detail now show revision context when `revision_number > 1`.
+
 ### Current Workflow Drift (Confirmed in Phase A Audit)
 
 1. **Website lead conversion previously created sparse property records (resolved in Phase B.2).** `convertWebsiteLead()` no longer inserts properties during conversion.
@@ -130,7 +141,7 @@ Phase B.2 (lead-first creation hardening) was completed after Phase B.1.
 
 3. **Add Property via `/properties/new` uses full `PropertyForm` validation.** This path correctly requires all address fields, parcel import support, and geocoding. It is the only path that creates complete property records.
 
-4. **Estimate inline new property has its own separate duplicate check and parcel logic.** The duplicate check in `createEstimate()` is local and case-sensitive only. The parcel lookup in `EstimateForm` uses a direct `fetch('/api/parcels/search')` with inline `lot_sqft` math — not the shared `ParcelLookup` component — and does not apply the zero-acre normalization added to `ParcelLookup`.
+4. **Estimate inline new customer/property creation paths were removed in Phase B.3.** Estimate creation now requires existing contact/customer + existing property, and no longer creates customers/properties inline.
 
 5. **Parcel lookup exists in multiple different patterns.** Four places, three implementation patterns: website lead detail uses direct `ilike` on `parcels`; property detail uses the same direct `ilike`; EstimateForm inline new-property uses a raw fetch with manual math; PropertyForm and EstimateForm parcel display use the shared `ParcelLookup` component.
 

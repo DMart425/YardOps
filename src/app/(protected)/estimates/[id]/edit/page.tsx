@@ -32,6 +32,17 @@ export default async function EditEstimatePage({
 
   if (!estimate) notFound()
 
+  if (estimate.status === 'converted') {
+    return (
+      <div className="page">
+        <Link href={`/estimates/${id}`} className="back-link">← Estimate</Link>
+        <div className="card">
+          <p className="text-small text-muted">Converted estimates are locked and cannot be edited.</p>
+        </div>
+      </div>
+    )
+  }
+
   const [{ data: customersRaw }, { data: propertiesRaw }, { data: pricingSettings }] = await Promise.all([
     supabase
       .from('customers')

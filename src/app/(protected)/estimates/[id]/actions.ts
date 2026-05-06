@@ -62,7 +62,26 @@ export async function deleteEstimate(
 
 export async function updateEstimateStatus(estimateId: string, status: string) {
   const supabase = await createClient()
-  await supabase.from('estimates').update({ status }).eq('id', estimateId)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const updates: Record<string, unknown> = { status }
+  if (status === 'sent') {
+    updates.last_sent_at = new Date().toISOString()
+  }
+  if (status === 'approved') {
+    updates.accepted_at = new Date().toISOString()
+  }
+  if (status === 'draft') {
+    updates.accepted_at = null
+  }
+
+  await supabase
+    .from('estimates')
+    .update(updates)
+    .eq('id', estimateId)
+    .eq('created_by', user.id)
+
   revalidatePath('/estimates')
   revalidatePath(`/estimates/${estimateId}`)
 }

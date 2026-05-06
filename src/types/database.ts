@@ -194,6 +194,9 @@ export interface Estimate {
   estimate_inputs: Record<string, unknown> | null
   public_token: string | null
   accepted_at: string | null
+  revision_number: number
+  last_revised_at: string | null
+  last_sent_at: string | null
   visit_scheduled_date: string | null
   visit_scheduled_time: string | null
   notes: string | null

@@ -12,13 +12,6 @@ function str(fd: FormData, key: string) {
   return v || null
 }
 
-function num(fd: FormData, key: string) {
-  const raw = str(fd, key)
-  if (!raw) return null
-  const n = parseFloat(raw)
-  return Number.isNaN(n) ? null : n
-}
-
 type EstimatePayload = {
   customer_id: string
   property_id: string
@@ -175,200 +168,50 @@ export async function createEstimate(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const parsedCore = parseEstimatePayloadCore(formData)
-  if ('error' in parsedCore) return { error: parsedCore.error }
+  const parsed = parseEstimatePayload(formData)
+  if ('error' in parsed) return { error: parsed.error }
 
-  const customerMode = (str(formData, 'customer_mode') === 'new') ? 'new' : 'existing'
-  const propertyMode = (str(formData, 'property_mode') === 'new') ? 'new' : 'existing'
+  const { data: customer, error: customerError } = await supabase
+    .from('customers')
+    .select('id')
+    .eq('id', parsed.payload.customer_id)
+    .eq('created_by', user.id)
+    .maybeSingle()
 
-  let resolvedCustomerId = str(formData, 'customer_id')
-  let resolvedPropertyId = str(formData, 'property_id')
-  let createdCustomerId: string | null = null
-  let createdPropertyId: string | null = null
-
-  const rollbackAndError = async (message: string): Promise<FormState> => {
-    if (createdPropertyId) {
-      await supabase
-        .from('properties')
-        .delete()
-        .eq('id', createdPropertyId)
-        .eq('created_by', user.id)
-    }
-    if (createdCustomerId) {
-      await supabase
-        .from('customers')
-        .delete()
-        .eq('id', createdCustomerId)
-        .eq('created_by', user.id)
-    }
-    return { error: message }
+  if (customerError || !customer) {
+    return { error: 'Please select an existing customer/contact.' }
   }
 
-  if (customerMode === 'existing') {
-    if (!resolvedCustomerId) return { error: 'Please select a customer.' }
-  } else {
-    const firstName = str(formData, 'new_customer_first_name')
-    const lastName = str(formData, 'new_customer_last_name')
-    const phone = str(formData, 'new_customer_phone')
-    const email = str(formData, 'new_customer_email')
+  const { data: property, error: propertyError } = await supabase
+    .from('properties')
+    .select('id, customer_id, status')
+    .eq('id', parsed.payload.property_id)
+    .eq('created_by', user.id)
+    .maybeSingle()
 
-    if (!firstName) return { error: 'Please enter a customer first name.' }
-    if (!lastName) return { error: 'Please enter a customer last name.' }
-    if (!phone) return { error: 'Please enter a customer phone number.' }
-
-    const { data: existingCustomer, error: findCustomerError } = await supabase
-      .from('customers')
-      .select('id')
-      .eq('created_by', user.id)
-      .eq('phone', phone)
-      .maybeSingle()
-
-    if (findCustomerError) return { error: 'Unable to verify existing customer by phone right now.' }
-
-    if (existingCustomer?.id) {
-      resolvedCustomerId = existingCustomer.id
-    } else {
-      const { data: createdCustomer, error: createCustomerError } = await supabase
-        .from('customers')
-        .insert({
-          created_by: user.id,
-          first_name: firstName,
-          last_name: lastName,
-          phone,
-          email,
-          status: 'lead',
-        })
-        .select('id')
-        .single()
-
-      if (createCustomerError || !createdCustomer) {
-        return { error: 'Could not create customer. Please try again.' }
-      }
-
-      createdCustomerId = createdCustomer.id
-      resolvedCustomerId = createdCustomer.id
-    }
+  if (propertyError || !property) {
+    return { error: 'Please select an existing property.' }
   }
 
-  if (propertyMode === 'existing') {
-    if (!resolvedPropertyId) return { error: 'Please select a property.' }
-
-    const { data: existingProperty, error: findPropertyError } = await supabase
-      .from('properties')
-      .select('id, customer_id')
-      .eq('id', resolvedPropertyId)
-      .eq('created_by', user.id)
-      .maybeSingle()
-
-    if (findPropertyError || !existingProperty) {
-      return await rollbackAndError('Selected property was not found.')
-    }
-
-    if (customerMode === 'existing' && existingProperty.customer_id !== resolvedCustomerId) {
-      return await rollbackAndError('Selected property does not belong to the selected customer.')
-    }
-
-    if (customerMode === 'new') {
-      const reassignmentConfirmed = str(formData, 'property_reassignment_confirmed') === 'true'
-      if (!reassignmentConfirmed) {
-        return await rollbackAndError('Please confirm property reassignment by checking the confirmation box.')
-      }
-    }
-  } else {
-    if (!resolvedCustomerId) return await rollbackAndError('Missing customer for new property.')
-
-    const serviceAddress = str(formData, 'new_property_service_address')
-    const city = str(formData, 'new_property_city')
-    const county = str(formData, 'new_property_county')
-    const state = (str(formData, 'new_property_state') ?? 'AL').toUpperCase()
-    const parcelAcres = num(formData, 'new_property_parcel_acres')
-    const mowableAcres = num(formData, 'new_property_estimated_mowable_acres')
-
-    if (!serviceAddress) return await rollbackAndError('Please enter a property street address.')
-    if (!city) return await rollbackAndError('Please enter a property city.')
-    if (!county) return await rollbackAndError('Please enter a property county.')
-    if (!state) return await rollbackAndError('Please enter a property state.')
-
-    // Check if this address already exists anywhere for current user (decision matrix: property duplicate detection)
-    const { data: existingPropertyAnywhere, error: findPropertyError } = await supabase
-      .from('properties')
-      .select('id, customer_id')
-      .eq('created_by', user.id)
-      .eq('service_address', serviceAddress)
-      .eq('city', city)
-      .eq('state', state)
-      .maybeSingle()
-
-    if (findPropertyError) {
-      return await rollbackAndError('Unable to verify existing property right now.')
-    }
-
-    if (existingPropertyAnywhere?.id) {
-      // Property already exists somewhere
-      if (existingPropertyAnywhere.customer_id === resolvedCustomerId) {
-        // Reuse existing property linked to this customer
-        resolvedPropertyId = existingPropertyAnywhere.id
-      } else {
-        // Property exists under a different customer
-        return await rollbackAndError('Property already exists. Switch to Existing Property if this is a tenant/customer turnover.')
-      }
-    } else {
-      // Property doesn't exist, create it
-      const { data: createdProperty, error: createPropertyError } = await supabase
-        .from('properties')
-        .insert({
-          created_by: user.id,
-          customer_id: resolvedCustomerId,
-          service_address: serviceAddress,
-          city,
-          county,
-          state,
-          parcel_acres: parcelAcres,
-          estimated_mowable_acres: mowableAcres,
-          lot_size_source: 'manual',
-          status: 'active',
-        })
-        .select('id')
-        .single()
-
-      if (createPropertyError || !createdProperty) {
-        return await rollbackAndError('Could not create property. Please try again.')
-      }
-
-      createdPropertyId = createdProperty.id
-      resolvedPropertyId = createdProperty.id
-    }
+  if (property.status !== 'active') {
+    return { error: 'Please select an active property.' }
   }
 
-  if (!resolvedCustomerId) return await rollbackAndError('Missing customer selection.')
-  if (!resolvedPropertyId) return await rollbackAndError('Missing property selection.')
-
-  // Handle property reassignment for New Customer + Existing Property
-  if (customerMode === 'new' && propertyMode === 'existing') {
-    const { error: updatePropertyError } = await supabase
-      .from('properties')
-      .update({ customer_id: resolvedCustomerId })
-      .eq('id', resolvedPropertyId)
-      .eq('created_by', user.id)
-
-    if (updatePropertyError) {
-      return await rollbackAndError('Could not update property. Please try again.')
-    }
+  if (property.customer_id !== parsed.payload.customer_id) {
+    return { error: 'Selected property does not belong to the selected customer.' }
   }
 
   const { data: estimate, error } = await supabase
     .from('estimates')
     .insert({
-      created_by:        user.id,
-      status:            'draft',
-      customer_id:       resolvedCustomerId,
-      property_id:       resolvedPropertyId,
-      ...parsedCore.payload,
+      created_by: user.id,
+      status: 'draft',
+      ...parsed.payload,
     })
     .select('id')
     .single()
 
-  if (error) return await rollbackAndError('Could not create estimate. Please try again.')
+  if (error) return { error: 'Could not create estimate. Please try again.' }
 
   revalidatePath('/estimates')
   redirect(`/estimates/${estimate.id}`)
@@ -387,9 +230,35 @@ export async function updateEstimate(
   const parsed = parseEstimatePayload(formData)
   if ('error' in parsed) return { error: parsed.error }
 
+  const { data: existingEstimate, error: existingEstimateError } = await supabase
+    .from('estimates')
+    .select('id, status, revision_number')
+    .eq('id', estimateId)
+    .eq('created_by', user.id)
+    .maybeSingle()
+
+  if (existingEstimateError || !existingEstimate) {
+    return { error: 'Estimate not found.' }
+  }
+
+  if (existingEstimate.status === 'converted') {
+    return { error: 'Converted estimates are locked and cannot be edited.' }
+  }
+
+  const revisionUpdate: Record<string, unknown> = {}
+  if (existingEstimate.status === 'sent' || existingEstimate.status === 'approved') {
+    revisionUpdate.revision_number = (existingEstimate.revision_number ?? 1) + 1
+    revisionUpdate.last_revised_at = new Date().toISOString()
+    revisionUpdate.status = 'draft'
+    revisionUpdate.accepted_at = null
+  }
+
   const { error } = await supabase
     .from('estimates')
-    .update(parsed.payload)
+    .update({
+      ...parsed.payload,
+      ...revisionUpdate,
+    })
     .eq('id', estimateId)
     .eq('created_by', user.id)
 
@@ -476,9 +345,33 @@ export async function updateEstimateStatus(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const { data: estimate, error: estimateError } = await supabase
+    .from('estimates')
+    .select('id, status')
+    .eq('id', estimateId)
+    .eq('created_by', user.id)
+    .maybeSingle()
+
+  if (estimateError || !estimate) return { error: 'Estimate not found.' }
+
+  if (estimate.status === 'converted') {
+    return { error: 'Converted estimates are locked.' }
+  }
+
+  const updates: Record<string, unknown> = { status }
+  if (status === 'sent') {
+    updates.last_sent_at = new Date().toISOString()
+  }
+  if (status === 'approved') {
+    updates.accepted_at = new Date().toISOString()
+  }
+  if (status === 'draft') {
+    updates.accepted_at = null
+  }
+
   const { error } = await supabase
     .from('estimates')
-    .update({ status })
+    .update(updates)
     .eq('id', estimateId)
     .eq('created_by', user.id)
 
