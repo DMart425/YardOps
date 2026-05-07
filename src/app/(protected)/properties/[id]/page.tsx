@@ -2,12 +2,11 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Property } from '@/types/database'
-import { PropertyForm } from '@/components/forms/PropertyForm'
-import { updateProperty } from '../actions'
 import { ApplyParcelButton } from '@/app/(protected)/leads/[id]/ApplyParcelButton'
 import { estimateMowableAcres } from '@/lib/pricing'
 import { PropertyDangerZone } from './PropertyDangerZone'
 import { PropertyAssignmentSection } from './PropertyAssignmentSection'
+import { PropertyEditSection } from './PropertyEditSection'
 
 function parseSafeReturnTo(value?: string): string | undefined {
   if (!value) return undefined
@@ -315,20 +314,12 @@ export default async function PropertyDetailPage({
         </div>
       )}
 
-      {/* Edit form */}
-      <div className="detail-section">
-        <div className="section-heading">Edit Property</div>
-        <div className="card">
-          <PropertyForm
-            action={updateProperty.bind(null, id)}
-            submitLabel="Save Changes"
-            cancelHref={safeReturnTo ?? '/properties'}
-            returnTo={safeReturnTo}
-            customers={customers ?? []}
-            defaultValues={p}
-          />
-        </div>
-      </div>
+      <PropertyEditSection
+        propertyId={id}
+        customers={(customers ?? []) as { id: string; first_name: string; last_name: string | null; status?: string | null }[]}
+        defaultValues={p}
+        safeReturnTo={safeReturnTo}
+      />
 
       <PropertyAssignmentSection
         propertyId={p.id}
