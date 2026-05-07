@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { formatDateOnly } from '@/lib/date'
 import { formatFrequencyLabel } from '@/lib/frequency'
 
+const PAGE_SIZE = 50
+
 type EstimateListRow = {
   id: string
   status: string
@@ -30,12 +32,22 @@ function fmtDate(d: string) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+function parsePage(raw: string | undefined): number {
+  const n = Number(raw)
+  if (!Number.isFinite(n)) return 1
+  const p = Math.floor(n)
+  return p < 1 ? 1 : p
+}
+
 export default async function EstimatesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>
+  searchParams: Promise<{ filter?: string; page?: string }>
 }) {
-  const { filter = 'all' } = await searchParams
+  const { filter = 'all', page: rawPage } = await searchParams
+  const page = parsePage(rawPage)
+  const from = (page - 1) * PAGE_SIZE
+  const to = from + PAGE_SIZE - 1
   const supabase = await createClient()
 
   let query = supabase
@@ -49,8 +61,13 @@ export default async function EstimatesPage({
     query = query.eq('status', filter)
   }
 
+  query = query.range(from, to)
+
   const { data: estimates } = await query
   const estimateRows = (estimates ?? []) as EstimateListRow[]
+  const hasPrevPage = page > 1
+  const hasNextPage = estimateRows.length === PAGE_SIZE
+  const pageOneHref = `/estimates?filter=${filter}&page=1`
 
   return (
     <div className="page">
@@ -63,7 +80,7 @@ export default async function EstimatesPage({
         {STATUS_FILTERS.map(([key, label]) => (
           <Link
             key={key}
-            href={`/estimates?filter=${key}`}
+            href={`/estimates?filter=${key}&page=1`}
             className={`filter-tab${filter === key ? ' active' : ''}`}
           >
             {label}
@@ -72,12 +89,21 @@ export default async function EstimatesPage({
       </div>
 
       {estimateRows.length === 0 ? (
-        <div className="empty-state">
-          <p style={{ fontSize: '2rem' }}>📋</p>
-          <p style={{ marginTop: '8px', fontWeight: 600 }}>No estimates yet</p>
-          <p>Create one to send pricing to a potential customer.</p>
-          <Link href="/estimates/new" className="btn btn-primary" style={{ marginTop: '1rem' }}>+ New Estimate</Link>
-        </div>
+        page > 1 ? (
+          <div className="card" style={{ marginTop: '12px' }}>
+            <p className="text-small text-muted">No estimates on this page.</p>
+            <div style={{ marginTop: '10px' }}>
+              <Link href={pageOneHref} className="btn btn-sm btn-secondary">Back to page 1</Link>
+            </div>
+          </div>
+        ) : (
+          <div className="empty-state">
+            <p style={{ fontSize: '2rem' }}>📋</p>
+            <p style={{ marginTop: '8px', fontWeight: 600 }}>No estimates yet</p>
+            <p>Create one to send pricing to a potential customer.</p>
+            <Link href="/estimates/new" className="btn btn-primary" style={{ marginTop: '1rem' }}>+ New Estimate</Link>
+          </div>
+        )
       ) : (
         <div>
           {estimateRows.map((est) => {
@@ -115,6 +141,24 @@ export default async function EstimatesPage({
               </Link>
             )
           })}
+
+          <div className="card-row" style={{ marginTop: '12px' }}>
+            <div>
+              {hasPrevPage ? (
+                <Link href={`/estimates?filter=${filter}&page=${page - 1}`} className="btn btn-sm btn-secondary">
+                  Previous
+                </Link>
+              ) : null}
+            </div>
+            <div className="text-small text-muted">Page {page}</div>
+            <div>
+              {hasNextPage ? (
+                <Link href={`/estimates?filter=${filter}&page=${page + 1}`} className="btn btn-sm btn-secondary">
+                  Next
+                </Link>
+              ) : null}
+            </div>
+          </div>
         </div>
       )}
     </div>
