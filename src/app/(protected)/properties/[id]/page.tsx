@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import type { Property } from '@/types/database'
 import { ApplyParcelButton } from '@/app/(protected)/leads/[id]/ApplyParcelButton'
@@ -31,11 +31,14 @@ export default async function PropertyDetailPage({
   const { return_to } = await searchParams
   const safeReturnTo = parseSafeReturnTo(return_to)
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
   const { data: settings } = await supabase
     .from('pricing_settings')
     .select('time_zone')
-    .single()
+    .eq('user_id', user.id)
+    .maybeSingle()
   const timeZone = resolveTimeZone(settings?.time_zone ?? null)
   const today = getLocalDateStr(timeZone)
 

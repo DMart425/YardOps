@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { addDays, formatDateOnly, getDateOnlyMonthKey, getLocalDateStr, getLocalMonthKey, resolveTimeZone } from '@/lib/date'
 import FinancesExportButton from './FinancesExportButton'
 
@@ -21,11 +22,14 @@ export default async function FinancesPage({
   const sp = await searchParams
 
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
   const { data: settings } = await supabase
     .from('pricing_settings')
     .select('time_zone')
-    .single()
+    .eq('user_id', user.id)
+    .maybeSingle()
   const timeZone = resolveTimeZone(settings?.time_zone)
   const localToday = getLocalDateStr(timeZone)
   const [localYear, localMonth] = localToday.split('-')

@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { addDays, formatDateOnly, getLocalDateStr, resolveTimeZone } from '@/lib/date'
 
 type CustomerRelation = { first_name: string; last_name: string | null }
@@ -58,10 +59,14 @@ export default async function JobsPage({
   const defaultFilter = view === 'completed' ? 'week' : 'upcoming'
   const filter = availableFilters.some(([key]) => key === sp.filter) ? (sp.filter as string) : defaultFilter
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
   const { data: settings } = await supabase
     .from('pricing_settings')
-    .select('time_zone')
-    .single()
+    .select('time_zone, blackout_dates')
+    .eq('user_id', user.id)
+    .maybeSingle()
   const timeZone = resolveTimeZone(settings?.time_zone ?? null)
 
   const today = getLocalDateStr(timeZone)
@@ -121,11 +126,7 @@ export default async function JobsPage({
   const jobRows = (jobs ?? []) as JobListRow[]
 
   // ── Blackout dates ──
-  const { data: pricingSettings } = await supabase
-    .from('pricing_settings')
-    .select('blackout_dates')
-    .single()
-  const blackoutDates: string[] = (pricingSettings?.blackout_dates as string[] | null) ?? []
+  const blackoutDates: string[] = (settings?.blackout_dates as string[] | null) ?? []
 
   // ── Overdue unpaid count (completed + unpaid + >7 days old) ──
   const sevenDaysAgo = new Date()

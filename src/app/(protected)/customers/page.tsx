@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import type { Customer } from '@/types/database'
 import { formatDateOnly, getLocalDateStr, resolveTimeZone } from '@/lib/date'
 import { formatFrequencyLabel } from '@/lib/frequency'
@@ -31,11 +32,14 @@ type CustomerListItem = Customer & {
 
 export default async function CustomersPage() {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
   const { data: tzSettings } = await supabase
     .from('pricing_settings')
     .select('time_zone')
-    .single()
+    .eq('user_id', user.id)
+    .maybeSingle()
   const timeZone = resolveTimeZone(tzSettings?.time_zone)
   const today = getLocalDateStr(timeZone)
 
