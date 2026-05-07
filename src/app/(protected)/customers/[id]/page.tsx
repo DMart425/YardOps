@@ -2,12 +2,45 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Customer, Property } from '@/types/database'
-import { CustomerEditForm } from './_form'
 import { CopyPortalLinkButton } from '@/components/CopyPortalLinkButton'
 import { CustomerDangerZone } from './CustomerDangerZone'
 import { LeadStatusActions } from './LeadStatusActions'
+import { CustomerInfoSection } from './CustomerInfoSection'
 
 type CustomerWithTags = Customer & { tags?: string[] | null }
+
+const DEFAULT_TIME_ZONE = 'UTC'
+
+function normalizeTimeZone(raw: string | null) {
+  if (!raw) return DEFAULT_TIME_ZONE
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: raw })
+    return raw
+  } catch {
+    return DEFAULT_TIME_ZONE
+  }
+}
+
+function localDateStr(d: Date, timeZone: string) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d)
+}
+
+function formatDateOnly(d: string) {
+  return new Date(d + 'T12:00:00').toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+  })
+}
+
+function formatTimestampDate(d: string, timeZone: string) {
+  return new Date(d).toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', timeZone,
+  })
+}
 
 export default async function CustomerDetailPage({
   params,
@@ -17,7 +50,14 @@ export default async function CustomerDetailPage({
   const { id } = await params
   const supabase = await createClient()
 
-  const [{ data: customer }, { data: properties }, { data: jobs }] = await Promise.all([
+  const { data: settings } = await supabase
+    .from('pricing_settings')
+    .select('time_zone')
+    .single()
+  const timeZone = normalizeTimeZone(settings?.time_zone ?? null)
+  const today = localDateStr(new Date(), timeZone)
+
+  const [{ data: customer }, { data: properties }, { data: jobs }, { data: nextVisitJob }] = await Promise.all([
     supabase.from('customers').select('*').eq('id', id).single(),
     supabase
       .from('properties')
@@ -30,6 +70,15 @@ export default async function CustomerDetailPage({
       .eq('customer_id', id)
       .order('scheduled_date', { ascending: false })
       .limit(10),
+    supabase
+      .from('jobs')
+      .select('id, scheduled_date, scheduled_time_window')
+      .eq('customer_id', id)
+      .in('status', ['scheduled', 'in_progress', 'needs_reschedule'])
+      .gte('scheduled_date', today)
+      .order('scheduled_date', { ascending: true })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   if (!customer) notFound()
@@ -61,10 +110,6 @@ export default async function CustomerDetailPage({
   const mapsAddress = mapProperty
     ? [mapProperty.service_address, mapProperty.city].filter(Boolean).join(', ')
     : null
-
-  function fmtDate(d: string) {
-    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-  }
 
   return (
     <div className="page">
@@ -140,30 +185,43 @@ export default async function CustomerDetailPage({
       )}
 
       {/* History stats */}
-      {completedJobs.length > 0 && (
-        <div className="stat-grid" style={{ marginBottom: '1.5rem' }}>
-          <div className="stat-card">
-            <div className="stat-value">{completedJobs.length}</div>
-            <div className="stat-label">Jobs done</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-value">${totalRevenue.toFixed(0)}</div>
-            <div className="stat-label">Total revenue</div>
-          </div>
-          {totalUnpaid > 0 && (
-            <div className="stat-card">
-              <div className="stat-value" style={{ color: 'var(--color-unpaid)' }}>${totalUnpaid.toFixed(0)}</div>
-              <div className="stat-label">Unpaid</div>
-            </div>
-          )}
-          {lastVisit && (
-            <div className="stat-card">
-              <div className="stat-value" style={{ fontSize: '1.1rem' }}>{fmtDate(lastVisit)}</div>
-              <div className="stat-label">Last visit</div>
-            </div>
-          )}
+      <div className="stat-grid" style={{ marginBottom: '1.5rem' }}>
+        <div className="stat-card">
+          <div className="stat-value">{completedJobs.length}</div>
+          <div className="stat-label">Jobs done</div>
         </div>
-      )}
+        <div className="stat-card">
+          <div className="stat-value">${totalRevenue.toFixed(0)}</div>
+          <div className="stat-label">Total revenue</div>
+        </div>
+        {totalUnpaid > 0 && (
+          <div className="stat-card">
+            <div className="stat-value" style={{ color: 'var(--color-unpaid)' }}>${totalUnpaid.toFixed(0)}</div>
+            <div className="stat-label">Unpaid</div>
+          </div>
+        )}
+        <div className="stat-card">
+          <div className="stat-value" style={{ fontSize: '1.1rem' }}>
+            {lastVisit ? formatTimestampDate(lastVisit, timeZone) : 'Not yet'}
+          </div>
+          <div className="stat-label">Last visit</div>
+        </div>
+        {nextVisitJob?.id && nextVisitJob.scheduled_date ? (
+          <Link href={`/jobs/${nextVisitJob.id}`} className="stat-card" style={{ color: 'inherit', textDecoration: 'none' }}>
+            <div className="stat-value" style={{ fontSize: '1.1rem' }}>
+              {formatDateOnly(nextVisitJob.scheduled_date)}
+            </div>
+            <div className="stat-label">
+              {nextVisitJob.scheduled_time_window ? `Next visit · ${nextVisitJob.scheduled_time_window}` : 'Next visit'}
+            </div>
+          </Link>
+        ) : (
+          <div className="stat-card">
+            <div className="stat-value" style={{ fontSize: '1.1rem' }}>Not scheduled</div>
+            <div className="stat-label">Next visit</div>
+          </div>
+        )}
+      </div>
 
       {/* Properties */}
       <div className="detail-section">
@@ -182,18 +240,19 @@ export default async function CustomerDetailPage({
           </div>
         ) : (
           activeProperties.map((p) => (
-            <Link key={p.id} href={`/properties/${p.id}`} style={{ display: 'block' }}>
-              <div className="card">
-                <div className="card-row">
-                  <div>
-                    <div className="card-title">{p.property_name ?? p.service_address}</div>
-                    {p.property_name && <div className="card-meta">{p.service_address}{p.city ? `, ${p.city}` : ''}</div>}
-                    <div className="card-meta">{p.service_frequency?.replace('_', ' ')}</div>
-                  </div>
-                  <span className={`pill pill-${p.status}`}>{p.status}</span>
+            <div key={p.id} className="card">
+              <div className="card-row">
+                <div>
+                  <div className="card-title">{p.property_name ?? p.service_address}</div>
+                  {p.property_name && <div className="card-meta">{p.service_address}{p.city ? `, ${p.city}` : ''}</div>}
+                  <div className="card-meta">{p.service_frequency?.replace('_', ' ')}</div>
                 </div>
+                <span className={`pill pill-${p.status}`}>{p.status}</span>
               </div>
-            </Link>
+              <div className="card-actions">
+                <Link href={`/properties/${p.id}`} className="btn btn-sm btn-secondary">Edit Property</Link>
+              </div>
+            </div>
           ))
         )}
 
@@ -203,18 +262,19 @@ export default async function CustomerDetailPage({
               Archived Properties ({archivedProperties.length})
             </div>
             {archivedProperties.map((p) => (
-              <Link key={p.id} href={`/properties/${p.id}`} style={{ display: 'block' }}>
-                <div className="card" style={{ opacity: 0.92 }}>
-                  <div className="card-row">
-                    <div>
-                      <div className="card-title">{p.property_name ?? p.service_address}</div>
-                      {p.property_name && <div className="card-meta">{p.service_address}{p.city ? `, ${p.city}` : ''}</div>}
-                      <div className="card-meta">{p.service_frequency?.replace('_', ' ')}</div>
-                    </div>
-                    <span className={`pill pill-${p.status}`}>{p.status}</span>
+              <div key={p.id} className="card" style={{ opacity: 0.92 }}>
+                <div className="card-row">
+                  <div>
+                    <div className="card-title">{p.property_name ?? p.service_address}</div>
+                    {p.property_name && <div className="card-meta">{p.service_address}{p.city ? `, ${p.city}` : ''}</div>}
+                    <div className="card-meta">{p.service_frequency?.replace('_', ' ')}</div>
                   </div>
+                  <span className={`pill pill-${p.status}`}>{p.status}</span>
                 </div>
-              </Link>
+                <div className="card-actions">
+                  <Link href={`/properties/${p.id}`} className="btn btn-sm btn-secondary">Edit Property</Link>
+                </div>
+              </div>
             ))}
           </div>
         )}
@@ -238,9 +298,9 @@ export default async function CustomerDetailPage({
                   <div className="card-title">{j.title}</div>
                   <div className="card-meta">
                     {j.completed_at
-                      ? `Completed ${fmtDate(j.completed_at)}`
+                      ? `Completed ${formatTimestampDate(j.completed_at, timeZone)}`
                       : j.scheduled_date
-                        ? `Scheduled ${fmtDate(j.scheduled_date + 'T12:00:00')}`
+                        ? `Scheduled ${formatDateOnly(j.scheduled_date)}`
                         : 'No date'}
                   </div>
                 </div>
@@ -267,12 +327,7 @@ export default async function CustomerDetailPage({
         </div>
       </div>
 
-      <div className="detail-section">
-        <div className="section-heading">Edit Customer Info</div>
-        <div className="card">
-          <CustomerEditForm customer={customerRow} />
-        </div>
-      </div>
+      <CustomerInfoSection customer={customerRow} />
 
       <CustomerDangerZone customerId={customerRow.id} />
     </div>
