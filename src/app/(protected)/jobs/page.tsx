@@ -48,16 +48,28 @@ function dayOfWeek(dateStr: string) {
   return dt.getUTCDay()
 }
 
+const COMPLETED_PAGE_SIZE = 50
+
+function parsePage(raw: string | undefined): number {
+  const n = Number(raw)
+  if (!Number.isFinite(n)) return 1
+  const p = Math.floor(n)
+  return p < 1 ? 1 : p
+}
+
 export default async function JobsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string; view?: string }>
+  searchParams: Promise<{ filter?: string; view?: string; page?: string }>
 }) {
   const sp = await searchParams
   const view: 'scheduled' | 'completed' = sp.view === 'completed' ? 'completed' : 'scheduled'
   const availableFilters = view === 'completed' ? FILTERS_COMPLETED : FILTERS_SCHEDULED
   const defaultFilter = view === 'completed' ? 'week' : 'upcoming'
   const filter = availableFilters.some(([key]) => key === sp.filter) ? (sp.filter as string) : defaultFilter
+  const page = view === 'completed' ? parsePage(sp.page) : 1
+  const completedFrom = (page - 1) * COMPLETED_PAGE_SIZE
+  const completedTo = completedFrom + COMPLETED_PAGE_SIZE - 1
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -105,6 +117,7 @@ export default async function JobsPage({
       default:
         query = query.gte('completed_at', `${today}T00:00:00`).lt('completed_at', `${tomorrowStr}T00:00:00`)
     }
+    query = query.range(completedFrom, completedTo)
   } else {
     query = query.order('scheduled_date', { ascending: true })
     switch (filter) {
@@ -124,6 +137,9 @@ export default async function JobsPage({
 
   const { data: jobs } = await query
   const jobRows = (jobs ?? []) as JobListRow[]
+  const hasPrevCompletedPage = view === 'completed' && page > 1
+  const hasNextCompletedPage = view === 'completed' && jobRows.length === COMPLETED_PAGE_SIZE
+  const completedPageOneHref = `/jobs?view=completed&filter=${filter}&page=1`
 
   // ── Blackout dates ──
   const blackoutDates: string[] = (settings?.blackout_dates as string[] | null) ?? []
@@ -202,7 +218,7 @@ export default async function JobsPage({
         <Link href="/jobs?view=scheduled&filter=upcoming" className={`filter-tab${view === 'scheduled' ? ' active' : ''}`}>
           Scheduled
         </Link>
-        <Link href="/jobs?view=completed&filter=week" className={`filter-tab${view === 'completed' ? ' active' : ''}`}>
+        <Link href="/jobs?view=completed&filter=week&page=1" className={`filter-tab${view === 'completed' ? ' active' : ''}`}>
           Completed
         </Link>
       </div>
@@ -211,7 +227,7 @@ export default async function JobsPage({
         {availableFilters.map(([key, label]) => (
           <Link
             key={key}
-            href={`/jobs?view=${view}&filter=${key}`}
+            href={view === 'completed' ? `/jobs?view=completed&filter=${key}&page=1` : `/jobs?view=scheduled&filter=${key}`}
             className={`filter-tab${filter === key ? ' active' : ''}`}
           >
             {label}{key === 'unpaid' && overdueCount ? <span style={{ marginLeft: 4, background: '#dc2626', color: '#fff', borderRadius: '999px', padding: '1px 6px', fontSize: '0.65rem', fontWeight: 700, verticalAlign: 'middle' }}>{overdueCount}</span> : null}
@@ -226,12 +242,21 @@ export default async function JobsPage({
       )}
 
       {jobRows.length === 0 ? (
-        <div className="empty-state">
-          <p style={{ fontSize: '2rem' }}>📋</p>
-          <p style={{ marginTop: '8px', fontWeight: 600 }}>No jobs here</p>
-          <p>Try a different filter or create a new job.</p>
-          <Link href="/jobs/new" className="btn btn-primary" style={{ marginTop: '1rem' }}>+ New Job</Link>
-        </div>
+        hasPrevCompletedPage ? (
+          <div className="card" style={{ marginTop: '12px' }}>
+            <p className="text-small text-muted">No jobs on this page.</p>
+            <div style={{ marginTop: '10px' }}>
+              <Link href={completedPageOneHref} className="btn btn-sm btn-secondary">Back to page 1</Link>
+            </div>
+          </div>
+        ) : (
+          <div className="empty-state">
+            <p style={{ fontSize: '2rem' }}>📋</p>
+            <p style={{ marginTop: '8px', fontWeight: 600 }}>No jobs here</p>
+            <p>Try a different filter or create a new job.</p>
+            <Link href="/jobs/new" className="btn btn-primary" style={{ marginTop: '1rem' }}>+ New Job</Link>
+          </div>
+        )
       ) : view === 'scheduled' && filter === 'week' ? (
         <div>
           {/* Blackout days with no jobs (otherwise they'd be invisible) */}
@@ -366,7 +391,25 @@ export default async function JobsPage({
               </Link>
             )
           })}
-        </div>
+          {view === 'completed' && (
+            <div className="card-row" style={{ marginTop: '12px' }}>
+              <div>
+                {hasPrevCompletedPage ? (
+                  <Link href={`/jobs?view=completed&filter=${filter}&page=${page - 1}`} className="btn btn-sm btn-secondary">
+                    Previous
+                  </Link>
+                ) : null}
+              </div>
+              <div className="text-small text-muted">Page {page}</div>
+              <div>
+                {hasNextCompletedPage ? (
+                  <Link href={`/jobs?view=completed&filter=${filter}&page=${page + 1}`} className="btn btn-sm btn-secondary">
+                    Next
+                  </Link>
+                ) : null}
+              </div>
+            </div>
+          )}        </div>
       )}
     </div>
   )
