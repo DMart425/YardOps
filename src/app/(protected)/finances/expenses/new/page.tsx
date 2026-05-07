@@ -1,8 +1,8 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createExpense } from '../../actions'
-
-const today = new Date().toISOString().split('T')[0]
+import { getLocalDateStr, resolveTimeZone } from '@/lib/date'
 
 const CATEGORIES = [
   { value: 'fuel',      label: 'Fuel' },
@@ -21,6 +21,15 @@ export default async function NewExpensePage({
 }) {
   const { job_id: presetJobId } = await searchParams
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: settings } = await supabase
+    .from('pricing_settings')
+    .select('time_zone')
+    .eq('user_id', user.id)
+    .maybeSingle()
+  const today = getLocalDateStr(resolveTimeZone(settings?.time_zone))
 
   // Recent jobs (last 90 days) for the picker
   const since = new Date()
