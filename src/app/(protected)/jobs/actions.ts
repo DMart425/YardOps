@@ -9,6 +9,7 @@ type JobRescheduleFields = {
   reschedule_count: number | null
   reschedule_log: string | null
   scheduled_date: string | null
+  scheduled_time_window: string | null
 }
 
 export async function createJob(
@@ -300,34 +301,61 @@ export async function rescheduleJob(
   const newDate = (formData.get('new_date') as string)?.trim()
   if (!newDate) return { error: 'Please pick a new date.' }
 
-  const notes = (formData.get('internal_notes') as string)?.trim() || null
+  const reasonCode  = (formData.get('reason_code') as string)?.trim() || ''
+  if (!reasonCode) return { error: 'Please select a reason.' }
 
-  // Fetch current reschedule_count and log to append
+  const customReason = (formData.get('custom_reason') as string)?.trim() || ''
+  if (reasonCode === 'other' && !customReason) return { error: 'Please describe the reason.' }
+
+  const timeWindowRaw = (formData.get('new_time_window') as string)?.trim() || ''
+  const customTimeWin = (formData.get('custom_time_window') as string)?.trim() || ''
+  if (timeWindowRaw === 'custom' && !customTimeWin) return { error: 'Please enter a custom time window.' }
+
+  // Determine stored time window value (empty string = Anytime)
+  const storedTimeWindow = timeWindowRaw === 'custom' ? customTimeWin : timeWindowRaw
+
+  // Determine display label for reason
+  const REASON_LABELS: Record<string, string> = {
+    rain_weather:         'Rain / Weather',
+    customer_requested:   'Customer requested',
+    equipment_issue:      'Equipment issue',
+    access_issue:         'Access issue / gate / pets',
+    unavailable_operator: 'Owner/operator unavailable',
+    yard_not_ready:       'Yard not ready',
+    route_change:         'Route change',
+  }
+  const reasonLabel = reasonCode === 'other' ? customReason : (REASON_LABELS[reasonCode] ?? reasonCode)
+
+  // Fetch current job state
   const { data: existingRaw } = await supabase
     .from('jobs')
-    .select('reschedule_count, reschedule_log, scheduled_date')
+    .select('reschedule_count, reschedule_log, scheduled_date, scheduled_time_window')
     .eq('id', id)
     .eq('created_by', user.id)
     .single()
 
   const existing = existingRaw as JobRescheduleFields | null
-
   if (!existing) return { error: 'Job not found.' }
 
-  const today      = new Date().toISOString().split('T')[0]
-  const logEntry   = `${today}: ${notes ?? 'Rescheduled'} (from ${existing.scheduled_date ?? '?'} → ${newDate})`
-  const newLog     = existing.reschedule_log ? `${existing.reschedule_log}\n${logEntry}` : logEntry
-  const newCount   = (existing.reschedule_count ?? 0) + 1
+  // Build readable log entry
+  const today = new Date().toISOString().split('T')[0]
+  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+  const oldTimeLabel = existing.scheduled_time_window ? ` ${cap(existing.scheduled_time_window)}` : ''
+  const newTimeLabel = storedTimeWindow ? ` ${cap(storedTimeWindow)}` : ''
+  const logEntry = `${today}: Rescheduled from ${existing.scheduled_date ?? '?'}${oldTimeLabel} to ${newDate}${newTimeLabel}. Reason: ${reasonLabel}.`
+  const newLog   = existing.reschedule_log ? `${existing.reschedule_log}\n${logEntry}` : logEntry
+  const newCount = (existing.reschedule_count ?? 0) + 1
 
   const { error } = await supabase
     .from('jobs')
     .update({
-      status:           'scheduled',
-      scheduled_date:   newDate,
-      started_at:       null,
-      internal_notes:   notes,
-      reschedule_count: newCount,
-      reschedule_log:   newLog,
+      status:                'scheduled',
+      scheduled_date:        newDate,
+      scheduled_time_window: storedTimeWindow || null,
+      started_at:            null,
+      rescheduled_from:      existing.scheduled_date,
+      reschedule_count:      newCount,
+      reschedule_log:        newLog,
     })
     .eq('id', id)
     .eq('created_by', user.id)

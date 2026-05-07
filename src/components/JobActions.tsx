@@ -6,8 +6,10 @@ import { completeJob, markInProgress, skipJob, cancelJob, markPaid, markPartial,
 import { Toast } from '@/components/Toast'
 
 export function JobActions({ job, venmoHandle, customerPhone, customerFirstName }: { job: Job; venmoHandle?: string | null; customerPhone?: string | null; customerFirstName?: string | null }) {
-  const [panel,      setPanel]      = useState<'complete' | 'skip' | 'paid' | 'partial' | 'reschedule' | null>(null)
-  const [markAsPaid, setMarkAsPaid] = useState(false)
+  const [panel,          setPanel]         = useState<'complete' | 'skip' | 'paid' | 'partial' | 'reschedule' | null>(null)
+  const [markAsPaid,     setMarkAsPaid]     = useState(false)
+  const [reschedReason,  setReschedReason]  = useState('')
+  const [reschedTimeWin, setReschedTimeWin] = useState('')
   const notesRef = useRef<HTMLTextAreaElement>(null)
 
   const NOTE_TEMPLATES = [
@@ -30,8 +32,9 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
   const anySuccess    = completeState.success ?? skipState.success ?? paidState.success ?? partialState.success ?? startState.success ?? cancelState.success ?? reschedState.success
   const justCompleted = !!completeState.success
 
-  const isActive    = job.status === 'scheduled' || job.status === 'in_progress'
-  const isCompleted = job.status === 'completed'
+  const isActive      = job.status === 'scheduled' || job.status === 'in_progress'
+  const canReschedule = isActive || job.status === 'needs_reschedule'
+  const isCompleted   = job.status === 'completed'
 
   // Build invoice SMS body (used both for auto-launch and manual button)
   const invoiceSmsBody = customerPhone
@@ -166,31 +169,6 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
             </>
           )}
 
-          {/* Rain Reschedule */}
-          <button
-            type="button"
-            className="btn btn-sm btn-secondary btn-full"
-            onClick={() => setPanel(panel === 'reschedule' ? null : 'reschedule')}
-          >
-            🌧 Rain Reschedule
-          </button>
-
-          {panel === 'reschedule' && (
-            <form action={reschedAction} className="form action-panel">
-              <div className="form-field">
-                <label className="form-label">New Date</label>
-                <input name="new_date" type="date" className="form-input" required />
-              </div>
-              <div className="form-field">
-                <label className="form-label">Notes (optional)</label>
-                <input name="internal_notes" className="form-input" placeholder="Rained out — rescheduled" defaultValue="Rained out — rescheduled" />
-              </div>
-              <button type="submit" disabled={reschedPending} className="btn btn-secondary btn-full">
-                {reschedPending ? 'Saving…' : 'Confirm Reschedule'}
-              </button>
-            </form>
-          )}
-
           {/* Skip + Cancel row */}
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
@@ -217,6 +195,87 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
               </div>
               <button type="submit" disabled={skipPending} className="btn btn-secondary btn-full">
                 {skipPending ? 'Saving…' : 'Confirm Skip'}
+              </button>
+            </form>
+          )}
+        </>
+      )}
+
+      {/* ── Reschedule Job ── */}
+      {canReschedule && (
+        <>
+          <button
+            type="button"
+            className="btn btn-sm btn-secondary btn-full"
+            onClick={() => {
+              setPanel(panel === 'reschedule' ? null : 'reschedule')
+              setReschedReason('')
+              setReschedTimeWin('')
+            }}
+          >
+            📅 Reschedule Job
+          </button>
+
+          {panel === 'reschedule' && (
+            <form action={reschedAction} className="form action-panel">
+              <div className="form-field">
+                <label className="form-label">Reason *</label>
+                <select
+                  name="reason_code"
+                  className="form-select"
+                  required
+                  value={reschedReason}
+                  onChange={e => setReschedReason(e.target.value)}
+                >
+                  <option value="">— Select reason —</option>
+                  <option value="rain_weather">Rain / Weather</option>
+                  <option value="customer_requested">Customer requested</option>
+                  <option value="equipment_issue">Equipment issue</option>
+                  <option value="access_issue">Access issue / gate / pets</option>
+                  <option value="unavailable_operator">Owner/operator unavailable</option>
+                  <option value="yard_not_ready">Yard not ready</option>
+                  <option value="route_change">Route change</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              {reschedReason === 'other' && (
+                <div className="form-field">
+                  <label className="form-label">Describe reason *</label>
+                  <input name="custom_reason" className="form-input" placeholder="Enter reason…" required />
+                </div>
+              )}
+
+              <div className="form-row">
+                <div className="form-field">
+                  <label className="form-label">New Date *</label>
+                  <input name="new_date" type="date" className="form-input" required />
+                </div>
+                <div className="form-field">
+                  <label className="form-label">Time Window</label>
+                  <select
+                    name="new_time_window"
+                    className="form-select"
+                    value={reschedTimeWin}
+                    onChange={e => setReschedTimeWin(e.target.value)}
+                  >
+                    <option value="">Anytime</option>
+                    <option value="morning">Morning</option>
+                    <option value="afternoon">Afternoon</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </div>
+              </div>
+
+              {reschedTimeWin === 'custom' && (
+                <div className="form-field">
+                  <label className="form-label">Custom time window *</label>
+                  <input name="custom_time_window" className="form-input" placeholder="e.g. 9am–11am" required />
+                </div>
+              )}
+
+              <button type="submit" disabled={reschedPending} className="btn btn-secondary btn-full">
+                {reschedPending ? 'Saving…' : 'Confirm Reschedule'}
               </button>
             </form>
           )}
