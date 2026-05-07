@@ -26,6 +26,30 @@ export function normalizeFrequency(value: string | null | undefined): string | n
   return null
 }
 
+// Format a canonical frequency value to a friendly label for display.
+export function formatFrequencyLabel(value: string | null | undefined): string {
+  if (!value) return 'Not specified'
+  const lower = value.trim().toLowerCase()
+  if (lower === 'weekly') return 'Weekly'
+  if (lower === 'biweekly' || lower === 'bi-weekly' || lower === 'bi weekly') return 'Bi-weekly'
+  if (lower === 'one_time') return 'One-time'
+  if (lower === 'custom') return 'Custom'
+  if (lower === 'paused') return 'Paused'
+  if (lower === 'unsure') return 'Unsure'
+  return value.replace(/_/g, ' ')
+}
+
+// Format a service interest key to a friendly label.
+export function formatServiceInterestLabel(value: string): string {
+  const labels: Record<string, string> = {
+    mowing: 'Lawn mowing',
+    weed_eating: 'Weed eating / trimming',
+    edging: 'Edging',
+    blow_off: 'Blow off hard surfaces',
+  }
+  return labels[value] ?? value.replace(/_/g, ' ')
+}
+
 // Parse website service interests from customer notes.
 // Expects a structured block like:
 //   Website service interests:
