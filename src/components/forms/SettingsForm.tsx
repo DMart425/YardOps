@@ -3,9 +3,11 @@
 import { useActionState } from 'react'
 import type { FormState } from '@/types/database'
 import { saveSettings } from '@/app/(protected)/settings/actions'
+import { APP_DEFAULT_TIMEZONE } from '@/lib/date'
 import { Toast } from '@/components/Toast'
 
 const US_TIMEZONES = [
+  { value: APP_DEFAULT_TIMEZONE,  label: 'UTC (neutral default fallback)' },
   { value: 'America/New_York',   label: 'Eastern  (ET)  — New York, Miami' },
   { value: 'America/Chicago',    label: 'Central  (CT)  — Chicago, Dallas' },
   { value: 'America/Denver',     label: 'Mountain (MT)  — Denver, Salt Lake City' },

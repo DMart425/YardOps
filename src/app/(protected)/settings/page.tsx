@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { DEFAULT_SETTINGS } from '@/lib/pricing'
+import { resolveTimeZone } from '@/lib/date'
 import { SettingsForm } from '@/components/forms/SettingsForm'
 import { BackfillCoordinatesButton } from '@/components/BackfillCoordinatesButton'
 import { DataExportSection } from '@/components/DataExportSection'
@@ -19,7 +20,7 @@ export default async function SettingsPage() {
     round_to_nearest:      settings?.round_to_nearest      ?? DEFAULT_SETTINGS.roundToNearest,
     default_setup_minutes: settings?.default_setup_minutes ?? DEFAULT_SETTINGS.defaultSetupMinutes,
     venmo_handle:          settings?.venmo_handle          ?? '',
-    time_zone:             settings?.time_zone             ?? 'America/Chicago',
+    time_zone:             resolveTimeZone(settings?.time_zone),
   }
 
   const blackoutDates: string[] = (settings?.blackout_dates as string[] | null) ?? []

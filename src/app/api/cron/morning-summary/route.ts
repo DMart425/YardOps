@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToUser } from '@/lib/push'
+import { getLocalDateStr, resolveTimeZone } from '@/lib/date'
 
 export async function GET(req: NextRequest) {
   // Verify the request is from Vercel Cron (or an authorized caller)
@@ -13,8 +14,8 @@ export async function GET(req: NextRequest) {
 
   // Read timezone from settings so "today" matches the user's local date
   const { data: tzRow } = await admin.from('pricing_settings').select('time_zone').limit(1).single()
-  const timeZone = tzRow?.time_zone ?? 'America/Chicago'
-  const today = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+  const timeZone = resolveTimeZone(tzRow?.time_zone)
+  const today = getLocalDateStr(timeZone)
 
   const { data: jobs } = await admin
     .from('jobs')

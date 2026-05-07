@@ -3,14 +3,8 @@
 import { useActionState, useState } from 'react'
 import type { FormState } from '@/types/database'
 import { scheduleFollowUpJob } from '@/app/(protected)/jobs/actions'
+import { addDays } from '@/lib/date'
 import { Toast } from '@/components/Toast'
-
-function addDays(dateStr: string, days: number) {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  const dt = new Date(Date.UTC(y, m - 1, d))
-  dt.setUTCDate(dt.getUTCDate() + days)
-  return dt.toISOString().slice(0, 10)
-}
 
 export function ScheduleFollowUpCard({
   jobId,

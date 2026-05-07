@@ -2,28 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { getTodayForecastForCoords, coordKey } from '@/lib/weather'
 import { EstimateApprovalNotifications } from '@/components/EstimateApprovalNotifications'
-
-function getLocalDate(timeZone: string) {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date())
-}
-
-function addOneDay(dateStr: string) {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  const dt = new Date(Date.UTC(y, m - 1, d))
-  dt.setUTCDate(dt.getUTCDate() + 1)
-  return dt.toISOString().slice(0, 10)
-}
-
-function formatDisplayDate(iso: string) {
-  return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric',
-  })
-}
+import { addDays, formatDateOnly, getLocalDateStr, resolveTimeZone } from '@/lib/date'
 
 function dateOnlyToUtcMs(dateStr: string) {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -36,10 +15,10 @@ export default async function TodayPage() {
     .from('pricing_settings')
     .select('time_zone')
     .single()
-  const timeZone = settings?.time_zone ?? 'America/Chicago'
-  const today = getLocalDate(timeZone)
+  const timeZone = resolveTimeZone(settings?.time_zone)
+  const today = getLocalDateStr(timeZone)
   const todayStartMs = dateOnlyToUtcMs(today)
-  const tomorrowForCompletedStr = addOneDay(today)
+  const tomorrowForCompletedStr = addDays(today, 1)
 
   const { data: approvalNotifications } = await supabase
     .from('app_notifications')
@@ -111,7 +90,7 @@ export default async function TodayPage() {
     .limit(10)
 
   // Tomorrow's jobs for reminder SMS
-  const tomorrowStr = addOneDay(today)
+  const tomorrowStr = addDays(today, 1)
   const { data: tomorrowJobs } = await supabase
     .from('jobs')
     .select(`
@@ -137,12 +116,8 @@ export default async function TodayPage() {
 
   // Recurring gap detection — customers with a recurring job in the past 60 days
   // but nothing scheduled in the next 14 days
-  const twoWeeksOut = new Date()
-  twoWeeksOut.setDate(twoWeeksOut.getDate() + 14)
-  const twoWeeksStr = twoWeeksOut.toLocaleDateString('en-CA')
-  const sixtyDaysAgo = new Date()
-  sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
-  const sixtyDaysAgoStr = sixtyDaysAgo.toLocaleDateString('en-CA')
+  const twoWeeksStr = addDays(today, 14)
+  const sixtyDaysAgoStr = addDays(today, -60)
 
   const { data: recentRecurring } = await supabase
     .from('jobs')
@@ -221,7 +196,7 @@ export default async function TodayPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Today</h1>
-          <p className="page-subtitle">{formatDisplayDate(today)}</p>
+          <p className="page-subtitle">{formatDateOnly(today, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
         </div>
       </div>
 

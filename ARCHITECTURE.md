@@ -188,7 +188,7 @@ src/
 - `id`, `user_id` (FK → auth.users)
 - `target_hourly_rate`, `minimum_price`, `round_to_nearest`, `default_setup_minutes`
 - `venmo_handle`, `blackout_dates` (array of "YYYY-MM-DD" strings)
-- `time_zone` (e.g., "America/Chicago" — used by Jobs/Today for date calculations)
+- `time_zone` (IANA timezone string, e.g., "America/New_York" — used by Jobs/Today for date calculations)
 - `settings_json`, `created_at`, `updated_at`
 
 #### **customers**

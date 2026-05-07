@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import type { FormState } from '@/types/database'
+import { resolveTimeZone } from '@/lib/date'
 
 export async function saveSettings(
   prevState: FormState,
@@ -23,7 +24,8 @@ export async function saveSettings(
   const round_to_nearest     = parse('round_to_nearest', 5)
   const default_setup_minutes = parse('default_setup_minutes', 10)
   const venmo_handle         = (formData.get('venmo_handle') as string ?? '').trim().replace(/^@/, '') || null
-  const time_zone            = (formData.get('time_zone') as string ?? '').trim() || 'America/Chicago'
+  const rawTimeZone          = (formData.get('time_zone') as string ?? '').trim()
+  const time_zone            = resolveTimeZone(rawTimeZone)
 
   const { error } = await supabase
     .from('pricing_settings')

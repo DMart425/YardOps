@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import { addDays, formatDateOnly, getLocalDateStr, resolveTimeZone } from '@/lib/date'
 
 type CustomerRelation = { first_name: string; last_name: string | null }
 type PropertyRelation = {
@@ -38,40 +39,6 @@ const FILTERS_COMPLETED = [
   ['unpaid', 'Unpaid'],
 ] as const
 
-function fmtDate(d: string) {
-  return new Date(d + 'T12:00:00').toLocaleDateString('en-US', {
-    weekday: 'short', month: 'short', day: 'numeric',
-  })
-}
-
-const DEFAULT_TIME_ZONE = 'UTC'
-
-function normalizeTimeZone(raw: string | null) {
-  if (!raw) return DEFAULT_TIME_ZONE
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: raw })
-    return raw
-  } catch {
-    return DEFAULT_TIME_ZONE
-  }
-}
-
-function localDateStr(d: Date, timeZone: string) {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(d)
-}
-
-function addDays(dateStr: string, days: number) {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  const dt = new Date(Date.UTC(y, m - 1, d))
-  dt.setUTCDate(dt.getUTCDate() + days)
-  return dt.toISOString().slice(0, 10)
-}
-
 function dayOfWeek(dateStr: string) {
   const [y, m, d] = dateStr.split('-').map(Number)
   const dt = new Date(Date.UTC(y, m - 1, d))
@@ -93,10 +60,9 @@ export default async function JobsPage({
     .from('pricing_settings')
     .select('time_zone')
     .single()
-  const timeZone = normalizeTimeZone(settings?.time_zone ?? null)
+  const timeZone = resolveTimeZone(settings?.time_zone ?? null)
 
-  const now = new Date()
-  const today = localDateStr(now, timeZone)
+  const today = getLocalDateStr(timeZone)
   const weekday = dayOfWeek(today)
   const weekStartStr = addDays(today, -weekday)
   const weekEndStr = addDays(weekStartStr, 6)
@@ -277,7 +243,7 @@ export default async function JobsPage({
                 borderRadius: 'var(--r-sm)',
               }}>
                 <span className="section-heading" style={{ marginBottom: 0 }}>
-                  {fmtDate(d)}{' '}
+                  {formatDateOnly(d, { weekday: 'short', month: 'short', day: 'numeric' })}{' '}
                   <span style={{
                     fontSize: '0.7rem', fontWeight: 600,
                     background: 'rgba(239,68,68,0.15)', color: '#dc2626',
@@ -304,7 +270,7 @@ export default async function JobsPage({
               <div key={day} style={{ marginBottom: '1.25rem' }}>
                 <div className="card-row" style={{ marginBottom: '8px' }}>
                   <div className="section-heading" style={{ marginBottom: 0 }}>
-                    {day === 'unscheduled' ? 'Unscheduled' : fmtDate(day)} ({dayJobs.length})
+                    {day === 'unscheduled' ? 'Unscheduled' : formatDateOnly(day, { weekday: 'short', month: 'short', day: 'numeric' })} ({dayJobs.length})
                     {isBlackout && (
                       <span style={{
                         marginLeft: '8px', fontSize: '0.7rem', fontWeight: 600,
@@ -374,8 +340,8 @@ export default async function JobsPage({
                 <div className="card-row" style={{ marginTop: '8px' }}>
                   <span className="text-small text-muted">
                     {view === 'completed'
-                      ? (job.completed_at ? fmtDate((job.completed_at as string).split('T')[0]) : 'No completion date')
-                      : (job.scheduled_date ? fmtDate(job.scheduled_date) : 'No date')}
+                      ? (job.completed_at ? formatDateOnly((job.completed_at as string).split('T')[0], { weekday: 'short', month: 'short', day: 'numeric' }) : 'No completion date')
+                      : (job.scheduled_date ? formatDateOnly(job.scheduled_date, { weekday: 'short', month: 'short', day: 'numeric' }) : 'No date')}
                     {view === 'scheduled' && job.scheduled_time_window ? ` · ${job.scheduled_time_window}` : ''}
                   </span>
                   {job.status === 'completed' && (
