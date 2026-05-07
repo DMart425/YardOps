@@ -7,6 +7,10 @@ This document now separates **current verified behavior** from **needs verificat
 - **Verified** means confirmed from the current YardOps code in this workspace.
 - **Needs Verification / Planned** means not fully confirmed from this repo alone, or dependent on deployment, external systems, or live Supabase configuration.
 
+Current verified YardOps checkpoint commit: `ffbd42b` (Polish lead property return flow).
+
+Approved Supabase project for this system: `lewzqavgvltzwfeypvam`.
+
 ## 1. App Purpose
 
 **YardOps** is the private operations command center for Wicksburg Lawn Service. It is **not** customer-facing and is not the same as the public website (wicksburglawnservice.com). 
@@ -327,13 +331,41 @@ auth.users
 2. **YardOps reviews website leads** → Protected lead pages read from `leads` and allow convert / dismiss / delete actions.
 3. **Convert accepted website lead** → `convertWebsiteLead()` creates a `customers` row with `status = 'lead'`, preserves intake address/frequency in notes, then marks the `leads` row as `converted`.
 4. **Manual lead path** → `createLead()` creates both a lead/contact `customers` row (`status = 'lead'`) and a full `properties` row together using required property validation fields.
-5. **Website-converted lead property path** → Property can be created from lead/customer context via `/properties/new?customer_id=...`, with intake address/frequency/package prefilled when those intake details are available.
-6. **Create estimate** → Estimate creation requires an existing customer/contact and an existing property; no inline customer/property creation is allowed in `/estimates/new`.
-7. **Revise estimate (when needed)** → Editing a `sent` or `approved` estimate increments `revision_number`, sets `last_revised_at`, and resets status to `draft` so it must be resent/reapproved.
-8. **Approve / convert estimate** → Estimate status changes through review and conversion.
-9. **Convert to job** → Creates `jobs` row, sets `estimate.status = 'converted'`, and may promote customer to `active` depending on workflow.
-10. **Complete job** → `job.status = 'completed'`, captures `completed_at` and `amount_paid`.
-11. **Auto-schedule next** → If property `auto_schedule_next = true` and job is recurring, create next job automatically.
+5. **Website-converted lead property path** → Property can be created from lead/customer context via `/properties/new?customer_id=...`, with intake address/frequency/default services prefilled when those intake details are available.
+6. **Lead return flow polish** → Saving property from lead context returns back to lead detail when a safe lead `return_to` path is provided.
+7. **Create estimate** → Estimate creation requires an existing customer/contact and an existing property; no inline customer/property creation is allowed in `/estimates/new`.
+8. **Revise estimate (when needed)** → Editing a `sent` or `approved` estimate increments `revision_number`, sets `last_revised_at`, and resets status to `draft` so it must be resent/reapproved.
+9. **Approve / convert estimate** → Estimate status changes through review and conversion.
+10. **Convert to job** → Creates `jobs` row, sets `estimate.status = 'converted'`, and may promote customer to `active` depending on workflow.
+11. **Complete job** → `job.status = 'completed'`, captures `completed_at` and `amount_paid`.
+12. **Auto-schedule next** → If property `auto_schedule_next = true` and job is recurring, create next job automatically.
+
+### Property Default Service Rules (Verified)
+
+- Property service booleans are the source of truth after property save:
+   - `default_mowing_enabled`
+   - `default_weed_eating_enabled`
+   - `default_edging_enabled`
+   - `default_blow_off_enabled`
+- Website service interests are intake hints and only prefill property/estimate defaults before property booleans are set.
+- Property defaults are starting assumptions, not locked quote rules.
+- Estimate scope remains editable prior to send/approval.
+- `default_service_package` is soft-retired and must not be dropped yet.
+
+### Frequency Normalization Rules (Verified)
+
+- Canonical YardOps frequencies:
+   - `weekly`
+   - `biweekly`
+   - `one_time`
+   - `custom`
+   - `paused`
+- Website intake frequency values:
+   - `weekly`
+   - `biweekly`
+   - `one_time`
+   - `unsure`
+- `unsure` fails safe to no prefill/null (never defaulting to `weekly`).
 
 ### Current Lead Cleanup Controls (Verified)
 

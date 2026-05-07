@@ -6,12 +6,20 @@ These instructions are mandatory for any AI/coding agent working in this repo.
 
 YardOps is the private operations app for Wicksburg Lawn Service.
 
+Current verified YardOps checkpoint commit:
+
+`ffbd42b` (Polish lead property return flow)
+
 The public website repo is separate:
 
 * `DMart425/WicksburgLawnService` = public lead funnel
 * `DMart425/YardOps` = private operations app
 
 Do not merge these responsibilities.
+
+Current verified workflow:
+
+Public website quote form -> Supabase public.leads -> YardOps Website Leads -> Convert to YardOps lead/contact -> Add Property with prefilled frequency/default services -> Save property -> Return to lead detail -> Build editable estimate.
 
 ## Approved Supabase Project
 
@@ -43,6 +51,8 @@ Before writing a migration:
 6. Wait for approval.
 
 Prefer review-only reports before database hardening.
+
+Do not apply migrations without SQL review and explicit approval.
 
 ## Current Supabase Concerns
 
@@ -90,6 +100,22 @@ Website lead arrives -> review lead -> convert to customer/property -> create es
 
 Do not add unrelated features until this loop is stable.
 
+Additional rules:
+
+* Website lead conversion creates a customer/contact only; do not create sparse property records there.
+* Property defaults are starting assumptions, not locked quote rules.
+* Estimate scope remains editable.
+* Property service booleans are source of truth after property save:
+	* `default_mowing_enabled`
+	* `default_weed_eating_enabled`
+	* `default_edging_enabled`
+	* `default_blow_off_enabled`
+* Website service interests are intake hints and should prefill only before property booleans exist.
+* `default_service_package` is soft-retired and must not be dropped yet.
+* Canonical YardOps frequencies: `weekly`, `biweekly`, `one_time`, `custom`, `paused`.
+* Website frequency values: `weekly`, `biweekly`, `one_time`, `unsure`.
+* `unsure` must fail safe to no prefill/null, never weekly by default.
+
 ## Change Style
 
 Keep changes small and targeted.
@@ -114,3 +140,4 @@ Never reset the database unless explicitly asked.
 Never apply SQL to an unconfirmed Supabase project.
 
 Never assume the connected MCP/Supabase tool is pointed at the correct project. Verify first.
+Never commit or push without explicit approval.
