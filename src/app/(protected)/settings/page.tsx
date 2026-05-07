@@ -6,13 +6,18 @@ import { BackfillCoordinatesButton } from '@/components/BackfillCoordinatesButto
 import { DataExportSection } from '@/components/DataExportSection'
 import { EnableNotificationsButton } from '@/components/EnableNotificationsButton'
 import { BlackoutDatesForm } from '@/components/BlackoutDatesForm'
+import { redirect } from 'next/navigation'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
   const { data: settings } = await supabase
     .from('pricing_settings')
     .select('*')
-    .single()
+    .eq('user_id', user.id)
+    .maybeSingle()
 
   const defaults = {
     target_hourly_rate:    settings?.target_hourly_rate    ?? DEFAULT_SETTINGS.targetHourlyRate,
