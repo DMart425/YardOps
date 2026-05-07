@@ -24,39 +24,128 @@ export default async function TodayPage() {
   const today = getLocalDateStr(timeZone)
   const todayStartMs = dateOnlyToUtcMs(today)
   const tomorrowForCompletedStr = addDays(today, 1)
+  const tomorrowStr = addDays(today, 1)
+  const twoWeeksStr = addDays(today, 14)
+  const sixtyDaysAgoStr = addDays(today, -60)
 
-  const { data: approvalNotifications } = await supabase
-    .from('app_notifications')
-    .select('id, user_id, notification_type, title, body, link_path, estimate_id, is_reviewed, reviewed_at, created_at')
-    .eq('notification_type', 'estimate_approved')
-    .eq('is_reviewed', false)
-    .order('created_at', { ascending: false })
-    .limit(10)
+  const [
+    approvalNotificationsResult,
+    todayJobsResult,
+    completedTodayJobsResult,
+    overdueJobsResult,
+    unpaidJobsResult,
+    tomorrowJobsResult,
+    estimateVisitsResult,
+    recentRecurringResult,
+    recentCompletedJobsResult,
+    websiteLeadsCountResult,
+    manualLeadsCountResult,
+  ] = await Promise.all([
+    supabase
+      .from('app_notifications')
+      .select('id, user_id, notification_type, title, body, link_path, estimate_id, is_reviewed, reviewed_at, created_at')
+      .eq('notification_type', 'estimate_approved')
+      .eq('is_reviewed', false)
+      .order('created_at', { ascending: false })
+      .limit(10),
+    // Fetch today's jobs with customer and property info
+    supabase
+      .from('jobs')
+      .select(`
+        id, title, service_package, job_type, price, payment_status, status, scheduled_date, scheduled_time_window,
+        customers ( first_name, last_name, phone ),
+        properties ( service_address, city, pet_warning, gate_code, access_notes, obstacle_notes, latitude, longitude )
+      `)
+      .eq('scheduled_date', today)
+      .not('status', 'in', '("completed","cancelled","skipped")')
+      .order('scheduled_date'),
+    // Completed jobs finished today
+    supabase
+      .from('jobs')
+      .select(`
+        id, title, service_package, price, amount_paid, payment_status, completed_at,
+        customers ( first_name, last_name ),
+        properties ( service_address, city )
+      `)
+      .eq('status', 'completed')
+      .gte('completed_at', `${today}T00:00:00`)
+      .lt('completed_at', `${tomorrowForCompletedStr}T00:00:00`)
+      .order('completed_at', { ascending: false }),
+    // Overdue jobs
+    supabase
+      .from('jobs')
+      .select(`
+        id, title, scheduled_date, price, status,
+        customers ( first_name, last_name ),
+        properties ( service_address, city )
+      `)
+      .lt('scheduled_date', today)
+      .in('status', ['scheduled', 'in_progress', 'needs_reschedule'])
+      .order('scheduled_date', { ascending: true })
+      .limit(10),
+    // Unpaid completed jobs
+    supabase
+      .from('jobs')
+      .select(`
+        id, title, price, amount_paid, payment_status, completed_at,
+        customers ( first_name, last_name, phone )
+      `)
+      .eq('status', 'completed')
+      .in('payment_status', ['unpaid', 'partial'])
+      .order('completed_at', { ascending: false })
+      .limit(10),
+    // Tomorrow's jobs for reminder SMS
+    supabase
+      .from('jobs')
+      .select(`
+        id, title, service_package, job_type, price, scheduled_date, scheduled_time_window,
+        customers ( first_name, last_name, phone ),
+        properties ( service_address, city )
+      `)
+      .eq('scheduled_date', tomorrowStr)
+      .in('status', ['scheduled', 'in_progress'])
+      .order('scheduled_date'),
+    // Today's estimate visits
+    supabase
+      .from('estimates')
+      .select(`
+        id, visit_scheduled_time, total,
+        customers ( first_name, last_name, phone ),
+        properties ( service_address, city )
+      `)
+      .eq('visit_scheduled_date', today)
+      .not('status', 'in', '("converted","declined")')
+      .order('visit_scheduled_time'),
+    // Recurring gap detection base query
+    supabase
+      .from('jobs')
+      .select('customer_id, customers(first_name, last_name)')
+      .eq('job_type', 'recurring')
+      .gte('scheduled_date', sixtyDaysAgoStr)
+      .not('status', 'in', '("cancelled","skipped")'),
+    // Customer retention base query
+    supabase
+      .from('jobs')
+      .select('customer_id, completed_at, customers(id, first_name, last_name)')
+      .eq('status', 'completed')
+      .not('customer_id', 'is', null),
+    // New leads count (website)
+    supabase.from('leads').select('id', { count: 'exact', head: true }).eq('status', 'new'),
+    // New leads count (manual)
+    supabase.from('customers').select('id', { count: 'exact', head: true }).eq('status', 'lead'),
+  ])
 
-  // Fetch today's jobs with customer and property info
-  const { data: todayJobs } = await supabase
-    .from('jobs')
-    .select(`
-      id, title, service_package, job_type, price, payment_status, status, scheduled_date, scheduled_time_window,
-      customers ( first_name, last_name, phone ),
-      properties ( service_address, city, pet_warning, gate_code, access_notes, obstacle_notes, latitude, longitude )
-    `)
-    .eq('scheduled_date', today)
-    .not('status', 'in', '("completed","cancelled","skipped")')
-    .order('scheduled_date')
-
-  // Completed jobs finished today
-  const { data: completedTodayJobs } = await supabase
-    .from('jobs')
-    .select(`
-      id, title, service_package, price, amount_paid, payment_status, completed_at,
-      customers ( first_name, last_name ),
-      properties ( service_address, city )
-    `)
-    .eq('status', 'completed')
-    .gte('completed_at', `${today}T00:00:00`)
-    .lt('completed_at', `${tomorrowForCompletedStr}T00:00:00`)
-    .order('completed_at', { ascending: false })
+  const approvalNotifications = approvalNotificationsResult.data
+  const todayJobs = todayJobsResult.data
+  const completedTodayJobs = completedTodayJobsResult.data
+  const overdueJobs = overdueJobsResult.data
+  const unpaidJobs = unpaidJobsResult.data
+  const tomorrowJobs = tomorrowJobsResult.data
+  const estimateVisits = estimateVisitsResult.data
+  const recentRecurring = recentRecurringResult.data
+  const recentCompletedJobs = recentCompletedJobsResult.data
+  const websiteLeadsCount = websiteLeadsCountResult.count
+  const manualLeadsCount = manualLeadsCountResult.count
 
   // Fetch weather for unique property coordinates
   const coords: Array<{ lat: number; lon: number }> = []
@@ -68,68 +157,6 @@ export default async function TodayPage() {
   }
   const weatherMap = coords.length > 0 ? await getTodayForecastForCoords(coords) : new Map()
   const anyRainToday = Array.from(weatherMap.values()).some(fc => fc.precipChance >= 40 || fc.precipInches >= 0.05)
-
-  // Overdue jobs
-  const { data: overdueJobs } = await supabase
-    .from('jobs')
-    .select(`
-      id, title, scheduled_date, price, status,
-      customers ( first_name, last_name ),
-      properties ( service_address, city )
-    `)
-    .lt('scheduled_date', today)
-    .in('status', ['scheduled', 'in_progress', 'needs_reschedule'])
-    .order('scheduled_date', { ascending: true })
-    .limit(10)
-
-  // Unpaid completed jobs
-  const { data: unpaidJobs } = await supabase
-    .from('jobs')
-    .select(`
-      id, title, price, amount_paid, payment_status, completed_at,
-      customers ( first_name, last_name, phone )
-    `)
-    .eq('status', 'completed')
-    .in('payment_status', ['unpaid', 'partial'])
-    .order('completed_at', { ascending: false })
-    .limit(10)
-
-  // Tomorrow's jobs for reminder SMS
-  const tomorrowStr = addDays(today, 1)
-  const { data: tomorrowJobs } = await supabase
-    .from('jobs')
-    .select(`
-      id, title, service_package, job_type, price, scheduled_date, scheduled_time_window,
-      customers ( first_name, last_name, phone ),
-      properties ( service_address, city )
-    `)
-    .eq('scheduled_date', tomorrowStr)
-    .in('status', ['scheduled', 'in_progress'])
-    .order('scheduled_date')
-
-  // Today's estimate visits
-  const { data: estimateVisits } = await supabase
-    .from('estimates')
-    .select(`
-      id, visit_scheduled_time, total,
-      customers ( first_name, last_name, phone ),
-      properties ( service_address, city )
-    `)
-    .eq('visit_scheduled_date', today)
-    .not('status', 'in', '("converted","declined")')
-    .order('visit_scheduled_time')
-
-  // Recurring gap detection — customers with a recurring job in the past 60 days
-  // but nothing scheduled in the next 14 days
-  const twoWeeksStr = addDays(today, 14)
-  const sixtyDaysAgoStr = addDays(today, -60)
-
-  const { data: recentRecurring } = await supabase
-    .from('jobs')
-    .select('customer_id, customers(first_name, last_name)')
-    .eq('job_type', 'recurring')
-    .gte('scheduled_date', sixtyDaysAgoStr)
-    .not('status', 'in', '("cancelled","skipped")')
 
   let gapCustomers: { id: string; name: string }[] = []
   if (recentRecurring && recentRecurring.length > 0) {
@@ -157,13 +184,6 @@ export default async function TodayPage() {
       .map(id => ({ id, name: uniqueMap.get(id)! }))
   }
 
-  // Customer retention — active customers with last completed job > 60 days ago
-  const { data: recentCompletedJobs } = await supabase
-    .from('jobs')
-    .select('customer_id, completed_at, customers(id, first_name, last_name)')
-    .eq('status', 'completed')
-    .not('customer_id', 'is', null)
-
   let dormantCustomers: { id: string; name: string; daysSince: number }[] = []
   if (recentCompletedJobs && recentCompletedJobs.length > 0) {
     const lastVisitMap = new Map<string, { name: string; date: Date }>()
@@ -188,11 +208,6 @@ export default async function TodayPage() {
   const todayTotal = (todayJobs ?? []).reduce((s, j) => s + (j.price ?? 0), 0)
   const unpaidTotal = (unpaidJobs ?? []).reduce((s, j) => s + Math.max(0, (j.price ?? 0) - (j.amount_paid ?? 0)), 0)
 
-  // New leads count (website + manual)
-  const [{ count: websiteLeadsCount }, { count: manualLeadsCount }] = await Promise.all([
-    supabase.from('leads').select('id', { count: 'exact', head: true }).eq('status', 'new'),
-    supabase.from('customers').select('id', { count: 'exact', head: true }).eq('status', 'lead'),
-  ])
   const newLeadsCount = (websiteLeadsCount ?? 0) + (manualLeadsCount ?? 0)
 
   return (
