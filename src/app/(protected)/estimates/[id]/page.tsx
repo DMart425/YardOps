@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { EstimateStatusActions } from '@/components/EstimateStatusActions'
 import { calculateEstimate, formatMinutes, DEFAULT_SETTINGS } from '@/lib/pricing'
+import { formatDateOnly } from '@/lib/date'
 import type { EstimateInputs } from '@/lib/pricing'
 import type { Estimate } from '@/types/database'
 import SendSmsButton from './SendSmsButton'
@@ -96,7 +97,9 @@ export default async function EstimateDetailPage({
   }
   smsLines.push('')
   smsLines.push('Total: $' + Number(estimate.total).toFixed(0))
-  if (estimate.valid_until) smsLines.push('Valid until: ' + fmtDate(estimate.valid_until))
+  if (estimate.valid_until) smsLines.push('Valid until: ' + formatDateOnly(estimate.valid_until, {
+    weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+  }))
   if (quoteUrl) {
     smsLines.push('')
     smsLines.push('View & accept your estimate online:')
@@ -173,7 +176,9 @@ export default async function EstimateDetailPage({
           {estimate.valid_until && (
             <div className="card-row">
               <span className="text-small text-muted">Valid until</span>
-              <span className="text-small">{fmtDate(estimate.valid_until)}</span>
+              <span className="text-small">{formatDateOnly(estimate.valid_until, {
+                weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+              })}</span>
             </div>
           )}
           {(estimate.status === 'approved' || estimate.status === 'converted') && (
@@ -210,7 +215,9 @@ export default async function EstimateDetailPage({
         </div>
         {estimate.visit_scheduled_date && (
           <div style={{ marginBottom: '10px', padding: '8px 10px', background: 'var(--color-success-bg, #f0fdf4)', borderRadius: '8px', border: '1px solid var(--color-success-border, #bbf7d0)' }}>
-            <span className="text-small" style={{ fontWeight: 600 }}>{fmtDate(estimate.visit_scheduled_date)}</span>
+            <span className="text-small" style={{ fontWeight: 600 }}>{formatDateOnly(estimate.visit_scheduled_date, {
+              weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+            })}</span>
             {estimate.visit_scheduled_time && (
               <span className="text-small text-muted"> · {estimate.visit_scheduled_time}</span>
             )}

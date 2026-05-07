@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { addBlackoutDate, removeBlackoutDate } from '@/app/(protected)/settings/actions'
+import { formatDateOnly } from '@/lib/date'
 
 interface Props {
   dates: string[]  // ISO date strings YYYY-MM-DD
@@ -72,7 +73,7 @@ export function BlackoutDatesForm({ dates }: Props) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {current.map(d => {
-            const label = new Date(d + 'T12:00:00').toLocaleDateString('en-US', {
+            const label = formatDateOnly(d, {
               weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
             })
             return (

@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { calculateEstimate, formatMinutes } from '@/lib/pricing'
+import { formatDateOnly } from '@/lib/date'
 import type { EstimateInputs } from '@/lib/pricing'
 import QuoteConfirmForm from './QuoteConfirmForm'
 import styles from './quote.module.css'
@@ -11,7 +12,7 @@ const FREQ_LABELS: Record<string, string> = {
 }
 
 function fmtDate(d: string) {
-  return new Date(d + 'T12:00:00').toLocaleDateString('en-US', {
+  return formatDateOnly(d, {
     year: 'numeric', month: 'long', day: 'numeric',
   })
 }

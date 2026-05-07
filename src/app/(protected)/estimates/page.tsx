@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import { formatDateOnly } from '@/lib/date'
 
 type EstimateListRow = {
   id: string
@@ -22,7 +23,7 @@ const STATUS_FILTERS = [
 ] as const
 
 function fmtDate(d: string) {
-  return new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 export default async function EstimatesPage({
@@ -93,7 +94,7 @@ export default async function EstimatesPage({
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
                     <span className={`pill pill-${est.status}`}>{est.status}</span>
                     {est.visit_scheduled_date && (
-                      <span className="pill pill-draft" style={{ fontSize: '0.7rem' }}>📅 Visit {fmtDate(est.visit_scheduled_date)}</span>
+                      <span className="pill pill-draft" style={{ fontSize: '0.7rem' }}>📅 Visit {formatDateOnly(est.visit_scheduled_date)}</span>
                     )}
                     <span className="font-bold text-small">${Number(est.total).toFixed(2)}</span>
                   </div>
@@ -101,7 +102,7 @@ export default async function EstimatesPage({
                 <div className="card-row" style={{ marginTop: '8px' }}>
                   <span className="text-small text-muted">Created {fmtDate(est.created_at)}</span>
                   {est.valid_until && (
-                    <span className="text-small text-muted">Valid until {fmtDate(est.valid_until)}</span>
+                    <span className="text-small text-muted">Valid until {formatDateOnly(est.valid_until)}</span>
                   )}
                 </div>
               </Link>
