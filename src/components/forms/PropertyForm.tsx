@@ -347,16 +347,6 @@ export function PropertyForm({
         />
       </div>
 
-      <div className="check-row">
-        <input
-          id="auto_schedule_next"
-          name="auto_schedule_next"
-          type="checkbox"
-          defaultChecked={defaultValues?.auto_schedule_next ?? true}
-        />
-        <label htmlFor="auto_schedule_next">Auto-schedule next visit when job is completed</label>
-      </div>
-
       {/* Access & warnings */}
       <div className="form-section-label">Access &amp; Warnings</div>
 

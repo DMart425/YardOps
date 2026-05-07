@@ -81,7 +81,7 @@ export async function createProperty(
     default_price: num(formData, 'default_price'),
     service_frequency: (formData.get('service_frequency') as string) || 'one_time',
     preferred_service_day: str(formData, 'preferred_service_day'),
-    auto_schedule_next: formData.get('auto_schedule_next') === 'on',
+    auto_schedule_next: false,
     gate_code: str(formData, 'gate_code'),
     pet_warning: str(formData, 'pet_warning'),
     access_notes: str(formData, 'access_notes'),
@@ -159,7 +159,7 @@ export async function updateProperty(
       default_price: num(formData, 'default_price'),
       service_frequency: (formData.get('service_frequency') as string) || 'one_time',
       preferred_service_day: str(formData, 'preferred_service_day'),
-      auto_schedule_next: formData.get('auto_schedule_next') === 'on',
+      // auto_schedule_next intentionally omitted — field removed from UI; existing DB value preserved
       gate_code: str(formData, 'gate_code'),
       pet_warning: str(formData, 'pet_warning'),
       access_notes: str(formData, 'access_notes'),

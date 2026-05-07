@@ -130,7 +130,7 @@ export async function createLead(
       parking_notes: str(formData, 'parking_notes'),
       internal_notes: str(formData, 'internal_notes'),
       status: 'active',
-      auto_schedule_next: true,
+      auto_schedule_next: false,
     })
 
   if (propError) {
