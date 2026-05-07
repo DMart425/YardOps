@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { getTodayForecastForCoords, coordKey } from '@/lib/weather'
 import { EstimateApprovalNotifications } from '@/components/EstimateApprovalNotifications'
-import { addDays, formatDateOnly, getLocalDateStr, resolveTimeZone } from '@/lib/date'
+import { addDays, formatDateOnly, formatTimestampDate, getLocalDateStr, resolveTimeZone } from '@/lib/date'
 
 function dateOnlyToUtcMs(dateStr: string) {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -11,10 +12,14 @@ function dateOnlyToUtcMs(dateStr: string) {
 
 export default async function TodayPage() {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
   const { data: settings } = await supabase
     .from('pricing_settings')
     .select('time_zone')
-    .single()
+    .eq('user_id', user.id)
+    .maybeSingle()
   const timeZone = resolveTimeZone(settings?.time_zone)
   const today = getLocalDateStr(timeZone)
   const todayStartMs = dateOnlyToUtcMs(today)
@@ -32,7 +37,7 @@ export default async function TodayPage() {
   const { data: todayJobs } = await supabase
     .from('jobs')
     .select(`
-      id, title, service_package, price, payment_status, status, scheduled_date,
+      id, title, service_package, job_type, price, payment_status, status, scheduled_date, scheduled_time_window,
       customers ( first_name, last_name, phone ),
       properties ( service_address, city, pet_warning, gate_code, access_notes, obstacle_notes, latitude, longitude )
     `)
@@ -94,7 +99,7 @@ export default async function TodayPage() {
   const { data: tomorrowJobs } = await supabase
     .from('jobs')
     .select(`
-      id, title, service_package, price, scheduled_date,
+      id, title, service_package, job_type, price, scheduled_date, scheduled_time_window,
       customers ( first_name, last_name, phone ),
       properties ( service_address, city )
     `)
@@ -314,23 +319,28 @@ export default async function TodayPage() {
               <div key={job.id} className="card">
                 <div className="card-row">
                   <div>
-                    <div className="card-title">{customer?.first_name} {customer?.last_name}</div>
-                    <div className="card-subtitle">{property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
-                    {job.service_package && <div className="card-meta">{job.service_package.replace(/_/g, ' ')}</div>}
-                    {fc && (
-                      <div className="card-meta" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-                        <span>{fc.emoji}</span>
-                        <span>{fc.tempHi}° / {fc.tempLo}° · {fc.summary}</span>
-                        {fc.precipChance > 0 && (
-                          <span style={{ color: wetRisk ? 'var(--color-overdue)' : undefined, fontWeight: wetRisk ? 600 : undefined }}>
-                            · {fc.precipChance}% rain
-                          </span>
-                        )}
-                      </div>
-                    )}
+                    <div className="card-title">{job.title}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
+                      <div className="card-meta">👤 {customer?.first_name} {customer?.last_name}</div>
+                      <div className="card-meta">📍 {property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
+                      {job.scheduled_time_window && <div className="card-meta">🗓 {job.scheduled_time_window}</div>}
+                      {(job.service_package ?? job.job_type) && <div className="card-meta">🌿 {(job.service_package ?? job.job_type)!.replace(/_/g, ' ')}</div>}
+                      {job.price != null && <div className="card-meta">💵 ${Number(job.price).toFixed(0)}</div>}
+                      {fc && (
+                        <div className="card-meta" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>{fc.emoji}</span>
+                          <span>{fc.tempHi}° / {fc.tempLo}° · {fc.summary}</span>
+                          {fc.precipChance > 0 && (
+                            <span style={{ color: wetRisk ? 'var(--color-overdue)' : undefined, fontWeight: wetRisk ? 600 : undefined }}>
+                              · {fc.precipChance}% rain
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    {job.price != null && <div style={{ fontWeight: 700, fontSize: '1.0625rem' }}>${job.price}</div>}
+                    <span className={`pill pill-${job.status}`}>{job.status.replace(/_/g, ' ')}</span>
                   </div>
                 </div>
 
@@ -383,14 +393,15 @@ export default async function TodayPage() {
                 <div className="card-row">
                   <div>
                     <div className="card-title">{customer?.first_name} {customer?.last_name}</div>
-                    <div className="card-meta">{property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
-                    {visit.visit_scheduled_time && (
-                      <div className="card-meta">{visit.visit_scheduled_time}</div>
-                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
+                      <div className="card-meta">📍 {property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
+                      {visit.visit_scheduled_time && <div className="card-meta">🕐 {visit.visit_scheduled_time}</div>}
+                      {visit.total != null && <div className="card-meta">💵 ~${Number(visit.total).toFixed(0)}</div>}
+                      {customer?.phone && <div className="card-meta">📞 {customer.phone}</div>}
+                    </div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <span className="pill pill-draft">Estimate Visit</span>
-                    {visit.total != null && <div className="text-small text-muted" style={{ marginTop: '4px' }}>~${Number(visit.total).toFixed(0)}</div>}
                   </div>
                 </div>
                 <div className="card-actions">
@@ -435,9 +446,12 @@ export default async function TodayPage() {
                 <div className="card">
                   <div className="card-row">
                     <div>
-                      <div className="card-title">{customer?.first_name} {customer?.last_name}</div>
-                      <div className="card-meta">{property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
-                      <div className="card-meta">{job.title}</div>
+                      <div className="card-title">{job.title}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
+                        <div className="card-meta">👤 {customer?.first_name} {customer?.last_name}</div>
+                        <div className="card-meta">📍 {property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
+                        {job.completed_at && <div className="card-meta">✅ {formatTimestampDate(job.completed_at, timeZone, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>}
+                      </div>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       {job.price != null && <div style={{ fontWeight: 700 }}>${Number(job.price).toFixed(0)}</div>}
@@ -467,13 +481,18 @@ export default async function TodayPage() {
                 <div className="card">
                   <div className="card-row">
                     <div>
-                      <div className="card-title">{customer?.first_name} {customer?.last_name}</div>
-                      <div className="card-meta">{property?.service_address}</div>
-                      <div className="card-meta" style={{ color: 'var(--color-overdue)' }}>
-                        {daysLate} day{daysLate !== 1 ? 's' : ''} overdue
+                      <div className="card-title">{job.title}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
+                        <div className="card-meta">👤 {customer?.first_name} {customer?.last_name}</div>
+                        <div className="card-meta">📍 {property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
+                        {job.scheduled_date && <div className="card-meta">🗓 {formatDateOnly(job.scheduled_date, { weekday: 'short', month: 'short', day: 'numeric' })}</div>}
+                        {job.price != null && <div className="card-meta">💵 ${Number(job.price).toFixed(0)}</div>}
                       </div>
                     </div>
-                    <span className="pill pill-overdue">Overdue</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
+                      <span className={`pill pill-${job.status}`}>{job.status.replace(/_/g, ' ')}</span>
+                      <span className="pill pill-overdue">{daysLate}d late</span>
+                    </div>
                   </div>
                 </div>
               </Link>
@@ -494,10 +513,15 @@ export default async function TodayPage() {
             return (
               <div key={job.id} className="card">
                 <div className="card-row">
-                  <div>
-                    <div className="card-title">{customer?.first_name} {customer?.last_name}</div>
-                    <div className="card-meta">{property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
-                    {job.price != null && <div className="card-meta">${job.price}</div>}
+                  <div style={{ flex: 1 }}>
+                    <div className="card-title">{job.title}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
+                      <div className="card-meta">👤 {customer?.first_name} {customer?.last_name}</div>
+                      <div className="card-meta">📍 {property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
+                      <div className="card-meta">🗓 {formatDateOnly(tomorrowStr, { weekday: 'short', month: 'short', day: 'numeric' })}{job.scheduled_time_window ? ` · ${job.scheduled_time_window}` : ''}</div>
+                      {(job.service_package ?? job.job_type) && <div className="card-meta">🌿 {(job.service_package ?? job.job_type)!.replace(/_/g, ' ')}</div>}
+                      {job.price != null && <div className="card-meta">💵 ${Number(job.price).toFixed(0)}</div>}
+                    </div>
                   </div>
                 </div>
                 <div className="card-actions">
@@ -535,14 +559,15 @@ export default async function TodayPage() {
               <div key={job.id} className="card">
                 <div className="card-row">
                   <div>
-                    <div className="card-title">{customer?.first_name} {customer?.last_name}</div>
-                    <div className="card-meta">{job.title}</div>
+                    <div className="card-title">{job.title}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
+                      <div className="card-meta">👤 {customer?.first_name} {customer?.last_name}</div>
+                      <div className="card-meta">💵 ${balance.toFixed(0)} due</div>
+                      {job.completed_at && <div className="card-meta">🗓 {formatTimestampDate(job.completed_at, timeZone, { month: 'short', day: 'numeric', year: 'numeric' })}</div>}
+                    </div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontWeight: 700, color: 'var(--color-unpaid)' }}>${balance.toFixed(0)}</div>
-                    <span className={`pill pill-${job.payment_status === 'partial' ? 'pending' : 'unpaid'}`}>
-                      {job.payment_status === 'partial' ? 'Partial' : 'Unpaid'}
-                    </span>
+                    <span className={`pill pill-${job.payment_status}`}>{job.payment_status.replace(/_/g, ' ')}</span>
                   </div>
                 </div>
                 <div className="card-actions">
