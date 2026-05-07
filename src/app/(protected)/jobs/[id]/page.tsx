@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
+import { formatDateOnly, formatTimestampDate, resolveTimeZone } from '@/lib/date'
 import { JobActions } from '@/components/JobActions'
 import { JobPhotos } from '@/components/JobPhotos'
 import { DownloadInvoiceButton } from '@/components/DownloadInvoiceButton'
@@ -20,12 +21,6 @@ type JobDetail = Job & {
     obstacle_notes: string | null
     parking_notes: string | null
   }
-}
-
-function fmtDate(d: string) {
-  return new Date(d + 'T12:00:00').toLocaleDateString('en-US', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-  })
 }
 
 export default async function JobDetailPage({
@@ -49,17 +44,22 @@ export default async function JobDetailPage({
   if (!jobRaw) notFound()
   const job = jobRaw as JobDetail
 
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
   const { data: profile } = await supabase
     .from('profiles')
     .select('business_name, business_phone, business_email')
-    .eq('id', (await supabase.auth.getUser()).data.user?.id ?? '')
+    .eq('id', user.id)
     .single()
 
   const { data: settings } = await supabase
     .from('pricing_settings')
-    .select('venmo_handle')
-    .single()
+    .select('venmo_handle, time_zone')
+    .eq('user_id', user.id)
+    .maybeSingle()
   const venmoHandle = (settings?.venmo_handle as string | null) ?? null
+  const timeZone = resolveTimeZone(settings?.time_zone ?? null)
 
   const { data: photos } = await supabase
     .from('job_photos')
@@ -97,7 +97,8 @@ export default async function JobDetailPage({
 
       <div className="page-header">
         <div>
-          <h1 className="page-title">{customerName}</h1>
+          <h1 className="page-title">{job.title ?? 'Job Detail'}</h1>
+          <div className="text-small text-muted" style={{ marginTop: '2px' }}>{customerName} · {address}</div>
           <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
             <span className={`pill pill-${job.status}`}>{job.status.replace(/_/g, ' ')}</span>
             {job.status !== 'cancelled' && job.status !== 'skipped' && (
@@ -117,16 +118,26 @@ export default async function JobDetailPage({
       <div className="card" style={{ marginBottom: '1rem' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div className="card-row">
-            <span className="text-small text-muted">📅 Date</span>
-            <span className="text-small">
-              {job.scheduled_date ? fmtDate(job.scheduled_date) : 'No date set'}
-              {job.scheduled_time_window ? ` · ${job.scheduled_time_window}` : ''}
-            </span>
+            <span className="text-small text-muted">� Customer</span>
+            <Link href={`/customers/${job.customer_id}`} className="text-small" style={{ color: 'var(--color-primary)' }}>{customerName}</Link>
           </div>
           <div className="card-row">
             <span className="text-small text-muted">📍 Address</span>
-            <span className="text-small">{address}</span>
+            <Link href={`/properties/${job.property_id}`} className="text-small" style={{ color: 'var(--color-primary)' }}>{address}</Link>
           </div>
+          <div className="card-row">
+            <span className="text-small text-muted">📅 Date</span>
+            <span className="text-small">
+              {job.scheduled_date ? formatDateOnly(job.scheduled_date, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'No date set'}
+              {job.scheduled_time_window ? ` · ${job.scheduled_time_window}` : ''}
+            </span>
+          </div>
+          {job.status === 'completed' && job.completed_at && (
+            <div className="card-row">
+              <span className="text-small text-muted">✅ Completed</span>
+              <span className="text-small">{formatTimestampDate(job.completed_at, timeZone, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+            </div>
+          )}
           <div className="card-row">
             <span className="text-small text-muted">🌿 Package</span>
             <span className="text-small">{pkgLabel}</span>
@@ -135,6 +146,15 @@ export default async function JobDetailPage({
             <span className="text-small text-muted">🔄 Type</span>
             <span className="text-small">{job.job_type}</span>
           </div>
+          {job.price != null && (job.status === 'completed' || Number(job.amount_paid ?? 0) > 0 || job.payment_status === 'paid' || job.payment_status === 'partial') && (
+            <div className="card-row">
+              <span className="text-small text-muted">💰 Paid</span>
+              <span className="text-small">
+                ${Number(job.amount_paid).toFixed(2)} of ${Number(job.price).toFixed(2)}
+                {Number(job.amount_paid) < Number(job.price) ? ` · $${(Number(job.price) - Number(job.amount_paid)).toFixed(2)} remaining` : ''}
+              </span>
+            </div>
+          )}
         </div>
 
         {customer.phone && (
@@ -179,7 +199,7 @@ export default async function JobDetailPage({
             {job.completed_at && (
               <div className="card-row">
                 <span className="text-small text-muted">✅ Completed</span>
-                <span className="text-small">{new Date(job.completed_at).toLocaleString()}</span>
+                <span className="text-small">{formatTimestampDate(job.completed_at, timeZone, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
               </div>
             )}
             {job.completion_notes && (
