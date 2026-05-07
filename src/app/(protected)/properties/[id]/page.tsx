@@ -3,43 +3,11 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Property } from '@/types/database'
 import { ApplyParcelButton } from '@/app/(protected)/leads/[id]/ApplyParcelButton'
+import { formatDateOnly, formatTimestampDate, getLocalDateStr, resolveTimeZone } from '@/lib/date'
 import { estimateMowableAcres } from '@/lib/pricing'
 import { PropertyDangerZone } from './PropertyDangerZone'
 import { PropertyAssignmentSection } from './PropertyAssignmentSection'
 import { PropertyEditSection } from './PropertyEditSection'
-
-const DEFAULT_TIME_ZONE = 'UTC'
-
-function normalizeTimeZone(raw: string | null) {
-  if (!raw) return DEFAULT_TIME_ZONE
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: raw })
-    return raw
-  } catch {
-    return DEFAULT_TIME_ZONE
-  }
-}
-
-function localDateStr(d: Date, timeZone: string) {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(d)
-}
-
-function formatDateOnly(d: string) {
-  return new Date(d + 'T12:00:00').toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric',
-  })
-}
-
-function formatTimestampDate(d: string, timeZone: string) {
-  return new Date(d).toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric', timeZone,
-  })
-}
 
 function parseSafeReturnTo(value?: string): string | undefined {
   if (!value) return undefined
@@ -68,8 +36,8 @@ export default async function PropertyDetailPage({
     .from('pricing_settings')
     .select('time_zone')
     .single()
-  const timeZone = normalizeTimeZone(settings?.time_zone ?? null)
-  const today = localDateStr(new Date(), timeZone)
+  const timeZone = resolveTimeZone(settings?.time_zone ?? null)
+  const today = getLocalDateStr(timeZone)
 
   const [{ data: property }, { data: customers }] = await Promise.all([
     supabase.from('properties').select('*').eq('id', id).single(),

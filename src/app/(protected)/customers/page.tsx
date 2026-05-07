@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import type { Customer } from '@/types/database'
+import { formatDateOnly, getLocalDateStr, resolveTimeZone } from '@/lib/date'
 import { formatFrequencyLabel } from '@/lib/frequency'
 
 type PropertySummary = {
@@ -26,31 +27,6 @@ type UpcomingJob = {
 type CustomerListItem = Customer & {
   tags?: string[] | null
   properties?: PropertySummary[]
-}
-
-const FALLBACK_TIMEZONE = 'UTC'
-
-function resolveTimeZone(raw: string | null | undefined): string {
-  if (!raw) return FALLBACK_TIMEZONE
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: raw })
-    return raw
-  } catch {
-    return FALLBACK_TIMEZONE
-  }
-}
-
-function getLocalDateStr(timeZone: string): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date())
-}
-
-function fmtDate(d: string) {
-  return new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 export default async function CustomersPage() {
@@ -152,7 +128,7 @@ export default async function CustomersPage() {
 
           const nextJob = nextJobMap.get(c.id) ?? null
           const nextService = nextJob
-            ? fmtDate(nextJob.scheduled_date) +
+            ? formatDateOnly(nextJob.scheduled_date) +
               (nextJob.scheduled_time_window ? ` · ${nextJob.scheduled_time_window}` : '')
             : null
 
