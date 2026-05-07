@@ -5,6 +5,52 @@ import { LeadActions } from './LeadActions'
 import { ApplyParcelButton } from './ApplyParcelButton'
 import { normalizeFrequency, parseWebsiteServiceInterests } from '@/lib/frequency'
 
+const SERVICE_INTEREST_LABELS: Record<string, string> = {
+  mowing: 'Lawn mowing',
+  weed_eating: 'Weed eating / trimming',
+  edging: 'Edging',
+  blow_off: 'Blow off hard surfaces',
+}
+
+function labelForServiceInterest(value: string): string {
+  return SERVICE_INTEREST_LABELS[value] ?? value.replace(/_/g, ' ')
+}
+
+function formatDefaultServices(property: {
+  default_mowing_enabled: boolean | null
+  default_weed_eating_enabled: boolean | null
+  default_edging_enabled: boolean | null
+  default_blow_off_enabled: boolean | null
+  default_service_package: string | null
+}) {
+  const hasBooleanDefaults =
+    property.default_mowing_enabled != null ||
+    property.default_weed_eating_enabled != null ||
+    property.default_edging_enabled != null ||
+    property.default_blow_off_enabled != null
+
+  if (!hasBooleanDefaults) {
+    return {
+      hasBooleanDefaults: false,
+      legacyPackageLabel: property.default_service_package
+        ? property.default_service_package.replace(/_/g, ' ')
+        : 'Not set',
+      rows: [] as Array<{ label: string; enabled: boolean }>,
+    }
+  }
+
+  return {
+    hasBooleanDefaults: true,
+    legacyPackageLabel: null,
+    rows: [
+      { label: 'Mowing', enabled: property.default_mowing_enabled !== false },
+      { label: 'Weed eating / trimming', enabled: property.default_weed_eating_enabled === true },
+      { label: 'Edging', enabled: property.default_edging_enabled === true },
+      { label: 'Blow off hard surfaces', enabled: property.default_blow_off_enabled === true },
+    ],
+  }
+}
+
 function getIntakeValue(notes: string | null, label: string): string | null {
   if (!notes) return null
   const regex = new RegExp(`- ${label}:\\s*(.+)`, 'i')
@@ -44,7 +90,7 @@ export default async function LeadDetailPage({
     .from('customers')
     .select(`
       id, first_name, last_name, phone, email, notes, status, created_at,
-      properties ( id, service_address, city, service_frequency, access_notes, internal_notes, parcel_id, parcel_acres, estimated_mowable_acres )
+      properties ( id, service_address, city, service_frequency, access_notes, internal_notes, parcel_id, parcel_acres, estimated_mowable_acres, default_service_package, default_mowing_enabled, default_weed_eating_enabled, default_edging_enabled, default_blow_off_enabled )
     `)
     .eq('id', id)
     .eq('status', 'lead')
@@ -62,8 +108,14 @@ export default async function LeadDetailPage({
     parcel_id: string | null
     parcel_acres: number | null
     estimated_mowable_acres: number | null
+    default_service_package: string | null
+    default_mowing_enabled: boolean | null
+    default_weed_eating_enabled: boolean | null
+    default_edging_enabled: boolean | null
+    default_blow_off_enabled: boolean | null
   }> | null
-  const property = props?.[0]
+  const properties = props ?? []
+  const property = properties[0]
   const intakeAddress = getIntakeValue(customer.notes, 'Intake address')
   const requestedFrequency = getIntakeValue(customer.notes, 'Requested frequency')
   const normalizedFrequency = normalizeFrequency(requestedFrequency)
@@ -84,6 +136,7 @@ export default async function LeadDetailPage({
     addPropertyParams.set('default_blow_off_enabled',    serviceInterests.has('blow_off')   ? 'true' : 'false')
   }
   const addPropertyHref = `/properties/new?${addPropertyParams.toString()}`
+  const intakeServiceInterests = Array.from(serviceInterests)
 
   // Fetch any estimates already created for this lead
   const { data: estimates } = await supabase
@@ -170,44 +223,92 @@ export default async function LeadDetailPage({
         )}
       </div>
 
-      {/* Property */}
-      {property ? (
+      {intakeServiceInterests.length > 0 && (
         <div className="card">
-          <div className="section-heading">Property</div>
-          <div className="card-row">
-            <span className="text-muted text-small">Address</span>
-            <span className="font-bold">
-              {property.service_address}{property.city ? `, ${property.city}` : ''}
-            </span>
+          <div className="section-heading">Website Intake Summary</div>
+          <div className="text-small text-muted" style={{ marginBottom: '6px' }}>Requested service interests</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {intakeServiceInterests.map((interest) => (
+              <span key={interest} className="pill pill-draft">{labelForServiceInterest(interest)}</span>
+            ))}
           </div>
-          <div className="card-row">
-            <span className="text-muted text-small">Frequency</span>
-            <span>{property.service_frequency.replace(/_/g, ' ')}</span>
-          </div>
-          {property.access_notes && (
-            <div style={{ marginTop: '8px', padding: '8px', background: 'var(--color-bg-secondary)', borderRadius: '6px' }}>
-              <div className="text-small text-muted" style={{ marginBottom: '2px' }}>Access Notes</div>
-              <div className="text-small">{property.access_notes}</div>
-            </div>
-          )}
-          {property.internal_notes && (
-            <div style={{ marginTop: '8px', padding: '8px', background: 'var(--color-bg-secondary)', borderRadius: '6px' }}>
-              <div className="text-small text-muted" style={{ marginBottom: '2px' }}>Internal Notes</div>
-              <div className="text-small">{property.internal_notes}</div>
-            </div>
-          )}
-          <div style={{ marginTop: '12px' }}>
-            <a
-              href={`https://maps.google.com/?q=${encodeURIComponent(
-                [property.service_address, property.city].filter(Boolean).join(', ')
-              )}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-sm btn-secondary"
-            >
-              Open in Maps
-            </a>
-          </div>
+        </div>
+      )}
+
+      {/* Properties */}
+      {properties.length > 0 ? (
+        <div className="detail-section">
+          <div className="section-heading">Properties ({properties.length})</div>
+          {properties.map((item) => {
+            const defaults = formatDefaultServices(item)
+            return (
+              <div key={item.id} className="card">
+                <div className="card-row">
+                  <span className="text-muted text-small">Address</span>
+                  <span className="font-bold">
+                    {item.service_address}{item.city ? `, ${item.city}` : ''}
+                  </span>
+                </div>
+                <div className="card-row">
+                  <span className="text-muted text-small">Frequency</span>
+                  <span>{item.service_frequency.replace(/_/g, ' ')}</span>
+                </div>
+
+                {defaults.hasBooleanDefaults ? (
+                  <div style={{ marginTop: '8px' }}>
+                    {defaults.rows.map((row) => (
+                      <div key={row.label} className="card-row" style={{ marginTop: '6px' }}>
+                        <span className="text-muted text-small">{row.label}</span>
+                        <span className="text-small">{row.enabled ? 'Enabled' : 'Disabled'}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="card-row" style={{ marginTop: '8px' }}>
+                    <span className="text-muted text-small">Legacy package</span>
+                    <span className="text-small">{defaults.legacyPackageLabel}</span>
+                  </div>
+                )}
+
+                {item.access_notes && (
+                  <div style={{ marginTop: '8px', padding: '8px', background: 'var(--color-bg-secondary)', borderRadius: '6px' }}>
+                    <div className="text-small text-muted" style={{ marginBottom: '2px' }}>Access Notes</div>
+                    <div className="text-small">{item.access_notes}</div>
+                  </div>
+                )}
+                {item.internal_notes && (
+                  <div style={{ marginTop: '8px', padding: '8px', background: 'var(--color-bg-secondary)', borderRadius: '6px' }}>
+                    <div className="text-small text-muted" style={{ marginBottom: '2px' }}>Internal Notes</div>
+                    <div className="text-small">{item.internal_notes}</div>
+                  </div>
+                )}
+                <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <Link
+                    href={`/estimates/new?customer_id=${customer.id}&property_id=${item.id}`}
+                    className="btn btn-sm btn-primary"
+                  >
+                    📋 Build Estimate
+                  </Link>
+                  <Link
+                    href={`/properties/${item.id}?return_to=${encodeURIComponent(`/leads/${customer.id}`)}`}
+                    className="btn btn-sm btn-secondary"
+                  >
+                    Edit Property
+                  </Link>
+                  <a
+                    href={`https://maps.google.com/?q=${encodeURIComponent(
+                      [item.service_address, item.city].filter(Boolean).join(', ')
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-sm btn-secondary"
+                  >
+                    Open in Maps
+                  </a>
+                </div>
+              </div>
+            )
+          })}
         </div>
       ) : (
         <div className="card">
@@ -342,29 +443,14 @@ export default async function LeadDetailPage({
       <div className="card">
         <div className="section-heading">Actions</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {property ? (
-            <>
-              <Link
-                href={`/estimates/new?customer_id=${customer.id}&property_id=${property.id}`}
-                className="btn btn-primary btn-full"
-              >
-                📋 Build Estimate
-              </Link>
-              <Link
-                href={`/properties/${property.id}?return_to=${encodeURIComponent(`/leads/${customer.id}`)}`}
-                className="btn btn-secondary btn-full"
-              >
-                Edit Property
-              </Link>
-            </>
-          ) : (
+          {properties.length === 0 ? (
             <>
               <p className="text-small text-muted">Add a property first to build an estimate.</p>
               <Link href={addPropertyHref} className="btn btn-secondary btn-full">
                 + Add Property
               </Link>
             </>
-          )}
+          ) : null}
           <Link href={`/customers/${customer.id}`} className="btn btn-secondary btn-full">
             Edit Lead / Contact
           </Link>
