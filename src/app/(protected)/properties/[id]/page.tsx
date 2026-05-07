@@ -8,6 +8,39 @@ import { PropertyDangerZone } from './PropertyDangerZone'
 import { PropertyAssignmentSection } from './PropertyAssignmentSection'
 import { PropertyEditSection } from './PropertyEditSection'
 
+const DEFAULT_TIME_ZONE = 'UTC'
+
+function normalizeTimeZone(raw: string | null) {
+  if (!raw) return DEFAULT_TIME_ZONE
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: raw })
+    return raw
+  } catch {
+    return DEFAULT_TIME_ZONE
+  }
+}
+
+function localDateStr(d: Date, timeZone: string) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d)
+}
+
+function formatDateOnly(d: string) {
+  return new Date(d + 'T12:00:00').toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+  })
+}
+
+function formatTimestampDate(d: string, timeZone: string) {
+  return new Date(d).toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', timeZone,
+  })
+}
+
 function parseSafeReturnTo(value?: string): string | undefined {
   if (!value) return undefined
   if (!value.startsWith('/') || value.startsWith('//')) return undefined
@@ -31,6 +64,13 @@ export default async function PropertyDetailPage({
   const safeReturnTo = parseSafeReturnTo(return_to)
   const supabase = await createClient()
 
+  const { data: settings } = await supabase
+    .from('pricing_settings')
+    .select('time_zone')
+    .single()
+  const timeZone = normalizeTimeZone(settings?.time_zone ?? null)
+  const today = localDateStr(new Date(), timeZone)
+
   const [{ data: property }, { data: customers }] = await Promise.all([
     supabase.from('properties').select('*').eq('id', id).single(),
     supabase
@@ -43,10 +83,21 @@ export default async function PropertyDetailPage({
   if (!property) notFound()
 
   // Revenue stats for this property
-  const { data: propJobs } = await supabase
-    .from('jobs')
-    .select('id, status, price, amount_paid, payment_status, completed_at')
-    .eq('property_id', id)
+  const [{ data: propJobs }, { data: nextServiceJob }] = await Promise.all([
+    supabase
+      .from('jobs')
+      .select('id, status, price, amount_paid, payment_status, completed_at')
+      .eq('property_id', id),
+    supabase
+      .from('jobs')
+      .select('id, scheduled_date, scheduled_time_window')
+      .eq('property_id', id)
+      .in('status', ['scheduled', 'in_progress', 'needs_reschedule'])
+      .gte('scheduled_date', today)
+      .order('scheduled_date', { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+  ])
 
   const completedPropJobs = (propJobs ?? []).filter(j => j.status === 'completed')
   const propRevenue  = completedPropJobs.reduce((s, j) => s + Number(j.price ?? 0), 0)
@@ -126,8 +177,7 @@ export default async function PropertyDetailPage({
       </div>
 
       {/* Revenue stats */}
-      {completedPropJobs.length > 0 && (
-        <div className="stat-grid" style={{ marginBottom: '1.25rem' }}>
+      <div className="stat-grid" style={{ marginBottom: '1.25rem' }}>
           <div className="stat-card">
             <div className="stat-value">{completedPropJobs.length}</div>
             <div className="stat-label">Jobs done</div>
@@ -142,16 +192,30 @@ export default async function PropertyDetailPage({
               <div className="stat-label">Unpaid</div>
             </div>
           )}
-          {lastPropVisit && (
+          <div className="stat-card">
+            <div className="stat-value" style={{ fontSize: '1rem' }}>
+              {lastPropVisit ? formatTimestampDate(lastPropVisit, timeZone) : 'Not yet'}
+            </div>
+            <div className="stat-label">Last service</div>
+          </div>
+          {nextServiceJob?.id && nextServiceJob.scheduled_date ? (
+            <Link href={`/jobs/${nextServiceJob.id}`} className="stat-card" style={{ color: 'inherit', textDecoration: 'none' }}>
+              <div className="stat-value" style={{ fontSize: '1rem' }}>
+                {formatDateOnly(nextServiceJob.scheduled_date)}
+              </div>
+              <div className="stat-label">
+                {nextServiceJob.scheduled_time_window ? `Next service · ${nextServiceJob.scheduled_time_window}` : 'Next service'}
+              </div>
+            </Link>
+          ) : (
             <div className="stat-card">
               <div className="stat-value" style={{ fontSize: '1rem' }}>
-                {new Date(lastPropVisit).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                Not scheduled
               </div>
-              <div className="stat-label">Last service</div>
+              <div className="stat-label">Next service</div>
             </div>
           )}
-        </div>
-      )}
+      </div>
 
       {/* Address + service info */}
       <div className="card" style={{ marginBottom: '1.5rem' }}>
