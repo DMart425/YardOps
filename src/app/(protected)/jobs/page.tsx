@@ -86,7 +86,7 @@ export default async function JobsPage({
   const sp = await searchParams
   const view: 'scheduled' | 'completed' = sp.view === 'completed' ? 'completed' : 'scheduled'
   const availableFilters = view === 'completed' ? FILTERS_COMPLETED : FILTERS_SCHEDULED
-  const defaultFilter = view === 'completed' ? 'today' : 'upcoming'
+  const defaultFilter = view === 'completed' ? 'week' : 'upcoming'
   const filter = availableFilters.some(([key]) => key === sp.filter) ? (sp.filter as string) : defaultFilter
   const supabase = await createClient()
   const { data: settings } = await supabase
@@ -233,7 +233,7 @@ export default async function JobsPage({
         <Link href="/jobs?view=scheduled&filter=upcoming" className={`filter-tab${view === 'scheduled' ? ' active' : ''}`}>
           Scheduled
         </Link>
-        <Link href="/jobs?view=completed&filter=today" className={`filter-tab${view === 'completed' ? ' active' : ''}`}>
+        <Link href="/jobs?view=completed&filter=week" className={`filter-tab${view === 'completed' ? ' active' : ''}`}>
           Completed
         </Link>
       </div>
