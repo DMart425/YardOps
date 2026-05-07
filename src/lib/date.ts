@@ -41,3 +41,15 @@ export function addDays(dateStr: string, days: number): string {
   date.setUTCDate(date.getUTCDate() + days)
   return date.toISOString().slice(0, 10)
 }
+
+export function getLocalMonthKey(isoString: string, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+  }).format(new Date(isoString))
+}
+
+export function getDateOnlyMonthKey(dateStr: string): string {
+  return dateStr.slice(0, 7)
+}

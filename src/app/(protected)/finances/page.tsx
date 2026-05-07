@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import { addDays, formatDateOnly, getDateOnlyMonthKey, getLocalDateStr, getLocalMonthKey, resolveTimeZone } from '@/lib/date'
 import FinancesExportButton from './FinancesExportButton'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -18,23 +19,35 @@ export default async function FinancesPage({
   searchParams: Promise<{ month?: string; year?: string }>
 }) {
   const sp = await searchParams
-  const now = new Date()
-  const year = Number(sp.year ?? now.getFullYear())
-  const selectedMonth = sp.month ? Number(sp.month) - 1 : now.getMonth() // 0-indexed
-
-  const yearStart = `${year}-01-01`
-  const yearEnd = `${year}-12-31`
 
   const supabase = await createClient()
 
+  const { data: settings } = await supabase
+    .from('pricing_settings')
+    .select('time_zone')
+    .single()
+  const timeZone = resolveTimeZone(settings?.time_zone)
+  const localToday = getLocalDateStr(timeZone)
+  const [localYear, localMonth] = localToday.split('-')
+  const year = Number(sp.year ?? localYear)
+  const selectedMonth = sp.month ? Number(sp.month) - 1 : Number(localMonth) - 1 // 0-indexed
+
+  const yearStart = `${year}-01-01`
+  const yearEnd = `${year}-12-31`
+  const jobsQueryStart = `${addDays(yearStart, -1)}T00:00:00Z`
+  const jobsQueryEnd = `${addDays(yearEnd, 1)}T23:59:59Z`
+  const selectedMonthKey = `${year}-${String(selectedMonth + 1).padStart(2, '0')}`
+
   // Fetch paid/partial jobs for the year with customer info
-  const { data: jobs } = await supabase
+  const { data: rawJobs } = await supabase
     .from('jobs')
     .select('id, amount_paid, price, payment_status, completed_at, customers(id, first_name, last_name)')
     .in('payment_status', ['paid', 'partial'])
-    .gte('completed_at', yearStart + 'T00:00:00Z')
-    .lte('completed_at', yearEnd + 'T23:59:59Z')
+    .gte('completed_at', jobsQueryStart)
+    .lte('completed_at', jobsQueryEnd)
     .order('completed_at')
+
+  const jobs = (rawJobs ?? []).filter(j => getLocalMonthKey(j.completed_at, timeZone).startsWith(`${year}-`))
 
   // Fetch expenses for the year
   const { data: expenses } = await supabase
@@ -55,13 +68,13 @@ export default async function FinancesPage({
   const expensesByMonth = Array(12).fill(0) as number[]
   const jobCountByMonth = Array(12).fill(0) as number[]
 
-  for (const j of jobs ?? []) {
-    const m = new Date(j.completed_at).getMonth()
+  for (const j of jobs) {
+    const m = Number(getLocalMonthKey(j.completed_at, timeZone).slice(5, 7)) - 1
     incomeByMonth[m]   += Number((j.amount_paid || null) ?? j.price ?? 0)
     jobCountByMonth[m] += 1
   }
   for (const e of expenses ?? []) {
-    const m = new Date(e.purchased_at).getMonth()
+    const m = Number(getDateOnlyMonthKey(e.purchased_at).slice(5, 7)) - 1
     expensesByMonth[m] += Number(e.amount ?? 0)
   }
 
@@ -70,8 +83,8 @@ export default async function FinancesPage({
   const bestMonthIncome = incomeByMonth[bestMonthIdx]
 
   // ── Selected month data ────────────────────────────────────────
-  const monthJobs = (jobs ?? []).filter(j => new Date(j.completed_at).getMonth() === selectedMonth)
-  const monthExpenses = (expenses ?? []).filter(e => new Date(e.purchased_at).getMonth() === selectedMonth)
+  const monthJobs = jobs.filter(j => getLocalMonthKey(j.completed_at, timeZone) === selectedMonthKey)
+  const monthExpenses = (expenses ?? []).filter(e => getDateOnlyMonthKey(e.purchased_at) === selectedMonthKey)
   const monthIncome = monthJobs.reduce((s, j) => s + Number((j.amount_paid || null) ?? j.price ?? 0), 0)
   const monthExpenseTotal = monthExpenses.reduce((s, e) => s + Number(e.amount ?? 0), 0)
 
@@ -314,7 +327,7 @@ export default async function FinancesPage({
                   <div>
                     <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>
                       {e.vendor ? e.vendor : CATEGORY_LABELS[e.category] ?? e.category}
-                      <span className="text-small text-muted" style={{ marginLeft: '6px' }}>{e.purchased_at}</span>
+                      <span className="text-small text-muted" style={{ marginLeft: '6px' }}>{formatDateOnly(e.purchased_at)}</span>
                     </div>
                     {e.description && <div className="text-small text-muted">{e.description}</div>}
                   </div>
