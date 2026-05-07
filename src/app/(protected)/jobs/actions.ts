@@ -63,10 +63,10 @@ export async function completeJob(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Fetch job + property for auto-scheduling
+  // Fetch existing job to complete
   const { data: existing } = await supabase
     .from('jobs')
-    .select('*, properties(service_frequency, default_price, default_service_package, auto_schedule_next)')
+    .select('*')
     .eq('id', id)
     .eq('created_by', user.id)
     .single()
@@ -103,47 +103,83 @@ export async function completeJob(
 
   if (error) return { error: error.message }
 
-  // Auto-create next recurring job (only if property has auto_schedule_next on)
-  const freq      = existing.properties?.service_frequency
-  const autoOn    = existing.properties?.auto_schedule_next !== false
-  const daysToAdd = freq === 'weekly' ? 7 : freq === 'biweekly' ? 14 : null
-  let   nextScheduled = false
+  revalidatePath('/jobs')
+  revalidatePath(`/jobs/${id}`)
+  revalidatePath('/today')
+  return { error: null, success: 'Job completed.' }
+}
 
-  if (autoOn && daysToAdd && existing.scheduled_date) {
-    const nextDate = new Date(existing.scheduled_date + 'T12:00:00')
-    nextDate.setDate(nextDate.getDate() + daysToAdd)
+export async function scheduleFollowUpJob(
+  id: string,
+  prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
-    const { data: nextJob } = await supabase
-      .from('jobs')
-      .insert({
-        created_by:            user.id,
-        customer_id:           existing.customer_id,
-        property_id:           existing.property_id,
-        title:                 'Lawn Service',
-        job_type:              'recurring',
-        service_package:       existing.service_package ?? existing.properties?.default_service_package ?? null,
-        scheduled_date:        nextDate.toISOString().split('T')[0],
-        scheduled_time_window: existing.scheduled_time_window,
-        price:                 existing.price ?? existing.properties?.default_price ?? null,
-        payment_status:        'unpaid',
-        status:                'scheduled',
-        recurrence_source:     id,
-      })
-      .select('id')
-      .single()
+  const { data: existing } = await supabase
+    .from('jobs')
+    .select('*, properties(default_price, default_service_package)')
+    .eq('id', id)
+    .eq('created_by', user.id)
+    .single()
 
-    if (nextJob) {
-      nextScheduled = true
-      await supabase.from('jobs').update({ next_job_created_id: nextJob.id }).eq('id', id)
-    }
+  if (!existing) return { error: 'Job not found.' }
+  if (existing.status !== 'completed') return { error: 'Follow-up visits can only be scheduled from completed jobs.' }
+
+  if (existing.next_job_created_id) {
+    return { error: null, success: 'A follow-up visit already exists for this job.' }
+  }
+
+  const nextDate = (formData.get('next_scheduled_date') as string)?.trim() || ''
+  if (!nextDate) return { error: 'Next visit date is required.' }
+
+  const nextTimeWindowRaw = (formData.get('next_time_window') as string)?.trim() || ''
+  const customNextTimeWindow = (formData.get('custom_next_time_window') as string)?.trim() || ''
+  if (nextTimeWindowRaw === 'custom' && !customNextTimeWindow) {
+    return { error: 'Custom next visit time window is required.' }
+  }
+  const storedNextTimeWindow = nextTimeWindowRaw === 'custom' ? customNextTimeWindow : nextTimeWindowRaw || null
+
+  const { data: nextJob, error: nextJobError } = await supabase
+    .from('jobs')
+    .insert({
+      created_by:            user.id,
+      customer_id:           existing.customer_id,
+      property_id:           existing.property_id,
+      title:                 existing.title,
+      job_type:              'recurring',
+      service_package:       existing.service_package ?? existing.properties?.default_service_package ?? null,
+      scheduled_date:        nextDate,
+      scheduled_time_window: storedNextTimeWindow,
+      price:                 existing.price ?? existing.properties?.default_price ?? null,
+      payment_status:        'unpaid',
+      status:                'scheduled',
+      recurrence_source:     id,
+    })
+    .select('id')
+    .single()
+
+  if (nextJobError || !nextJob) {
+    return { error: nextJobError?.message ?? 'Could not create follow-up visit.' }
+  }
+
+  const { error: linkErr } = await supabase
+    .from('jobs')
+    .update({ next_job_created_id: nextJob.id })
+    .eq('id', id)
+    .eq('created_by', user.id)
+
+  if (linkErr) {
+    return { error: `Follow-up visit created, but link update failed: ${linkErr.message}` }
   }
 
   revalidatePath('/jobs')
   revalidatePath(`/jobs/${id}`)
   revalidatePath('/today')
 
-  const msg = nextScheduled ? 'Job completed. Next visit auto-scheduled.' : 'Job completed.'
-  return { error: null, success: msg }
+  return { error: null, success: 'Follow-up visit scheduled.' }
 }
 
 export async function markInProgress(

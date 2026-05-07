@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { JobActions } from '@/components/JobActions'
 import { JobPhotos } from '@/components/JobPhotos'
 import { DownloadInvoiceButton } from '@/components/DownloadInvoiceButton'
+import { ScheduleFollowUpCard } from '@/components/ScheduleFollowUpCard'
 import type { Job } from '@/types/database'
 
 type JobDetail = Job & {
@@ -12,6 +13,7 @@ type JobDetail = Job & {
     service_address: string
     city: string | null
     state: string | null
+    service_frequency: string | null
     pet_warning: string | null
     gate_code: string | null
     access_notes: string | null
@@ -39,7 +41,7 @@ export default async function JobDetailPage({
     .select(`
       *,
       customers ( first_name, last_name, phone, email ),
-      properties ( service_address, city, state, pet_warning, gate_code, access_notes, obstacle_notes, parking_notes )
+      properties ( service_address, city, state, service_frequency, pet_warning, gate_code, access_notes, obstacle_notes, parking_notes )
     `)
     .eq('id', id)
     .single()
@@ -227,6 +229,27 @@ export default async function JobDetailPage({
         <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Actions</div>
         <JobActions job={job} venmoHandle={venmoHandle} customerPhone={customer.phone} customerFirstName={customer.first_name} />
       </div>
+
+      {/* Follow-up scheduling (completed jobs only) */}
+      {job.status === 'completed' && !job.next_job_created_id && (
+        <ScheduleFollowUpCard
+          jobId={job.id}
+          scheduledDate={job.scheduled_date}
+          serviceFrequency={property.service_frequency}
+        />
+      )}
+
+      {job.status === 'completed' && job.next_job_created_id && (
+        <div className="card" style={{ marginBottom: '1rem' }}>
+          <div className="section-heading" style={{ marginBottom: '0.5rem' }}>Follow-up Visit</div>
+          <p className="text-small text-muted" style={{ marginBottom: '0.75rem' }}>
+            A follow-up visit has been scheduled for this completed job.
+          </p>
+          <Link href={`/jobs/${job.next_job_created_id}`} className="btn btn-sm btn-secondary">
+            Open Follow-up Job
+          </Link>
+        </div>
+      )}
 
       {/* Reschedule history */}
       {(job.reschedule_count ?? 0) > 0 && (
