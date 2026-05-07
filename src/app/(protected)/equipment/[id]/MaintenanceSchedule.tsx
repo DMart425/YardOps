@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from 'react'
 import { logService, addMaintenanceItem, deleteMaintenanceItem } from '../actions'
+import { addDays, formatDateOnly } from '@/lib/date'
 
 interface MaintenanceItem {
   id: string
@@ -19,20 +20,18 @@ interface Props {
   items: MaintenanceItem[]
   equipmentId: string
   currentHours: number
+  localToday: string
 }
 
-function getStatus(item: MaintenanceItem, currentHours: number): 'overdue' | 'due-soon' | 'ok' | 'unknown' {
+function getStatus(item: MaintenanceItem, currentHours: number, localToday: string): 'overdue' | 'due-soon' | 'ok' | 'unknown' {
   if (item.next_due_hours != null) {
     if (currentHours >= item.next_due_hours) return 'overdue'
     if (currentHours >= item.next_due_hours - (item.interval_hours ?? 5) * 0.2) return 'due-soon'
     return 'ok'
   }
   if (item.next_due_date != null) {
-    const due = new Date(item.next_due_date)
-    const now = new Date()
-    const daysUntil = Math.floor((due.getTime() - now.getTime()) / 86400000)
-    if (daysUntil < 0) return 'overdue'
-    if (daysUntil <= 7) return 'due-soon'
+    if (item.next_due_date < localToday) return 'overdue'
+    if (item.next_due_date <= addDays(localToday, 7)) return 'due-soon'
     return 'ok'
   }
   if (!item.last_completed_at) return 'unknown'
@@ -103,7 +102,7 @@ function AddItemForm({ equipmentId, onDone }: { equipmentId: string, onDone: () 
   )
 }
 
-export default function MaintenanceSchedule({ items, equipmentId, currentHours }: Props) {
+export default function MaintenanceSchedule({ items, equipmentId, currentHours, localToday }: Props) {
   const [logginItemId, setLoggingItemId] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
 
@@ -133,7 +132,7 @@ export default function MaintenanceSchedule({ items, equipmentId, currentHours }
       )}
 
       {items.map(item => {
-        const status = getStatus(item, currentHours)
+        const status = getStatus(item, currentHours, localToday)
         return (
           <div key={item.id} style={{ padding: '12px', border: '1px solid var(--color-border)', borderRadius: 'var(--r-sm)', marginBottom: '8px' }}>
             <div className="card-row" style={{ alignItems: 'flex-start' }}>
@@ -154,7 +153,7 @@ export default function MaintenanceSchedule({ items, equipmentId, currentHours }
                   <div className="text-small text-muted">Next due: {item.next_due_hours} hrs</div>
                 )}
                 {item.next_due_date && (
-                  <div className="text-small text-muted">Next due: {fmtDate(item.next_due_date)}</div>
+                  <div className="text-small text-muted">Next due: {formatDateOnly(item.next_due_date, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
                 )}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', flexShrink: 0 }}>

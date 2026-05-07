@@ -9,6 +9,7 @@ import type { EstimateInputs } from '@/lib/pricing'
 import ParcelLookup from '@/components/ParcelLookup'
 import type { ImportedParcel } from '@/components/ParcelLookup'
 import { parseWebsiteServiceInterests } from '@/lib/frequency'
+import { addDays } from '@/lib/date'
 
 interface CustomerOption { id: string; first_name: string; last_name: string | null; phone?: string | null; notes?: string | null }
 interface PropertyOption {
@@ -157,6 +158,7 @@ export function EstimateForm({
   initialValidUntil,
   initialNotes,
   initialPriceOverride,
+  localToday,
   submitLabel,
   cancelHref,
 }: {
@@ -172,6 +174,7 @@ export function EstimateForm({
   initialValidUntil?: string | null
   initialNotes?: string | null
   initialPriceOverride?: number | null
+  localToday: string
   submitLabel?: string
   cancelHref?: string
 }) {
@@ -189,9 +192,7 @@ export function EstimateForm({
   const [inputs, setInputs] = useState<EstimateInputs>(() => initialInputs ?? defaultInputs(defaultHourlyRate))
   const [validUntil, setValidUntil] = useState(() => {
     if (initialValidUntil !== undefined) return initialValidUntil ?? ''
-    const d = new Date()
-    d.setDate(d.getDate() + 14)
-    return d.toISOString().split('T')[0]
+    return addDays(localToday, 14)
   })
   const [notes, setNotes] = useState(initialNotes ?? '')
   const [rateStr, setRateStr] = useState(() => String(inputs.hourlyRate))

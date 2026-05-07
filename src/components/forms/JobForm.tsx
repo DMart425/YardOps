@@ -22,6 +22,7 @@ interface JobFormProps {
   properties: PropertyOption[]
   defaultCustomerId?: string
   defaultPropertyId?: string
+  localToday: string
   defaultValues?: Record<string, string | number | boolean | null>
 }
 
@@ -33,7 +34,7 @@ function getPropertyDefaults(properties: PropertyOption[], propertyId?: string) 
 export function JobForm({
   action, submitLabel, cancelHref,
   customers, properties,
-  defaultCustomerId, defaultPropertyId, defaultValues,
+  defaultCustomerId, defaultPropertyId, localToday, defaultValues,
 }: JobFormProps) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(action, { error: null })
   const initialProperty = getPropertyDefaults(properties, defaultPropertyId)
@@ -70,7 +71,7 @@ export function JobForm({
     if (property.default_service_package) setServicePackage(property.default_service_package)
   }
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = localToday
 
   return (
     <form action={formAction} className="form">

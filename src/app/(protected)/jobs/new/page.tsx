@@ -1,7 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { JobForm } from '@/components/forms/JobForm'
 import { createJob } from '../actions'
+import { getLocalDateStr, resolveTimeZone } from '@/lib/date'
 
 export default async function NewJobPage({
   searchParams,
@@ -10,6 +12,15 @@ export default async function NewJobPage({
 }) {
   const { customer_id, property_id } = await searchParams
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: settings } = await supabase
+    .from('pricing_settings')
+    .select('time_zone')
+    .eq('user_id', user.id)
+    .maybeSingle()
+  const localToday = getLocalDateStr(resolveTimeZone(settings?.time_zone))
 
   const [{ data: customers }, { data: properties }] = await Promise.all([
     supabase
@@ -39,6 +50,7 @@ export default async function NewJobPage({
           properties={properties ?? []}
           defaultCustomerId={customer_id}
           defaultPropertyId={property_id}
+          localToday={localToday}
         />
       </div>
     </div>

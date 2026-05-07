@@ -5,7 +5,13 @@ import type { FormState } from '@/types/database'
 import { convertToJob, manuallyApproveEstimate, updateEstimateStatus } from '@/app/(protected)/estimates/actions'
 import { Toast } from '@/components/Toast'
 
-export function EstimateStatusActions({ estimate }: { estimate: { id: string; status: string; total: number; revision_number: number } }) {
+export function EstimateStatusActions({
+  estimate,
+  localToday,
+}: {
+  estimate: { id: string; status: string; total: number; revision_number: number }
+  localToday: string
+}) {
   const [panel, setPanel] = useState<'approve' | 'convert' | null>(null)
 
   const [sentState,     sentAction,     sentPending]     = useActionState<FormState, FormData>(
@@ -24,7 +30,7 @@ export function EstimateStatusActions({ estimate }: { estimate: { id: string; st
   const anySuccess = sentState.success ?? approvedState.success ?? declinedState.success ?? convertState.success
   const anyError   = sentState.error   ?? approvedState.error   ?? declinedState.error   ?? convertState.error
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = localToday
 
   if (estimate.status === 'converted') {
     return <p className="text-small text-muted" style={{ textAlign: 'center', padding: '8px 0' }}>This estimate has been converted to a job.</p>

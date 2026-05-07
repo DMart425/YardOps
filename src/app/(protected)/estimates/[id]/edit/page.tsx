@@ -1,9 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { EstimateForm } from '@/components/forms/EstimateForm'
 import { updateEstimate } from '../../actions'
 import type { EstimateInputs } from '@/lib/pricing'
+import { getLocalDateStr, resolveTimeZone } from '@/lib/date'
 
 type CustomerOption = { id: string; first_name: string; last_name: string | null }
 type PropertyOption = {
@@ -29,6 +30,8 @@ export default async function EditEstimatePage({
 }) {
   const { id } = await params
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
   const { data: estimate } = await supabase
     .from('estimates')
@@ -61,9 +64,12 @@ export default async function EditEstimatePage({
       .order('service_address'),
     supabase
       .from('pricing_settings')
-      .select('target_hourly_rate, minimum_price')
-      .single(),
+      .select('target_hourly_rate, minimum_price, time_zone')
+      .eq('user_id', user.id)
+      .maybeSingle(),
   ])
+
+  const localToday = getLocalDateStr(resolveTimeZone(pricingSettings?.time_zone))
 
   let customers = (customersRaw ?? []) as Array<CustomerOption & { status?: string | null }>
   if (!customers.some(customer => customer.id === estimate.customer_id)) {
@@ -129,6 +135,7 @@ export default async function EditEstimatePage({
         initialValidUntil={estimate.valid_until}
         initialNotes={estimate.notes}
         initialPriceOverride={estimate.total}
+        localToday={localToday}
         submitLabel="Save Estimate"
         cancelHref={`/estimates/${id}`}
       />

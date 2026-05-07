@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { formatTimestampDate, resolveTimeZone } from '@/lib/date'
 
 function fmtDate(d: string) {
   return new Date(d + 'T12:00:00').toLocaleDateString('en-US', {
@@ -55,9 +56,9 @@ export default async function CustomerPortalPage({
       .limit(30),
     supabase
       .from('pricing_settings')
-      .select('venmo_handle')
+      .select('venmo_handle, time_zone')
       .eq('user_id', created_by)
-      .single(),
+      .maybeSingle(),
   ])
 
   if (!customer) notFound()
@@ -65,6 +66,7 @@ export default async function CustomerPortalPage({
   const businessName  = profile?.business_name  ?? 'Your Lawn Service'
   const businessPhone = profile?.business_phone ?? null
   const venmoHandle   = (pricing?.venmo_handle as string | null) ?? null
+  const timeZone = resolveTimeZone(pricing?.time_zone)
 
   const allJobs       = jobs ?? []
   const upcoming      = allJobs.filter(j => j.status === 'scheduled' || j.status === 'in_progress')
@@ -143,7 +145,7 @@ export default async function CustomerPortalPage({
                 <div>
                   <div style={{ fontWeight: 500, fontSize: '0.9375rem' }}>{pkgLabel(j.service_package)}</div>
                   <div style={{ fontSize: '0.8125rem', opacity: 0.6, marginTop: '2px' }}>
-                    {j.completed_at ? fmtDate(j.completed_at.split('T')[0]) : '—'}
+                    {j.completed_at ? formatTimestampDate(j.completed_at, timeZone, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>

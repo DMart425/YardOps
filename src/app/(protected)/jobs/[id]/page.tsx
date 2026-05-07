@@ -345,6 +345,7 @@ export default async function JobDetailPage({
               paymentMethod:  job.payment_method,
               notes:          job.completion_notes,
               venmoHandle,
+              timeZone,
               invoiceNumber:  job.id.slice(0, 8).toUpperCase(),
             }}
           />

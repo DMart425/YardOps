@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { EstimateStatusActions } from '@/components/EstimateStatusActions'
 import { calculateEstimate, formatMinutes, DEFAULT_SETTINGS } from '@/lib/pricing'
-import { formatDateOnly, formatTimestampDate, resolveTimeZone } from '@/lib/date'
+import { formatDateOnly, formatTimestampDate, getLocalDateStr, resolveTimeZone } from '@/lib/date'
 import type { EstimateInputs } from '@/lib/pricing'
 import type { Estimate } from '@/types/database'
 import SendSmsButton from './SendSmsButton'
@@ -52,6 +52,7 @@ export default async function EstimateDetailPage({
   const venmoHandle = (settings?.venmo_handle as string | null) ?? null
   const minimumPrice = (settings?.minimum_price as number | null) ?? DEFAULT_SETTINGS.minimumServicePrice
   const timeZone = resolveTimeZone(settings?.time_zone)
+  const localToday = getLocalDateStr(timeZone)
 
   const customer = estimate.customers
   const property = estimate.properties
@@ -313,7 +314,7 @@ export default async function EstimateDetailPage({
       {/* Status actions */}
       <div className="card" style={{ marginBottom: '1rem' }}>
         <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Actions</div>
-        <EstimateStatusActions estimate={estimate} />
+        <EstimateStatusActions estimate={estimate} localToday={localToday} />
         <div style={{ display: 'flex', gap: '8px', marginTop: '0.75rem', flexWrap: 'wrap' }}>
           {estimate.status !== 'converted' && (
             <Link href={`/estimates/${estimate.id}/edit`} className="btn btn-sm btn-secondary">Edit</Link>

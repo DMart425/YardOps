@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { addDays, formatDateOnly, getLocalDateStr, resolveTimeZone } from '@/lib/date'
+import { addDays, formatDateOnly, formatTimestampDate, getLocalDateStr, resolveTimeZone } from '@/lib/date'
 
 type CustomerRelation = { first_name: string; last_name: string | null }
 type PropertyRelation = {
@@ -364,7 +364,7 @@ export default async function JobsPage({
               : (job.job_type ? job.job_type.replace(/_/g, ' ') : null)
             const dateTime = view === 'completed'
               ? (job.completed_at
-                ? formatDateOnly((job.completed_at as string).split('T')[0], { weekday: 'short', month: 'short', day: 'numeric' })
+                ? formatTimestampDate(job.completed_at as string, timeZone, { weekday: 'short', month: 'short', day: 'numeric' })
                 : 'No completion date')
               : (job.scheduled_date
                 ? `${formatDateOnly(job.scheduled_date, { weekday: 'short', month: 'short', day: 'numeric' })}${job.scheduled_time_window ? ` · ${job.scheduled_time_window}` : ''}`

@@ -1,9 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { updateEquipment } from '../actions'
 import MaintenanceSchedule from './MaintenanceSchedule'
 import SavedToast from './SavedToast'
+import { getLocalDateStr, resolveTimeZone } from '@/lib/date'
 
 const TYPE_LABELS: Record<string, string> = {
   mower: 'Mower', trimmer: 'Trimmer', blower: 'Blower',
@@ -15,6 +16,15 @@ const STATUS_OPTIONS = ['active', 'inactive', 'retired']
 export default async function EquipmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: settings } = await supabase
+    .from('pricing_settings')
+    .select('time_zone')
+    .eq('user_id', user.id)
+    .maybeSingle()
+  const localToday = getLocalDateStr(resolveTimeZone(settings?.time_zone))
 
   const [{ data: equipment }, { data: items }] = await Promise.all([
     supabase.from('equipment').select('*').eq('id', id).single(),
@@ -101,6 +111,7 @@ export default async function EquipmentDetailPage({ params }: { params: Promise<
           items={items ?? []}
           equipmentId={id}
           currentHours={equipment.current_hours ?? 0}
+          localToday={localToday}
         />
       </div>
     </div>

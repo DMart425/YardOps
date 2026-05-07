@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { addDays, getLocalDateStr, resolveTimeZone } from '@/lib/date'
 
 export async function createEquipment(formData: FormData) {
   const supabase = await createClient()
@@ -67,6 +68,15 @@ export async function addMaintenanceItem(equipmentId: string, formData: FormData
 
 export async function logService(itemId: string, equipmentId: string, formData: FormData) {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: settings } = await supabase
+    .from('pricing_settings')
+    .select('time_zone')
+    .eq('user_id', user.id)
+    .maybeSingle()
+  const localToday = getLocalDateStr(resolveTimeZone(settings?.time_zone))
 
   const completedAt = new Date().toISOString()
   const completedHours = Number(formData.get('completed_hours') ?? 0)
@@ -84,9 +94,7 @@ export async function logService(itemId: string, equipmentId: string, formData: 
 
   let nextDueDate: string | null = null
   if (item?.interval_days) {
-    const d = new Date()
-    d.setDate(d.getDate() + item.interval_days)
-    nextDueDate = d.toISOString().split('T')[0]
+    nextDueDate = addDays(localToday, item.interval_days)
   }
 
   await supabase.from('maintenance_items').update({

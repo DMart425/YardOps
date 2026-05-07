@@ -1,7 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { EstimateForm } from '@/components/forms/EstimateForm'
 import { createEstimate } from '../actions'
+import { getLocalDateStr, resolveTimeZone } from '@/lib/date'
 
 export default async function NewEstimatePage({
   searchParams,
@@ -10,6 +12,8 @@ export default async function NewEstimatePage({
 }) {
   const { customer_id, property_id } = await searchParams
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
   const [{ data: customers }, { data: properties }, { data: pricingSettings }] = await Promise.all([
     supabase
@@ -24,9 +28,12 @@ export default async function NewEstimatePage({
       .order('service_address'),
     supabase
       .from('pricing_settings')
-      .select('target_hourly_rate, minimum_price')
-      .single(),
+      .select('target_hourly_rate, minimum_price, time_zone')
+      .eq('user_id', user.id)
+      .maybeSingle(),
   ])
+
+  const localToday = getLocalDateStr(resolveTimeZone(pricingSettings?.time_zone))
 
   return (
     <div className="page">
@@ -42,6 +49,7 @@ export default async function NewEstimatePage({
         defaultPropertyId={property_id}
         defaultHourlyRate={pricingSettings?.target_hourly_rate ?? undefined}
         defaultMinimumPrice={pricingSettings?.minimum_price ?? undefined}
+        localToday={localToday}
       />
     </div>
   )

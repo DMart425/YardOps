@@ -1,6 +1,7 @@
 'use client'
 
 import jsPDF from 'jspdf'
+import { formatDateOnly, formatTimestampDate } from '@/lib/date'
 
 interface InvoiceData {
   businessName: string
@@ -20,6 +21,7 @@ interface InvoiceData {
   notes: string | null
   venmoHandle: string | null
   invoiceNumber: string  // job id (short form)
+  timeZone: string
 }
 
 export function DownloadInvoiceButton({ data }: { data: InvoiceData }) {
@@ -46,9 +48,13 @@ export function DownloadInvoiceButton({ data }: { data: InvoiceData }) {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10)
     doc.text(`#${data.invoiceNumber}`, pageWidth - margin, margin + 18, { align: 'right' })
-    doc.text(`Date: ${new Date().toLocaleDateString('en-US')}`, pageWidth - margin, margin + 32, { align: 'right' })
+    const invoiceDate = formatTimestampDate(new Date().toISOString(), data.timeZone, { month: 'numeric', day: 'numeric', year: 'numeric' })
+    doc.text(`Date: ${invoiceDate}`, pageWidth - margin, margin + 32, { align: 'right' })
     if (data.jobDate) {
-      const fmt = new Date(data.jobDate).toLocaleDateString('en-US')
+      const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(data.jobDate)
+      const fmt = isDateOnly
+        ? formatDateOnly(data.jobDate, { month: 'numeric', day: 'numeric', year: 'numeric' })
+        : formatTimestampDate(data.jobDate, data.timeZone, { month: 'numeric', day: 'numeric', year: 'numeric' })
       doc.text(`Service date: ${fmt}`, pageWidth - margin, margin + 46, { align: 'right' })
     }
 
