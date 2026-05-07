@@ -12,6 +12,7 @@ type PropertyRelation = {
 
 type JobListRow = {
   id: string
+  title: string
   status: string
   payment_status: string
   price: number | null
@@ -20,6 +21,7 @@ type JobListRow = {
   completed_at: string | null
   scheduled_time_window: string | null
   service_package: string | null
+  job_type: string | null
   customers: CustomerRelation | CustomerRelation[] | null
   properties: PropertyRelation | PropertyRelation[] | null
 }
@@ -75,7 +77,7 @@ export default async function JobsPage({
 
   let query = supabase
     .from('jobs')
-    .select('id, status, payment_status, price, amount_paid, scheduled_date, completed_at, scheduled_time_window, service_package, customers(first_name, last_name), properties(service_address, city, latitude, longitude)')
+    .select('id, title, status, payment_status, price, amount_paid, scheduled_date, completed_at, scheduled_time_window, service_package, job_type, customers(first_name, last_name), properties(service_address, city, latitude, longitude)')
 
   if (view === 'completed') {
     query = query.eq('status', 'completed').order('completed_at', { ascending: false })
@@ -288,22 +290,33 @@ export default async function JobsPage({
                   )}
                 </div>
                 {dayJobs.map((job) => {
-                  const c    = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null } | null
-                  const p    = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
-                  const name = c ? `${c.first_name}${c.last_name ? ' ' + c.last_name : ''}` : '—'
-                  const addr = p ? `${p.service_address}${p.city ? ', ' + p.city : ''}` : '—'
+                  const c = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null } | null
+                  const p = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
+                  const customerName = c ? `${c.first_name}${c.last_name ? ' ' + c.last_name : ''}` : 'No customer'
+                  const addr = p ? `${p.service_address}${p.city ? ', ' + p.city : ''}` : 'No address'
+                  const service = job.service_package
+                    ? job.service_package.replace(/_/g, ' ')
+                    : (job.job_type ? job.job_type.replace(/_/g, ' ') : null)
+                  const dateTime = job.scheduled_date
+                    ? `${formatDateOnly(job.scheduled_date, { weekday: 'short', month: 'short', day: 'numeric' })}${job.scheduled_time_window ? ` · ${job.scheduled_time_window}` : ''}`
+                    : 'No date'
+                  const paymentNeedsAttention = job.payment_status === 'unpaid' || job.payment_status === 'partial'
+                  const showPayment = job.status === 'completed' || paymentNeedsAttention
 
                   return (
                     <Link key={job.id} href={`/jobs/${job.id}`} className="card card-link" style={{ display: 'block', marginBottom: '8px' }}>
                       <div className="card-row">
                         <div style={{ minWidth: 0 }}>
-                          <div className="card-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
-                          <div className="card-meta">{addr}</div>
-                          {job.scheduled_time_window && <div className="card-meta">{job.scheduled_time_window}</div>}
+                          <div className="card-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{job.title}</div>
+                          <div className="card-meta">👤 {customerName}</div>
+                          <div className="card-meta">📍 {addr}</div>
+                          <div className="card-meta">🗓 {dateTime}</div>
+                          {service && <div className="card-meta">🌿 {service}</div>}
+                          <div className="card-meta">💵 {job.price != null ? `$${Number(job.price).toFixed(0)}` : 'No price set'}</div>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
                           <span className={`pill pill-${job.status}`}>{job.status.replace(/_/g, ' ')}</span>
-                          {job.price != null && <span className="font-bold text-small">${job.price}</span>}
+                          {showPayment && <span className={`pill pill-${job.payment_status}`}>{job.payment_status.replace(/_/g, ' ')}</span>}
                         </div>
                       </div>
                     </Link>
@@ -318,35 +331,36 @@ export default async function JobsPage({
           {jobRows.map((job) => {
             const c = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null } | null
             const p = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
-            const name = c ? `${c.first_name}${c.last_name ? ' ' + c.last_name : ''}` : '—'
-            const addr = p ? `${p.service_address}${p.city ? ', ' + p.city : ''}` : '—'
-            const pkg  = job.service_package
+            const customerName = c ? `${c.first_name}${c.last_name ? ' ' + c.last_name : ''}` : 'No customer'
+            const addr = p ? `${p.service_address}${p.city ? ', ' + p.city : ''}` : 'No address'
+            const service = job.service_package
               ? job.service_package.replace(/_/g, ' ')
-              : null
+              : (job.job_type ? job.job_type.replace(/_/g, ' ') : null)
+            const dateTime = view === 'completed'
+              ? (job.completed_at
+                ? formatDateOnly((job.completed_at as string).split('T')[0], { weekday: 'short', month: 'short', day: 'numeric' })
+                : 'No completion date')
+              : (job.scheduled_date
+                ? `${formatDateOnly(job.scheduled_date, { weekday: 'short', month: 'short', day: 'numeric' })}${job.scheduled_time_window ? ` · ${job.scheduled_time_window}` : ''}`
+                : 'No date')
+            const paymentNeedsAttention = job.payment_status === 'unpaid' || job.payment_status === 'partial'
+            const showPayment = job.status === 'completed' || paymentNeedsAttention
 
             return (
               <Link key={job.id} href={`/jobs/${job.id}`} className="card card-link" style={{ display: 'block', marginBottom: '10px' }}>
                 <div className="card-row">
                   <div style={{ minWidth: 0 }}>
-                    <div className="card-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
-                    <div className="card-meta">{addr}</div>
-                    {pkg && <div className="card-meta">{pkg}</div>}
+                    <div className="card-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{job.title}</div>
+                    <div className="card-meta">👤 {customerName}</div>
+                    <div className="card-meta">📍 {addr}</div>
+                    <div className="card-meta">🗓 {dateTime}</div>
+                    {service && <div className="card-meta">🌿 {service}</div>}
+                    <div className="card-meta">💵 {job.price != null ? `$${Number(job.price).toFixed(0)}` : 'No price set'}</div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
                     <span className={`pill pill-${job.status}`}>{job.status.replace(/_/g, ' ')}</span>
-                    {job.price != null && <span className="font-bold text-small">${job.price}</span>}
+                    {showPayment && <span className={`pill pill-${job.payment_status}`}>{job.payment_status.replace(/_/g, ' ')}</span>}
                   </div>
-                </div>
-                <div className="card-row" style={{ marginTop: '8px' }}>
-                  <span className="text-small text-muted">
-                    {view === 'completed'
-                      ? (job.completed_at ? formatDateOnly((job.completed_at as string).split('T')[0], { weekday: 'short', month: 'short', day: 'numeric' }) : 'No completion date')
-                      : (job.scheduled_date ? formatDateOnly(job.scheduled_date, { weekday: 'short', month: 'short', day: 'numeric' }) : 'No date')}
-                    {view === 'scheduled' && job.scheduled_time_window ? ` · ${job.scheduled_time_window}` : ''}
-                  </span>
-                  {job.status === 'completed' && (
-                    <span className={`pill pill-${job.payment_status}`}>{job.payment_status.replace(/_/g, ' ')}</span>
-                  )}
                 </div>
               </Link>
             )
