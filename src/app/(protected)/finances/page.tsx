@@ -119,7 +119,7 @@ export default async function FinancesPage({
       const rawC = j.customers
       const c = (Array.isArray(rawC) ? rawC[0] : rawC) as { first_name?: string; last_name?: string | null } | null
       rows.push({
-        date: j.completed_at?.split('T')[0] ?? '',
+        date: j.completed_at ? getLocalDateStr(timeZone, new Date(j.completed_at)) : '',
         type: 'income',
         customer_or_vendor: [c?.first_name, c?.last_name].filter(Boolean).join(' '),
         description: 'Lawn service',
