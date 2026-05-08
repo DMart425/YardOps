@@ -145,14 +145,13 @@ export default async function JobsPage({
   const blackoutDates: string[] = (settings?.blackout_dates as string[] | null) ?? []
 
   // ── Overdue unpaid count (completed + unpaid + >7 days old) ──
-  const sevenDaysAgo = new Date()
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+  const sevenDaysAgoStr = addDays(today, -7)
   const { count: overdueCount } = await supabase
     .from('jobs')
     .select('id', { count: 'exact', head: true })
     .eq('status', 'completed')
     .in('payment_status', ['unpaid', 'partial'])
-    .lt('completed_at', sevenDaysAgo.toISOString())
+    .lt('completed_at', `${sevenDaysAgoStr}T00:00:00`)
   function routeUrl(addresses: string[]): string | null {
     if (addresses.length === 0) return null
     if (addresses.length === 1) {

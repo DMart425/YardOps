@@ -33,11 +33,9 @@ function serviceInfo(items: MaintItem[], currentHours: number) {
     .filter(i => i.next_due_date != null)
     .sort((a, b) => (a.next_due_date ?? '').localeCompare(b.next_due_date ?? ''))[0]
 
-  // Is anything overdue?
   const overdueHours = nextByHours != null && currentHours >= (nextByHours.next_due_hours ?? Infinity)
-  const overdueDate = nextByDate != null && new Date(nextByDate.next_due_date!) < new Date()
 
-  return { lastItem, nextByHours, nextByDate, overdueHours, overdueDate }
+  return { lastItem, nextByHours, nextByDate, overdueHours }
 }
 
 export default async function EquipmentPage() {
