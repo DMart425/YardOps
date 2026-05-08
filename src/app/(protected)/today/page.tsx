@@ -27,6 +27,7 @@ export default async function TodayPage() {
   const tomorrowStr = addDays(today, 1)
   const twoWeeksStr = addDays(today, 14)
   const sixtyDaysAgoStr = addDays(today, -60)
+  const twoYearsAgoStr = addDays(today, -730)
 
   const [
     approvalNotificationsResult,
@@ -123,12 +124,15 @@ export default async function TodayPage() {
       .eq('job_type', 'recurring')
       .gte('scheduled_date', sixtyDaysAgoStr)
       .not('status', 'in', '("cancelled","skipped")'),
-    // Customer retention base query
+    // Customer retention base query — bounded to 2-year lookback to avoid full table scan.
+    // Customers whose last completed job was >2 years ago are treated as churned and will not
+    // appear in the dormant list; this is an acceptable trade-off for the Today dashboard.
     supabase
       .from('jobs')
       .select('customer_id, completed_at, customers(id, first_name, last_name)')
       .eq('status', 'completed')
-      .not('customer_id', 'is', null),
+      .not('customer_id', 'is', null)
+      .gte('completed_at', `${twoYearsAgoStr}T00:00:00`),
     // New leads count (website)
     supabase.from('leads').select('id', { count: 'exact', head: true }).eq('status', 'new'),
     // New leads count (manual)
