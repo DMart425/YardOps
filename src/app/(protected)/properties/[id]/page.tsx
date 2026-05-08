@@ -54,11 +54,31 @@ export default async function PropertyDetailPage({
   if (!property) notFound()
 
   // Revenue stats for this property
-  const [{ data: propJobs }, { data: nextServiceJob }] = await Promise.all([
+  const [
+    { count: completedJobsCount },
+    { data: completedJobsStats },
+    { data: lastCompletedJob },
+    { data: nextServiceJob },
+  ] = await Promise.all([
     supabase
       .from('jobs')
-      .select('id, status, price, amount_paid, payment_status, completed_at')
-      .eq('property_id', id),
+      .select('id', { count: 'exact', head: true })
+      .eq('property_id', id)
+      .eq('status', 'completed'),
+    supabase
+      .from('jobs')
+      .select('price, amount_paid, payment_status')
+      .eq('property_id', id)
+      .eq('status', 'completed'),
+    supabase
+      .from('jobs')
+      .select('completed_at')
+      .eq('property_id', id)
+      .eq('status', 'completed')
+      .not('completed_at', 'is', null)
+      .order('completed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
     supabase
       .from('jobs')
       .select('id, scheduled_date, scheduled_time_window')
@@ -70,16 +90,13 @@ export default async function PropertyDetailPage({
       .maybeSingle(),
   ])
 
-  const completedPropJobs = (propJobs ?? []).filter(j => j.status === 'completed')
-  const propRevenue  = completedPropJobs.reduce((s, j) => s + Number(j.price ?? 0), 0)
-  const propUnpaid   = completedPropJobs
+  const completedCount = completedJobsCount ?? 0
+  const completedStatsRows = completedJobsStats ?? []
+  const propRevenue  = completedStatsRows.reduce((s, j) => s + Number(j.price ?? 0), 0)
+  const propUnpaid   = completedStatsRows
     .filter(j => j.payment_status !== 'paid')
     .reduce((s, j) => s + Math.max(0, Number(j.price ?? 0) - Number(j.amount_paid ?? 0)), 0)
-  const lastPropVisit = completedPropJobs
-    .map(j => j.completed_at)
-    .filter((d): d is string => !!d)
-    .sort()
-    .pop()
+  const lastPropVisit = lastCompletedJob?.completed_at ?? null
 
   const p = property as Property
   const { data: currentCustomerData } = await supabase
@@ -150,7 +167,7 @@ export default async function PropertyDetailPage({
       {/* Revenue stats */}
       <div className="stat-grid" style={{ marginBottom: '1.25rem' }}>
           <div className="stat-card">
-            <div className="stat-value">{completedPropJobs.length}</div>
+            <div className="stat-value">{completedCount}</div>
             <div className="stat-label">Jobs done</div>
           </div>
           <div className="stat-card">
