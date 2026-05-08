@@ -56,41 +56,49 @@ export default async function FinancesPage({
   // Fetch expenses for the year
   const { data: expenses } = await supabase
     .from('expenses')
-    .select('*')
+    .select('id, purchased_at, amount, category, vendor, description')
     .gte('purchased_at', yearStart)
     .lte('purchased_at', yearEnd)
     .order('purchased_at')
 
-  // ── Aggregate YTD ──────────────────────────────────────────────
-  const totalIncome   = (jobs ?? []).reduce((s, j) => s + Number((j.amount_paid || null) ?? j.price ?? 0), 0)
-  const totalExpenses = (expenses ?? []).reduce((s, e) => s + Number(e.amount ?? 0), 0)
-  const totalJobCount = (jobs ?? []).length
-  const avgJobValue   = totalJobCount > 0 ? totalIncome / totalJobCount : 0
-
-  // ── Monthly breakdown ──────────────────────────────────────────
+  // ── Aggregate + monthly breakdown (single pass) ────────────────
+  let totalIncome = 0
+  let totalExpenses = 0
+  let totalJobCount = 0
   const incomeByMonth   = Array(12).fill(0) as number[]
   const expensesByMonth = Array(12).fill(0) as number[]
   const jobCountByMonth = Array(12).fill(0) as number[]
+  const monthJobs: typeof jobs = []
+  const monthExpenses: NonNullable<typeof expenses> = []
 
   for (const j of jobs) {
-    const m = Number(getLocalMonthKey(j.completed_at, timeZone).slice(5, 7)) - 1
-    incomeByMonth[m]   += Number((j.amount_paid || null) ?? j.price ?? 0)
+    const amount = Number((j.amount_paid || null) ?? j.price ?? 0)
+    const monthKey = getLocalMonthKey(j.completed_at, timeZone)
+    const m = Number(monthKey.slice(5, 7)) - 1
+    totalIncome += amount
+    totalJobCount += 1
+    incomeByMonth[m] += amount
     jobCountByMonth[m] += 1
+    if (monthKey === selectedMonthKey) monthJobs.push(j)
   }
+
   for (const e of expenses ?? []) {
-    const m = Number(getDateOnlyMonthKey(e.purchased_at).slice(5, 7)) - 1
-    expensesByMonth[m] += Number(e.amount ?? 0)
+    const amount = Number(e.amount ?? 0)
+    const monthKey = getDateOnlyMonthKey(e.purchased_at)
+    const m = Number(monthKey.slice(5, 7)) - 1
+    totalExpenses += amount
+    expensesByMonth[m] += amount
+    if (monthKey === selectedMonthKey) monthExpenses.push(e)
   }
+  const avgJobValue = totalJobCount > 0 ? totalIncome / totalJobCount : 0
 
   // ── Best month ────────────────────────────────────────────────
   const bestMonthIdx = incomeByMonth.indexOf(Math.max(...incomeByMonth))
   const bestMonthIncome = incomeByMonth[bestMonthIdx]
 
   // ── Selected month data ────────────────────────────────────────
-  const monthJobs = jobs.filter(j => getLocalMonthKey(j.completed_at, timeZone) === selectedMonthKey)
-  const monthExpenses = (expenses ?? []).filter(e => getDateOnlyMonthKey(e.purchased_at) === selectedMonthKey)
-  const monthIncome = monthJobs.reduce((s, j) => s + Number((j.amount_paid || null) ?? j.price ?? 0), 0)
-  const monthExpenseTotal = monthExpenses.reduce((s, e) => s + Number(e.amount ?? 0), 0)
+  const monthIncome = incomeByMonth[selectedMonth] ?? 0
+  const monthExpenseTotal = expensesByMonth[selectedMonth] ?? 0
 
   // ── Per-customer income (selected month) ──────────────────────
   const customerTotals = new Map<string, { name: string; count: number; total: number }>()
