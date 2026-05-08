@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import { addDays, getLocalDateStr, resolveTimeZone } from '@/lib/date'
+import { redirect } from 'next/navigation'
 
 const TYPE_LABELS: Record<string, string> = {
   mower: 'Mower', trimmer: 'Trimmer', blower: 'Blower',
@@ -29,7 +31,7 @@ function serviceInfo(items: MaintItem[], currentHours: number) {
     .sort((a, b) => (a.next_due_hours ?? Infinity) - (b.next_due_hours ?? Infinity))[0]
   const nextByDate = items
     .filter(i => i.next_due_date != null)
-    .sort((a, b) => new Date(a.next_due_date!).getTime() - new Date(b.next_due_date!).getTime())[0]
+    .sort((a, b) => (a.next_due_date ?? '').localeCompare(b.next_due_date ?? ''))[0]
 
   // Is anything overdue?
   const overdueHours = nextByHours != null && currentHours >= (nextByHours.next_due_hours ?? Infinity)
@@ -40,6 +42,17 @@ function serviceInfo(items: MaintItem[], currentHours: number) {
 
 export default async function EquipmentPage() {
   const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: settings } = await supabase
+    .from('pricing_settings')
+    .select('time_zone')
+    .eq('user_id', user.id)
+    .maybeSingle()
+  const localToday = getLocalDateStr(resolveTimeZone(settings?.time_zone))
+  const dueSoonDate = addDays(localToday, 7)
 
   const { data: equipment } = await supabase
     .from('equipment')
@@ -52,11 +65,12 @@ export default async function EquipmentPage() {
 
   function EquipCard({ eq, dimmed }: { eq: typeof equipment extends (infer T)[] | null ? T : never, dimmed?: boolean }) {
     const items: MaintItem[] = eq.maintenance_items ?? []
-    const { lastItem, nextByHours, nextByDate, overdueHours, overdueDate } = serviceInfo(items, eq.current_hours ?? 0)
+    const { lastItem, nextByHours, nextByDate, overdueHours } = serviceInfo(items, eq.current_hours ?? 0)
+    const overdueDate = nextByDate != null && (nextByDate.next_due_date ?? '') < localToday
     const isOverdue = overdueHours || overdueDate
     const isSoon = !isOverdue && (
       (nextByHours != null && (eq.current_hours ?? 0) >= (nextByHours.next_due_hours ?? Infinity) - ((nextByHours.next_due_hours ?? 0) * 0.1)) ||
-      (nextByDate != null && (new Date(nextByDate.next_due_date!).getTime() - Date.now()) < 7 * 86400000)
+      (nextByDate != null && (nextByDate.next_due_date ?? '') <= dueSoonDate)
     )
 
     return (

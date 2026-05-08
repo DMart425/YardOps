@@ -10,12 +10,6 @@ import SendSmsButton from './SendSmsButton'
 import ScheduleVisitForm from './ScheduleVisitForm'
 import EstimateDangerZone from './EstimateDangerZone'
 
-function fmtDateTime(d: string) {
-  return new Date(d).toLocaleString('en-US', {
-    weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-  })
-}
-
 const FREQ_LABELS: Record<string, string> = {
   weekly: 'Weekly', biweekly: 'Bi-Weekly', one_time: 'One-Time', monthly: 'Monthly',
 }
@@ -258,7 +252,9 @@ export default async function EstimateDetailPage({
               {estimate.approved_by_source === 'manual' && estimate.manually_approved_at && (
                 <div className="card-row">
                   <span className="text-small text-muted">Manual approval time</span>
-                  <span className="text-small">{fmtDateTime(estimate.manually_approved_at)}</span>
+                  <span className="text-small">{formatTimestampDate(estimate.manually_approved_at, timeZone, {
+                    weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                  })}</span>
                 </div>
               )}
             </>

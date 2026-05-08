@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { formatDateOnly } from '@/lib/date'
+import { formatDateOnly, formatTimestampDate, resolveTimeZone } from '@/lib/date'
 import { formatFrequencyLabel } from '@/lib/frequency'
+import { redirect } from 'next/navigation'
 
 const PAGE_SIZE = 50
 
@@ -28,10 +29,6 @@ const STATUS_FILTERS = [
   ['declined',  'Declined'],
 ] as const
 
-function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
 function parsePage(raw: string | undefined): number {
   const n = Number(raw)
   if (!Number.isFinite(n)) return 1
@@ -49,6 +46,16 @@ export default async function EstimatesPage({
   const from = (page - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
   const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: settings } = await supabase
+    .from('pricing_settings')
+    .select('time_zone')
+    .eq('user_id', user.id)
+    .maybeSingle()
+  const timeZone = resolveTimeZone(settings?.time_zone)
 
   let query = supabase
     .from('estimates')
@@ -127,7 +134,7 @@ export default async function EstimatesPage({
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
                       <div className="card-meta">📍 {addr}</div>
                       {frequency && <div className="card-meta">🌿 {formatFrequencyLabel(frequency)}</div>}
-                      <div className="card-meta">🗓 Created {fmtDate(est.created_at)}</div>
+                      <div className="card-meta">🗓 Created {formatTimestampDate(est.created_at, timeZone, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
                       {est.valid_until && <div className="card-meta">⏳ Valid until {formatDateOnly(est.valid_until)}</div>}
                       {visitLabel && <div className="card-meta">📅 Visit {visitLabel}</div>}
                     </div>
