@@ -28,7 +28,15 @@ export default async function CustomerDetailPage({
   const timeZone = resolveTimeZone(settings?.time_zone ?? null)
   const today = getLocalDateStr(timeZone)
 
-  const [{ data: customer }, { data: properties }, { data: jobs }, { data: nextVisitJob }] = await Promise.all([
+  const [
+    { data: customer },
+    { data: properties },
+    { data: jobs },
+    { data: nextVisitJob },
+    { count: completedJobsCount },
+    { data: completedJobsStats },
+    { data: lastCompletedJob },
+  ] = await Promise.all([
     supabase.from('customers').select('*').eq('id', id).single(),
     supabase
       .from('properties')
@@ -50,30 +58,43 @@ export default async function CustomerDetailPage({
       .order('scheduled_date', { ascending: true })
       .limit(1)
       .maybeSingle(),
+    // Completed jobs count for Jobs done stat.
+    supabase
+      .from('jobs')
+      .select('id', { count: 'exact', head: true })
+      .eq('customer_id', id)
+      .eq('status', 'completed'),
+    // Narrow completed-job fields needed for revenue/unpaid only.
+    supabase
+      .from('jobs')
+      .select('price, amount_paid, payment_status')
+      .eq('customer_id', id)
+      .eq('status', 'completed'),
+    // Last visit needs only the most recent completed timestamp.
+    supabase
+      .from('jobs')
+      .select('completed_at')
+      .eq('customer_id', id)
+      .eq('status', 'completed')
+      .not('completed_at', 'is', null)
+      .order('completed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   if (!customer) notFound()
   const customerRow = customer as CustomerWithTags
 
-  // Aggregate stats from all jobs (separate count query for accuracy beyond the 10-row limit)
-  const { data: allJobs } = await supabase
-    .from('jobs')
-      .select('status, price, amount_paid, payment_status, completed_at')
-    .eq('customer_id', id)
-
-  const completedJobs = (allJobs ?? []).filter(j => j.status === 'completed')
-  const totalRevenue  = completedJobs.reduce((s, j) => s + Number(j.price ?? 0), 0)
-  const totalUnpaid   = completedJobs
+  const completedCount = completedJobsCount ?? 0
+  const completedStatsRows = completedJobsStats ?? []
+  const totalRevenue = completedStatsRows.reduce((s, j) => s + Number(j.price ?? 0), 0)
+  const totalUnpaid = completedStatsRows
     .filter(j => j.payment_status !== 'paid')
     .reduce((s, j) => {
       const owed = Number(j.price ?? 0) - Number((j.amount_paid || null) ?? 0)
       return s + Math.max(0, owed)
     }, 0)
-  const lastVisit     = completedJobs
-    .map(j => j.completed_at)
-    .filter((d): d is string => !!d)
-    .sort()
-    .pop()
+  const lastVisit = lastCompletedJob?.completed_at ?? null
   const propertyRows = (properties as Pick<Property, 'id' | 'property_name' | 'service_address' | 'city' | 'service_frequency' | 'status'>[] | null) ?? []
   const activeProperties = propertyRows.filter(p => p.status !== 'archived')
   const archivedProperties = propertyRows.filter(p => p.status === 'archived')
@@ -158,7 +179,7 @@ export default async function CustomerDetailPage({
       {/* History stats */}
       <div className="stat-grid" style={{ marginBottom: '1.5rem' }}>
         <div className="stat-card">
-          <div className="stat-value">{completedJobs.length}</div>
+          <div className="stat-value">{completedCount}</div>
           <div className="stat-label">Jobs done</div>
         </div>
         <div className="stat-card">
