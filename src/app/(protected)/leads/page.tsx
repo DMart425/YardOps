@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { formatFrequencyLabel, formatServiceInterestLabel, parseWebsiteServiceInterests } from '@/lib/frequency'
+import { requireBusinessContext } from '@/lib/business/context'
 
 const PAGE_SIZE = 50
 
@@ -34,6 +35,7 @@ export default async function LeadsPage({
   const from = (page - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE
   const supabase = await createClient()
+  const { businessId } = await requireBusinessContext()
 
   // Fetch website leads: by default show 'new', but allow viewing 'converted' or 'archived'
   const websiteStatusFilter = view === 'archived' ? 'archived' : view === 'converted' ? 'converted' : 'new'
@@ -42,6 +44,7 @@ export default async function LeadsPage({
   const websiteQuery = supabase
     .from('leads')
     .select('id, name, phone, email, address, frequency, notes, created_at, status')
+    .eq('business_id', businessId)
     .eq('status', websiteStatusFilter)
     .order('created_at', { ascending: false })
     .range(from, to)

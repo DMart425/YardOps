@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { WebsiteLeadDangerZone, WebsiteLeadStatusActions } from './WebsiteLeadActions'
 import { estimateMowableAcres } from '@/lib/pricing'
+import { requireBusinessContext } from '@/lib/business/context'
 
 export default async function WebsiteLeadDetailPage({
   params,
@@ -11,11 +12,13 @@ export default async function WebsiteLeadDetailPage({
 }) {
   const { id } = await params
   const supabase = await createClient()
+  const { businessId } = await requireBusinessContext()
 
   const { data: lead } = await supabase
     .from('leads')
     .select('*')
     .eq('id', id)
+    .eq('business_id', businessId)
     .eq('status', 'new')
     .single()
 

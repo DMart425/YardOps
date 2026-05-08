@@ -47,6 +47,8 @@ export interface Customer {
 
 export interface Lead {
   id: string
+  business_id: string | null
+  created_by: string | null
   name: string
   phone: string | null
   email: string | null

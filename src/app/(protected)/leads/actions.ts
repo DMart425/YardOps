@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import type { FormState } from '@/types/database'
 import { geocodeAddress } from '@/lib/geocode'
 import { normalizeFrequency } from '@/lib/frequency'
+import { requireBusinessContext } from '@/lib/business/context'
 
 function str(fd: FormData, key: string) {
   const v = (fd.get(key) as string)?.trim()
@@ -161,53 +162,78 @@ export async function convertWebsiteLead(
   void prevState
   void _formData
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
-  const { data: lead } = await supabase
+  // Claim the lead first to make conversion idempotent across repeated clicks/races.
+  const { data: claimedLead, error: claimError } = await supabase
     .from('leads')
-    .select('*')
+    .update({ status: 'converted', created_by: userId })
     .eq('id', leadId)
-    .single()
+    .eq('business_id', businessId)
+    .eq('status', 'new')
+    .select('id, name, phone, email, address, frequency, notes')
+    .maybeSingle()
 
-  if (!lead) return { error: 'Lead not found.' }
+  if (claimError) return { error: claimError.message }
+
+  if (!claimedLead) {
+    const { data: existingLead, error: existingLeadError } = await supabase
+      .from('leads')
+      .select('status')
+      .eq('id', leadId)
+      .eq('business_id', businessId)
+      .maybeSingle()
+
+    if (existingLeadError) return { error: existingLeadError.message }
+    if (!existingLead) return { error: 'Lead not found.' }
+
+    if (existingLead.status === 'converted') {
+      return { error: 'This website lead was already converted.' }
+    }
+
+    return { error: `This website lead cannot be converted from status "${existingLead.status ?? 'unknown'}".` }
+  }
 
   // Split name into first/last
-  const parts = (lead.name as string).trim().split(' ')
+  const parts = (claimedLead.name as string).trim().split(' ')
   const firstName = parts[0] ?? 'Unknown'
   const lastName = parts.length > 1 ? parts.slice(1).join(' ') : null
 
   // Normalize frequency before writing to notes
-  const normalizedFrequency = normalizeFrequency(lead.frequency ?? null)
+  const normalizedFrequency = normalizeFrequency(claimedLead.frequency ?? null)
 
   const notes = buildLeadIntakeNotes({
-    existingNotes: lead.notes ?? null,
+    existingNotes: claimedLead.notes ?? null,
     sourceLabel: 'Website lead',
-    intakeAddress: lead.address ?? null,
+    intakeAddress: claimedLead.address ?? null,
     requestedFrequency: normalizedFrequency,
   })
 
   const { data: customer, error: custError } = await supabase
     .from('customers')
     .insert({
-      created_by: user.id,
+      created_by: userId,
       first_name: firstName,
       last_name: lastName,
-      phone: lead.phone ?? null,
-      email: lead.email ?? null,
+      phone: claimedLead.phone ?? null,
+      email: claimedLead.email ?? null,
       notes,
       status: 'lead',
     })
     .select('id')
     .single()
 
-  if (custError) return { error: custError.message }
+  if (custError) {
+    // Best-effort rollback to allow retried conversion if customer insert fails.
+    await supabase
+      .from('leads')
+      .update({ status: 'new', created_by: null })
+      .eq('id', leadId)
+      .eq('business_id', businessId)
+      .eq('status', 'converted')
 
-  // Mark website lead as converted so it won't show up again
-  await supabase
-    .from('leads')
-    .update({ status: 'converted' })
-    .eq('id', leadId)
+    return { error: custError.message }
+  }
 
   revalidatePath('/leads')
   redirect(`/leads/${customer.id}`)
@@ -248,13 +274,13 @@ export async function dismissWebsiteLead(
   void prevState
   void _formData
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const { error } = await supabase
     .from('leads')
-    .update({ status: 'archived' })
+    .update({ status: 'archived', created_by: userId })
     .eq('id', leadId)
+    .eq('business_id', businessId)
 
   if (error) return { error: error.message }
 
@@ -270,8 +296,7 @@ export async function deleteWebsiteLead(
 ): Promise<FormState> {
   void _prevState
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { businessId } = await requireBusinessContext()
 
   const leadId = formData.get('lead_id') as string
   if (!leadId) return { error: 'Missing lead ID.' }
@@ -285,6 +310,7 @@ export async function deleteWebsiteLead(
     .from('leads')
     .delete()
     .eq('id', leadId)
+    .eq('business_id', businessId)
 
   if (error) return { error: error.message }
 
