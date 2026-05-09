@@ -35,7 +35,7 @@ export async function requireBusinessContext(): Promise<BusinessContext> {
 
   const { data, error } = await supabase
     .from('business_members')
-    .select('business_id, role, created_at, businesses!inner(id, status)')
+    .select('business_id, role, created_at, businesses!inner(status)')
     .eq('user_id', user.id)
     .eq('status', 'active')
     .eq('businesses.status', 'active')
