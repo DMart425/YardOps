@@ -1,9 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
 import { getTodayForecastForCoords, coordKey } from '@/lib/weather'
 import { EstimateApprovalNotifications } from '@/components/EstimateApprovalNotifications'
 import { addDays, formatDateOnly, formatTimestampDate, getLocalDateStr, resolveTimeZone } from '@/lib/date'
+import { requireBusinessContext } from '@/lib/business/context'
 
 function dateOnlyToUtcMs(dateStr: string) {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -12,13 +12,12 @@ function dateOnlyToUtcMs(dateStr: string) {
 
 export default async function TodayPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const { data: settings } = await supabase
     .from('pricing_settings')
     .select('time_zone')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .maybeSingle()
   const timeZone = resolveTimeZone(settings?.time_zone)
   const today = getLocalDateStr(timeZone)
@@ -57,6 +56,7 @@ export default async function TodayPage() {
         customers ( first_name, last_name, phone ),
         properties ( service_address, city, pet_warning, gate_code, access_notes, obstacle_notes, latitude, longitude )
       `)
+      .eq('business_id', businessId)
       .eq('scheduled_date', today)
       .not('status', 'in', '("completed","cancelled","skipped")')
       .order('scheduled_date'),
@@ -68,6 +68,7 @@ export default async function TodayPage() {
         customers ( first_name, last_name ),
         properties ( service_address, city )
       `)
+      .eq('business_id', businessId)
       .eq('status', 'completed')
       .gte('completed_at', `${today}T00:00:00`)
       .lt('completed_at', `${tomorrowForCompletedStr}T00:00:00`)
@@ -80,6 +81,7 @@ export default async function TodayPage() {
         customers ( first_name, last_name ),
         properties ( service_address, city )
       `)
+      .eq('business_id', businessId)
       .lt('scheduled_date', today)
       .in('status', ['scheduled', 'in_progress', 'needs_reschedule'])
       .order('scheduled_date', { ascending: true })
@@ -91,6 +93,7 @@ export default async function TodayPage() {
         id, title, price, amount_paid, payment_status, completed_at,
         customers ( first_name, last_name, phone )
       `)
+      .eq('business_id', businessId)
       .eq('status', 'completed')
       .in('payment_status', ['unpaid', 'partial'])
       .order('completed_at', { ascending: false })
@@ -103,6 +106,7 @@ export default async function TodayPage() {
         customers ( first_name, last_name, phone ),
         properties ( service_address, city )
       `)
+      .eq('business_id', businessId)
       .eq('scheduled_date', tomorrowStr)
       .in('status', ['scheduled', 'in_progress'])
       .order('scheduled_date'),
@@ -114,6 +118,7 @@ export default async function TodayPage() {
         customers ( first_name, last_name, phone ),
         properties ( service_address, city )
       `)
+      .eq('business_id', businessId)
       .eq('visit_scheduled_date', today)
       .not('status', 'in', '("converted","declined")')
       .order('visit_scheduled_time'),
@@ -121,6 +126,7 @@ export default async function TodayPage() {
     supabase
       .from('jobs')
       .select('customer_id, customers(first_name, last_name)')
+      .eq('business_id', businessId)
       .eq('job_type', 'recurring')
       .gte('scheduled_date', sixtyDaysAgoStr)
       .not('status', 'in', '("cancelled","skipped")'),
@@ -130,13 +136,14 @@ export default async function TodayPage() {
     supabase
       .from('jobs')
       .select('customer_id, completed_at, customers(id, first_name, last_name)')
+      .eq('business_id', businessId)
       .eq('status', 'completed')
       .not('customer_id', 'is', null)
       .gte('completed_at', `${twoYearsAgoStr}T00:00:00`),
     // New leads count (website)
-    supabase.from('leads').select('id', { count: 'exact', head: true }).eq('status', 'new'),
+    supabase.from('leads').select('id', { count: 'exact', head: true }).eq('business_id', businessId).eq('status', 'new'),
     // New leads count (manual)
-    supabase.from('customers').select('id', { count: 'exact', head: true }).eq('status', 'lead'),
+    supabase.from('customers').select('id', { count: 'exact', head: true }).eq('business_id', businessId).eq('status', 'lead'),
   ])
 
   const approvalNotifications = approvalNotificationsResult.data
@@ -178,6 +185,7 @@ export default async function TodayPage() {
     const { data: upcomingJobs } = await supabase
       .from('jobs')
       .select('customer_id')
+      .eq('business_id', businessId)
       .in('customer_id', recurringIds)
       .gte('scheduled_date', today)
       .lte('scheduled_date', twoWeeksStr)
