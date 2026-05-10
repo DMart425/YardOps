@@ -97,9 +97,9 @@ export default async function JobDetailPage({
     <div className="page">
       <Link href="/jobs" className="back-link">← Jobs</Link>
 
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">{job.title ?? 'Job Detail'}</h1>
+      <div className="page-header" style={{ height: 'auto', minHeight: '64px', alignItems: 'flex-start', paddingTop: '14px', paddingBottom: '14px' }}>
+        <div style={{ minWidth: 0 }}>
+          <h1 className="page-title" style={{ wordBreak: 'break-word' }}>{job.title ?? 'Job Detail'}</h1>
           <div className="text-small text-muted" style={{ marginTop: '2px' }}>{customerName} · {address}</div>
           <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
             <span className={`pill pill-${job.status}`}>{job.status.replace(/_/g, ' ')}</span>
