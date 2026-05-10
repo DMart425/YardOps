@@ -1,11 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { EstimateStatusActions } from '@/components/EstimateStatusActions'
 import { calculateEstimate, formatMinutes, DEFAULT_SETTINGS } from '@/lib/pricing'
 import { formatDateOnly, formatTimestampDate, getLocalDateStr, resolveTimeZone } from '@/lib/date'
 import type { EstimateInputs } from '@/lib/pricing'
 import type { Estimate } from '@/types/database'
+import { requireBusinessContext } from '@/lib/business/context'
 import SendSmsButton from './SendSmsButton'
 import ScheduleVisitForm from './ScheduleVisitForm'
 import EstimateDangerZone from './EstimateDangerZone'
@@ -26,13 +27,13 @@ export default async function EstimateDetailPage({
 }) {
   const { id } = await params
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const { data: estimateRaw } = await supabase
     .from('estimates')
     .select('*, customers(first_name, last_name, phone), properties(service_address, city, state, estimated_mowable_acres)')
     .eq('id', id)
+    .eq('business_id', businessId)
     .single()
 
   if (!estimateRaw) notFound()
@@ -41,7 +42,7 @@ export default async function EstimateDetailPage({
   const { data: settings } = await supabase
     .from('pricing_settings')
     .select('venmo_handle, minimum_price, time_zone')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .maybeSingle()
   const venmoHandle = (settings?.venmo_handle as string | null) ?? null
   const minimumPrice = (settings?.minimum_price as number | null) ?? DEFAULT_SETTINGS.minimumServicePrice

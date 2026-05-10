@@ -1,10 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { EstimateForm } from '@/components/forms/EstimateForm'
 import { updateEstimate } from '../../actions'
 import type { EstimateInputs } from '@/lib/pricing'
 import { getLocalDateStr, resolveTimeZone } from '@/lib/date'
+import { requireBusinessContext } from '@/lib/business/context'
 
 type CustomerOption = { id: string; first_name: string; last_name: string | null }
 type PropertyOption = {
@@ -30,13 +31,13 @@ export default async function EditEstimatePage({
 }) {
   const { id } = await params
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const { data: estimate } = await supabase
     .from('estimates')
     .select('*')
     .eq('id', id)
+    .eq('business_id', businessId)
     .single()
 
   if (!estimate) notFound()
@@ -56,16 +57,18 @@ export default async function EditEstimatePage({
     supabase
       .from('customers')
       .select('id, first_name, last_name, status')
+      .eq('business_id', businessId)
       .neq('status', 'archived')
       .order('first_name'),
     supabase
       .from('properties')
       .select('id, customer_id, property_name, service_address, city, parcel_acres, estimated_mowable_acres, service_frequency, default_service_package, default_mowing_enabled, default_weed_eating_enabled, default_edging_enabled, default_blow_off_enabled, status')
+      .eq('business_id', businessId)
       .order('service_address'),
     supabase
       .from('pricing_settings')
       .select('target_hourly_rate, minimum_price, time_zone')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .maybeSingle(),
   ])
 
@@ -77,6 +80,7 @@ export default async function EditEstimatePage({
       .from('customers')
       .select('id, first_name, last_name')
       .eq('id', estimate.customer_id)
+      .eq('business_id', businessId)
       .single()
     if (currentCustomer) customers = [currentCustomer as CustomerOption, ...customers]
   }
@@ -87,6 +91,7 @@ export default async function EditEstimatePage({
       .from('properties')
       .select('id, customer_id, property_name, service_address, city, parcel_acres, estimated_mowable_acres, service_frequency, default_service_package, default_mowing_enabled, default_weed_eating_enabled, default_edging_enabled, default_blow_off_enabled')
       .eq('id', estimate.property_id)
+      .eq('business_id', businessId)
       .single()
     if (currentProperty) properties = [currentProperty as PropertyOption, ...properties]
   }

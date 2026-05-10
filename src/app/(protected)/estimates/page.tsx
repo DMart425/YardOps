@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { formatDateOnly, formatTimestampDate, resolveTimeZone } from '@/lib/date'
 import { formatFrequencyLabel } from '@/lib/frequency'
-import { redirect } from 'next/navigation'
+import { requireBusinessContext } from '@/lib/business/context'
 
 const PAGE_SIZE = 50
 
@@ -46,20 +46,19 @@ export default async function EstimatesPage({
   const from = (page - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
   const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const { data: settings } = await supabase
     .from('pricing_settings')
     .select('time_zone')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .maybeSingle()
   const timeZone = resolveTimeZone(settings?.time_zone)
 
   let query = supabase
     .from('estimates')
     .select('id, status, total, valid_until, created_at, frequency, visit_scheduled_date, visit_scheduled_time, estimate_inputs, revision_number, customers(first_name, last_name), properties(service_address, city)')
+    .eq('business_id', businessId)
     .order('created_at', { ascending: false })
 
   if (filter === 'open') {
