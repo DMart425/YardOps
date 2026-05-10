@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import type { FormState } from '@/types/database'
 import { calculateEstimate, formatMinutes, type EstimateInputs } from '@/lib/pricing'
+import { requireBusinessContext } from '@/lib/business/context'
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function str(fd: FormData, key: string) {
@@ -165,8 +166,7 @@ export async function createEstimate(
 ): Promise<FormState> {
   void prevState
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const parsed = parseEstimatePayload(formData)
   if ('error' in parsed) return { error: parsed.error }
@@ -175,7 +175,7 @@ export async function createEstimate(
     .from('customers')
     .select('id')
     .eq('id', parsed.payload.customer_id)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
     .maybeSingle()
 
   if (customerError || !customer) {
@@ -186,7 +186,7 @@ export async function createEstimate(
     .from('properties')
     .select('id, customer_id, status')
     .eq('id', parsed.payload.property_id)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
     .maybeSingle()
 
   if (propertyError || !property) {
@@ -204,8 +204,9 @@ export async function createEstimate(
   const { data: estimate, error } = await supabase
     .from('estimates')
     .insert({
-      created_by: user.id,
-      status: 'draft',
+      created_by:  userId,
+      business_id: businessId,
+      status:      'draft',
       ...parsed.payload,
     })
     .select('id')
@@ -224,8 +225,7 @@ export async function updateEstimate(
 ): Promise<FormState> {
   void prevState
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { businessId } = await requireBusinessContext()
 
   const parsed = parseEstimatePayload(formData)
   if ('error' in parsed) return { error: parsed.error }
@@ -234,7 +234,7 @@ export async function updateEstimate(
     .from('estimates')
     .select('id, status, revision_number')
     .eq('id', estimateId)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
     .maybeSingle()
 
   if (existingEstimateError || !existingEstimate) {
@@ -263,7 +263,7 @@ export async function updateEstimate(
       ...revisionUpdate,
     })
     .eq('id', estimateId)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
 
   if (error) return { error: error.message }
 
@@ -279,8 +279,7 @@ export async function manuallyApproveEstimate(
 ): Promise<FormState> {
   void prevState
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { businessId } = await requireBusinessContext()
 
   const approvalNote = str(formData, 'approval_note')
   if (!approvalNote) {
@@ -291,7 +290,7 @@ export async function manuallyApproveEstimate(
     .from('estimates')
     .select('id, status')
     .eq('id', estimateId)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
     .maybeSingle()
 
   if (estimateError || !estimate) return { error: 'Estimate not found.' }
@@ -311,7 +310,7 @@ export async function manuallyApproveEstimate(
       approval_note: approvalNote,
     })
     .eq('id', estimateId)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
 
   if (error) return { error: error.message }
 
@@ -328,14 +327,13 @@ export async function convertToJob(
   formData: FormData
 ): Promise<FormState> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const { data: estimate } = await supabase
     .from('estimates')
     .select('*')
     .eq('id', estimateId)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
     .single()
 
   if (!estimate) return { error: 'Estimate not found.' }
@@ -345,7 +343,8 @@ export async function convertToJob(
   const { data: job, error } = await supabase
     .from('jobs')
     .insert({
-      created_by:      user.id,
+      created_by:      userId,
+      business_id:     businessId,
       customer_id:     estimate.customer_id,
       property_id:     estimate.property_id,
       estimate_id:     estimateId,
@@ -370,12 +369,14 @@ export async function convertToJob(
     .from('estimates')
     .update({ status: 'converted' })
     .eq('id', estimateId)
+    .eq('business_id', businessId)
 
   // Promote lead → active customer now that they've accepted
   await supabase
     .from('customers')
     .update({ status: 'active' })
     .eq('id', estimate.customer_id)
+    .eq('business_id', businessId)
     .eq('status', 'lead')
 
   revalidatePath('/estimates')
@@ -394,14 +395,13 @@ export async function updateEstimateStatus(
   void prevState
   void _formData
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { businessId } = await requireBusinessContext()
 
   const { data: estimate, error: estimateError } = await supabase
     .from('estimates')
     .select('id, status')
     .eq('id', estimateId)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
     .maybeSingle()
 
   if (estimateError || !estimate) return { error: 'Estimate not found.' }
@@ -431,7 +431,7 @@ export async function updateEstimateStatus(
     .from('estimates')
     .update(updates)
     .eq('id', estimateId)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
 
   if (error) return { error: error.message }
 
@@ -449,8 +449,7 @@ export async function scheduleEstimateVisit(
 ): Promise<FormState> {
   void prevState
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { businessId } = await requireBusinessContext()
 
   const visitDate = str(formData, 'visit_date')
   const visitTime = str(formData, 'visit_time')
@@ -461,7 +460,7 @@ export async function scheduleEstimateVisit(
     .from('estimates')
     .update({ visit_scheduled_date: visitDate, visit_scheduled_time: visitTime })
     .eq('id', estimateId)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
 
   if (error) return { error: error.message }
 
@@ -479,14 +478,13 @@ export async function clearEstimateVisit(
   void prevState
   void _formData
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { businessId } = await requireBusinessContext()
 
   const { error } = await supabase
     .from('estimates')
     .update({ visit_scheduled_date: null, visit_scheduled_time: null })
     .eq('id', estimateId)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
 
   if (error) return { error: error.message }
 

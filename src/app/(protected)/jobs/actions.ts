@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import type { FormState } from '@/types/database'
+import { requireBusinessContext } from '@/lib/business/context'
 
 type JobRescheduleFields = {
   reschedule_count: number | null
@@ -17,8 +18,7 @@ export async function createJob(
   formData: FormData
 ): Promise<FormState> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const customerId = formData.get('customer_id') as string
   const propertyId  = formData.get('property_id') as string
@@ -31,7 +31,8 @@ export async function createJob(
   const { data: job, error } = await supabase
     .from('jobs')
     .insert({
-      created_by:            user.id,
+      created_by:            userId,
+      business_id:           businessId,
       customer_id:           customerId,
       property_id:           propertyId,
       title:                 'Lawn Service',
@@ -60,15 +61,14 @@ export async function completeJob(
   formData: FormData
 ): Promise<FormState> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { businessId } = await requireBusinessContext()
 
   // Fetch existing job to complete
   const { data: existing } = await supabase
     .from('jobs')
     .select('*')
     .eq('id', id)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
     .single()
 
   if (!existing) return { error: 'Job not found.' }
@@ -99,7 +99,7 @@ export async function completeJob(
       price:            price && !isNaN(price) ? price : existing.price,
     })
     .eq('id', id)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
 
   if (error) return { error: error.message }
 
@@ -115,14 +115,13 @@ export async function scheduleFollowUpJob(
   formData: FormData
 ): Promise<FormState> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const { data: existing } = await supabase
     .from('jobs')
     .select('*, properties(default_price, default_service_package)')
     .eq('id', id)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
     .single()
 
   if (!existing) return { error: 'Job not found.' }
@@ -145,7 +144,8 @@ export async function scheduleFollowUpJob(
   const { data: nextJob, error: nextJobError } = await supabase
     .from('jobs')
     .insert({
-      created_by:            user.id,
+      created_by:            userId,
+      business_id:           businessId,
       customer_id:           existing.customer_id,
       property_id:           existing.property_id,
       title:                 existing.title,
@@ -169,7 +169,7 @@ export async function scheduleFollowUpJob(
     .from('jobs')
     .update({ next_job_created_id: nextJob.id })
     .eq('id', id)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
 
   if (linkErr) {
     return { error: `Follow-up visit created, but link update failed: ${linkErr.message}` }
@@ -190,16 +190,18 @@ export async function markInProgress(
   void prevState
   void _formData
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { businessId } = await requireBusinessContext()
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from('jobs')
     .update({ status: 'in_progress', started_at: new Date().toISOString() })
     .eq('id', id)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
+  if (!updated) return { error: 'Job not found.' }
 
   revalidatePath('/jobs')
   revalidatePath(`/jobs/${id}`)
@@ -213,19 +215,21 @@ export async function skipJob(
   formData: FormData
 ): Promise<FormState> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { businessId } = await requireBusinessContext()
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from('jobs')
     .update({
-      status:        'skipped',
+      status:         'skipped',
       skipped_reason: (formData.get('reason') as string)?.trim() || null,
     })
     .eq('id', id)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
+  if (!updated) return { error: 'Job not found.' }
 
   revalidatePath('/jobs')
   revalidatePath(`/jobs/${id}`)
@@ -241,16 +245,18 @@ export async function cancelJob(
   void prevState
   void _formData
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { businessId } = await requireBusinessContext()
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from('jobs')
     .update({ status: 'cancelled' })
     .eq('id', id)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
+  if (!updated) return { error: 'Job not found.' }
 
   revalidatePath('/jobs')
   revalidatePath(`/jobs/${id}`)
@@ -264,15 +270,14 @@ export async function markPaid(
   formData: FormData
 ): Promise<FormState> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { businessId } = await requireBusinessContext()
 
   // Fetch current price so we can set amount_paid
   const { data: job } = await supabase
     .from('jobs')
     .select('price')
     .eq('id', id)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
     .single()
 
   const { error } = await supabase
@@ -283,7 +288,7 @@ export async function markPaid(
       amount_paid: job?.price ?? null,
     })
     .eq('id', id)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
 
   if (error) return { error: error.message }
 
@@ -300,13 +305,12 @@ export async function markPartial(
   formData: FormData
 ): Promise<FormState> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { businessId } = await requireBusinessContext()
 
   const amountPaid = parseFloat(formData.get('amount_paid') as string)
   if (isNaN(amountPaid) || amountPaid <= 0) return { error: 'Enter a valid amount.' }
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from('jobs')
     .update({
       payment_status: 'partial',
@@ -314,9 +318,12 @@ export async function markPartial(
       amount_paid: amountPaid,
     })
     .eq('id', id)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
+  if (!updated) return { error: 'Job not found.' }
 
   revalidatePath('/jobs')
   revalidatePath(`/jobs/${id}`)
@@ -331,8 +338,7 @@ export async function rescheduleJob(
   formData: FormData
 ): Promise<FormState> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { businessId } = await requireBusinessContext()
 
   const newDate = (formData.get('new_date') as string)?.trim()
   if (!newDate) return { error: 'Please pick a new date.' }
@@ -367,7 +373,7 @@ export async function rescheduleJob(
     .from('jobs')
     .select('reschedule_count, reschedule_log, scheduled_date, scheduled_time_window')
     .eq('id', id)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
     .single()
 
   const existing = existingRaw as JobRescheduleFields | null
@@ -394,7 +400,7 @@ export async function rescheduleJob(
       reschedule_log:        newLog,
     })
     .eq('id', id)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
 
   if (error) return { error: error.message }
 
