@@ -183,7 +183,7 @@ export async function updateProperty(
     revalidatePath(returnTo)
     redirect(returnTo)
   }
-  return { error: null, success: 'Changes saved.' }
+  redirect(`/properties/${id}`)
 }
 
 export async function applyParcelToProperty(
