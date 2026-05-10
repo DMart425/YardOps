@@ -4,14 +4,15 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { addDays, getLocalDateStr, resolveTimeZone } from '@/lib/date'
+import { requireBusinessContext } from '@/lib/business/context'
 
 export async function createEquipment(formData: FormData) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const { data, error } = await supabase.from('equipment').insert({
-    user_id: user.id,
+    user_id: userId,
+    business_id: businessId,
     name: formData.get('name') as string,
     equipment_type: (formData.get('equipment_type') as string) || null,
     make: (formData.get('make') as string) || null,
@@ -29,7 +30,9 @@ export async function createEquipment(formData: FormData) {
 
 export async function updateEquipment(id: string, formData: FormData) {
   const supabase = await createClient()
-  const { error } = await supabase.from('equipment').update({
+  const { businessId } = await requireBusinessContext()
+
+  const { data: updated, error } = await supabase.from('equipment').update({
     name: formData.get('name') as string,
     equipment_type: (formData.get('equipment_type') as string) || null,
     make: (formData.get('make') as string) || null,
@@ -38,9 +41,10 @@ export async function updateEquipment(id: string, formData: FormData) {
     current_hours: Number(formData.get('current_hours') ?? 0),
     notes: (formData.get('notes') as string) || null,
     status: formData.get('status') as string,
-  }).eq('id', id)
+  }).eq('id', id).eq('business_id', businessId).select('id').maybeSingle()
 
   if (error) throw new Error(error.message)
+  if (!updated) throw new Error('Equipment not found.')
   revalidatePath('/equipment/' + id)
   revalidatePath('/equipment')
   redirect('/equipment/' + id + '?saved=1')
@@ -48,14 +52,22 @@ export async function updateEquipment(id: string, formData: FormData) {
 
 export async function addMaintenanceItem(equipmentId: string, formData: FormData) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
+
+  const { data: eq } = await supabase
+    .from('equipment')
+    .select('id')
+    .eq('id', equipmentId)
+    .eq('business_id', businessId)
+    .maybeSingle()
+  if (!eq) throw new Error('Equipment not found.')
 
   const intervalHours = formData.get('interval_hours')
   const intervalDays = formData.get('interval_days')
 
   await supabase.from('maintenance_items').insert({
-    user_id: user.id,
+    user_id: userId,
+    business_id: businessId,
     equipment_id: equipmentId,
     name: formData.get('name') as string,
     interval_hours: intervalHours ? Number(intervalHours) : null,
@@ -68,13 +80,12 @@ export async function addMaintenanceItem(equipmentId: string, formData: FormData
 
 export async function logService(itemId: string, equipmentId: string, formData: FormData) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const { data: settings } = await supabase
     .from('pricing_settings')
     .select('time_zone')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .maybeSingle()
   const localToday = getLocalDateStr(resolveTimeZone(settings?.time_zone))
 
@@ -86,14 +97,17 @@ export async function logService(itemId: string, equipmentId: string, formData: 
     .from('maintenance_items')
     .select('interval_hours, interval_days')
     .eq('id', itemId)
-    .single()
+    .eq('business_id', businessId)
+    .maybeSingle()
 
-  const nextDueHours = item?.interval_hours
+  if (!item) throw new Error('Maintenance item not found.')
+
+  const nextDueHours = item.interval_hours
     ? completedHours + item.interval_hours
     : null
 
   let nextDueDate: string | null = null
-  if (item?.interval_days) {
+  if (item.interval_days) {
     nextDueDate = addDays(localToday, item.interval_days)
   }
 
@@ -102,7 +116,7 @@ export async function logService(itemId: string, equipmentId: string, formData: 
     last_completed_hours: completedHours,
     next_due_hours: nextDueHours,
     next_due_date: nextDueDate,
-  }).eq('id', itemId)
+  }).eq('id', itemId).eq('business_id', businessId)
 
   // Update equipment current_hours if higher (fallback if RPC doesn't exist)
   const { error: rpcError } = await supabase.rpc('update_equipment_hours_if_higher', {
@@ -113,6 +127,7 @@ export async function logService(itemId: string, equipmentId: string, formData: 
     await supabase.from('equipment')
       .update({ current_hours: completedHours })
       .eq('id', equipmentId)
+      .eq('business_id', businessId)
       .lt('current_hours', completedHours)
   }
 
@@ -121,6 +136,17 @@ export async function logService(itemId: string, equipmentId: string, formData: 
 
 export async function deleteMaintenanceItem(itemId: string, equipmentId: string) {
   const supabase = await createClient()
-  await supabase.from('maintenance_items').delete().eq('id', itemId)
+  const { businessId } = await requireBusinessContext()
+
+  const { data: item } = await supabase
+    .from('maintenance_items')
+    .select('id')
+    .eq('id', itemId)
+    .eq('business_id', businessId)
+    .maybeSingle()
+
+  if (!item) throw new Error('Maintenance item not found.')
+
+  await supabase.from('maintenance_items').delete().eq('id', itemId).eq('business_id', businessId)
   revalidatePath('/equipment/' + equipmentId)
 }

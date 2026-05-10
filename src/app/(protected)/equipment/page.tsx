@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { addDays, getLocalDateStr, resolveTimeZone } from '@/lib/date'
-import { redirect } from 'next/navigation'
+import { requireBusinessContext } from '@/lib/business/context'
 
 const TYPE_LABELS: Record<string, string> = {
   mower: 'Mower', trimmer: 'Trimmer', blower: 'Blower',
@@ -40,14 +40,12 @@ function serviceInfo(items: MaintItem[], currentHours: number) {
 
 export default async function EquipmentPage() {
   const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const { data: settings } = await supabase
     .from('pricing_settings')
     .select('time_zone')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .maybeSingle()
   const localToday = getLocalDateStr(resolveTimeZone(settings?.time_zone))
   const dueSoonDate = addDays(localToday, 7)
@@ -55,6 +53,7 @@ export default async function EquipmentPage() {
   const { data: equipment } = await supabase
     .from('equipment')
     .select('*, maintenance_items(last_completed_at, last_completed_hours, next_due_hours, next_due_date)')
+    .eq('business_id', businessId)
     .order('status')
     .order('name')
 
