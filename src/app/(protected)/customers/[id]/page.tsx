@@ -306,7 +306,6 @@ export default async function CustomerDetailPage({
       </div>
 
 
-      {/* Edit form */}
       {/* Portal link */}
       <div className="detail-section">
         <div className="section-heading">Customer Portal</div>

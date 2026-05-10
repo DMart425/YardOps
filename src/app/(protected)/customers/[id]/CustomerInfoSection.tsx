@@ -6,7 +6,12 @@ import { CustomerEditForm } from './_form'
 
 type CustomerWithTags = Customer & { tags?: string[] | null }
 
-export function CustomerInfoSection({ customer }: { customer: CustomerWithTags }) {
+interface CustomerInfoSectionProps {
+  customer: CustomerWithTags
+  mapsAddress?: string | null
+}
+
+export function CustomerInfoSection({ customer, mapsAddress }: CustomerInfoSectionProps) {
   const [isEditing, setIsEditing] = useState(false)
 
   const tags = customer.tags ?? []
@@ -49,6 +54,30 @@ export function CustomerInfoSection({ customer }: { customer: CustomerWithTags }
             {tags.map((tag) => (
               <span key={tag} className="pill pill-draft">{tag}</span>
             ))}
+          </div>
+        )}
+
+        {(customer.phone || customer.email || mapsAddress) && (
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
+            {customer.phone && (
+              <a href={`tel:${customer.phone}`} className="btn btn-sm btn-secondary">Call</a>
+            )}
+            {customer.phone && (
+              <a href={`sms:${customer.phone}`} className="btn btn-sm btn-secondary">Text</a>
+            )}
+            {customer.email && (
+              <a href={`mailto:${customer.email}`} className="btn btn-sm btn-secondary">Email</a>
+            )}
+            {mapsAddress && (
+              <a
+                href={`https://maps.google.com/?q=${encodeURIComponent(mapsAddress)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-sm btn-secondary"
+              >
+                Maps
+              </a>
+            )}
           </div>
         )}
       </div>
