@@ -2,23 +2,32 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
+import { requireBusinessContext } from '@/lib/business/context'
 
 export async function uploadJobPhoto(jobId: string, formData: FormData) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const file = formData.get('photo') as File | null
   if (!file || file.size === 0) return
+
+  // Verify the parent job belongs to this business before inserting a photo
+  const { data: job } = await supabase
+    .from('jobs')
+    .select('id')
+    .eq('id', jobId)
+    .eq('business_id', businessId)
+    .maybeSingle()
+
+  if (!job) throw new Error('Job not found.')
 
   const kind = (formData.get('kind') as string) || 'after'
   const caption = (formData.get('caption') as string)?.trim() || null
 
   const admin = createAdminClient()
   const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-  const path = `${user.id}/${jobId}/${Date.now()}-${crypto.randomUUID()}.${ext}`
+  const path = `${userId}/${jobId}/${Date.now()}-${crypto.randomUUID()}.${ext}`
   const bytes = await file.arrayBuffer()
 
   const { error: uploadError } = await admin.storage
@@ -35,10 +44,11 @@ export async function uploadJobPhoto(jobId: string, formData: FormData) {
   if (!signedUrl) throw new Error('Failed to sign photo URL')
 
   const { error: insertError } = await supabase.from('job_photos').insert({
-    user_id: user.id,
-    job_id: jobId,
+    user_id:      userId,
+    business_id:  businessId,
+    job_id:       jobId,
     storage_path: path,
-    signed_url: signedUrl,
+    signed_url:   signedUrl,
     kind,
     caption,
   })
@@ -50,21 +60,20 @@ export async function uploadJobPhoto(jobId: string, formData: FormData) {
 
 export async function deleteJobPhoto(photoId: string, jobId: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { businessId } = await requireBusinessContext()
 
   const { data: photo } = await supabase
     .from('job_photos')
     .select('storage_path')
     .eq('id', photoId)
-    .eq('user_id', user.id)
+    .eq('business_id', businessId)
     .single()
 
   if (!photo) return
 
   const admin = createAdminClient()
   await admin.storage.from('job-photos').remove([photo.storage_path])
-  await supabase.from('job_photos').delete().eq('id', photoId).eq('user_id', user.id)
+  await supabase.from('job_photos').delete().eq('id', photoId).eq('business_id', businessId)
 
   revalidatePath(`/jobs/${jobId}`)
 }

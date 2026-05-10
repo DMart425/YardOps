@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import type { FormState, MessageType } from '@/types/database'
+import { requireBusinessContext } from '@/lib/business/context'
 
 function val(formData: FormData, key: string): string {
   return ((formData.get(key) as string) ?? '').trim()
@@ -16,8 +17,7 @@ export async function deleteEstimate(
 ): Promise<FormState> {
   void prevState
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { businessId } = await requireBusinessContext()
 
   if (val(formData, 'delete_confirmation') !== 'DELETE') {
     return { error: 'Type DELETE to confirm estimate deletion.' }
@@ -25,9 +25,9 @@ export async function deleteEstimate(
 
   const { data: estimate, error: estimateError } = await supabase
     .from('estimates')
-    .select('id, created_by, status, customer_id, property_id')
+    .select('id, status, customer_id, property_id')
     .eq('id', estimateId)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
     .maybeSingle()
 
   if (estimateError || !estimate) {
@@ -37,7 +37,7 @@ export async function deleteEstimate(
   const { error: deleteItemsError } = await supabase
     .from('estimate_items')
     .delete()
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
     .eq('estimate_id', estimateId)
 
   if (deleteItemsError) {
@@ -47,7 +47,7 @@ export async function deleteEstimate(
   const { error: deleteEstimateError } = await supabase
     .from('estimates')
     .delete()
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
     .eq('id', estimateId)
 
   if (deleteEstimateError) {
@@ -62,8 +62,7 @@ export async function deleteEstimate(
 
 export async function updateEstimateStatus(estimateId: string, status: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { businessId } = await requireBusinessContext()
 
   const updates: Record<string, unknown> = { status }
   if (status === 'sent') {
@@ -79,11 +78,15 @@ export async function updateEstimateStatus(estimateId: string, status: string) {
     updates.approval_note = null
   }
 
-  await supabase
+  const { data: updated } = await supabase
     .from('estimates')
     .update(updates)
     .eq('id', estimateId)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
+    .select('id')
+    .maybeSingle()
+
+  if (!updated) throw new Error('Estimate not found.')
 
   revalidatePath('/estimates')
   revalidatePath(`/estimates/${estimateId}`)
@@ -92,17 +95,28 @@ export async function updateEstimateStatus(estimateId: string, status: string) {
 
 export async function logSmsSent(estimateId: string, customerId: string, body: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
+
+  const { data: estimate } = await supabase
+    .from('estimates')
+    .select('id')
+    .eq('id', estimateId)
+    .eq('business_id', businessId)
+    .eq('customer_id', customerId)
+    .maybeSingle()
+
+  if (!estimate) throw new Error('Estimate not found.')
 
   const { data: customer } = await supabase
     .from('customers')
     .select('phone')
     .eq('id', customerId)
+    .eq('business_id', businessId)
     .single()
 
   await supabase.from('message_logs').insert({
-    user_id: user.id,
+    user_id: userId,
+    business_id: businessId,
     estimate_id: estimateId,
     customer_id: customerId,
     message_type: 'estimate_follow_up' as MessageType,
