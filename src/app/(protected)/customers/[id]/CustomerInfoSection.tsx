@@ -6,10 +6,11 @@ import { CustomerEditForm } from './_form'
 
 type CustomerWithTags = Customer & { tags?: string[] | null }
 
-export function CustomerInfoSection({ customer }: { customer: CustomerWithTags }) {
+export function CustomerInfoSection({ customer, mapsAddress }: { customer: CustomerWithTags; mapsAddress?: string | null }) {
   const [isEditing, setIsEditing] = useState(false)
 
   const tags = customer.tags ?? []
+  const mapUrl = mapsAddress ? `https://maps.google.com/?q=${encodeURIComponent(mapsAddress)}` : null
 
   if (isEditing) {
     return (
@@ -44,6 +45,26 @@ export function CustomerInfoSection({ customer }: { customer: CustomerWithTags }
         )}
         <div className="card-meta">Status: {customer.status.replace(/_/g, ' ')}</div>
         {customer.notes && <div className="card-meta">Notes: {customer.notes}</div>}
+
+        {(customer.phone || customer.email || mapUrl) && (
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}>
+            {customer.phone && (
+              <a href={`tel:${customer.phone}`} className="btn btn-sm btn-secondary">📞 Call</a>
+            )}
+            {customer.phone && (
+              <a href={`sms:${customer.phone}`} className="btn btn-sm btn-secondary">💬 Text</a>
+            )}
+            {customer.email && (
+              <a href={`mailto:${customer.email}`} className="btn btn-sm btn-secondary">✉ Email</a>
+            )}
+            {mapUrl && (
+              <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-secondary">
+                📍 Maps
+              </a>
+            )}
+          </div>
+        )}
+
         {tags.length > 0 && (
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
             {tags.map((tag) => (
