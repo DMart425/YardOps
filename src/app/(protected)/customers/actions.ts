@@ -4,17 +4,18 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import type { FormState } from '@/types/database'
+import { requireBusinessContext } from '@/lib/business/context'
 
 export async function createCustomer(
   prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const { error } = await supabase.from('customers').insert({
-    created_by: user.id,
+    created_by: userId,
+    business_id: businessId,
     first_name: (formData.get('first_name') as string).trim(),
     last_name: (formData.get('last_name') as string)?.trim() || null,
     phone: (formData.get('phone') as string)?.trim() || null,
@@ -36,8 +37,7 @@ export async function updateCustomer(
   formData: FormData
 ): Promise<FormState> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const { error } = await supabase
     .from('customers')
@@ -52,7 +52,8 @@ export async function updateCustomer(
       tags: (formData.getAll('tags') as string[]).filter(Boolean),
     })
     .eq('id', id)
-    .eq('created_by', user.id)
+    .eq('created_by', userId)
+    .eq('business_id', businessId)
 
   if (error) return { error: error.message }
 
@@ -73,15 +74,15 @@ export async function archiveCustomer(
   void prevState
   void formData
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   // TODO: Future: restrict archive/delete controls to owner/admin company roles once company_members exists.
   const { error } = await supabase
     .from('customers')
     .update({ status: 'archived' })
     .eq('id', id)
-    .eq('created_by', user.id)
+    .eq('created_by', userId)
+    .eq('business_id', businessId)
 
   if (error) return { error: 'Unable to archive customer right now. Please try again.' }
 
@@ -98,14 +99,14 @@ export async function markLeadCustomerActive(
   void prevState
   void formData
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const { error } = await supabase
     .from('customers')
     .update({ status: 'active' })
     .eq('id', customerId)
-    .eq('created_by', user.id)
+    .eq('created_by', userId)
+    .eq('business_id', businessId)
 
   if (error) {
     return { error: 'Unable to mark this lead as active right now. Please try again.' }
@@ -124,8 +125,7 @@ export async function deleteCustomerPermanently(
 ): Promise<FormState> {
   void prevState
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   // TODO: Future: restrict archive/delete controls to owner/admin company roles once company_members exists.
   if (val(formData, 'delete_confirmation') !== 'DELETE') {
@@ -136,7 +136,8 @@ export async function deleteCustomerPermanently(
     .from('customers')
     .select('id')
     .eq('id', id)
-    .eq('created_by', user.id)
+    .eq('created_by', userId)
+    .eq('business_id', businessId)
     .maybeSingle()
 
   if (customerError || !customer) {
@@ -147,22 +148,26 @@ export async function deleteCustomerPermanently(
     supabase
       .from('jobs')
       .select('id', { count: 'exact', head: true })
-      .eq('created_by', user.id)
+      .eq('created_by', userId)
+      .eq('business_id', businessId)
       .eq('customer_id', id),
     supabase
       .from('estimates')
       .select('id', { count: 'exact', head: true })
-      .eq('created_by', user.id)
+      .eq('created_by', userId)
+      .eq('business_id', businessId)
       .eq('customer_id', id),
     supabase
       .from('message_logs')
       .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
+      .eq('business_id', businessId)
       .eq('customer_id', id),
     supabase
       .from('customer_portal_tokens')
       .select('token', { count: 'exact', head: true })
-      .eq('created_by', user.id)
+      .eq('created_by', userId)
+      .eq('business_id', businessId)
       .eq('customer_id', id),
   ])
 
@@ -173,7 +178,8 @@ export async function deleteCustomerPermanently(
   const { data: properties, error: propertiesError } = await supabase
     .from('properties')
     .select('id')
-    .eq('created_by', user.id)
+    .eq('created_by', userId)
+    .eq('business_id', businessId)
     .eq('customer_id', id)
 
   if (propertiesError) {
@@ -186,17 +192,20 @@ export async function deleteCustomerPermanently(
       supabase
         .from('jobs')
         .select('id', { count: 'exact', head: true })
-        .eq('created_by', user.id)
+        .eq('created_by', userId)
+        .eq('business_id', businessId)
         .in('property_id', propertyIds),
       supabase
         .from('estimates')
         .select('id', { count: 'exact', head: true })
-        .eq('created_by', user.id)
+        .eq('created_by', userId)
+        .eq('business_id', businessId)
         .in('property_id', propertyIds),
       supabase
         .from('message_logs')
         .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
+        .eq('business_id', businessId)
         .in('property_id', propertyIds),
     ])
 
@@ -207,7 +216,8 @@ export async function deleteCustomerPermanently(
     const { error: deletePropertiesError } = await supabase
       .from('properties')
       .delete()
-      .eq('created_by', user.id)
+      .eq('created_by', userId)
+      .eq('business_id', businessId)
       .eq('customer_id', id)
 
     if (deletePropertiesError) {
@@ -219,7 +229,8 @@ export async function deleteCustomerPermanently(
     .from('customers')
     .delete()
     .eq('id', id)
-    .eq('created_by', user.id)
+    .eq('created_by', userId)
+    .eq('business_id', businessId)
 
   if (deleteCustomerError) {
     return { error: 'Unable to permanently delete customer right now. Please try again.' }
@@ -237,8 +248,7 @@ export async function deleteTestCustomerWithLinkedTestRecords(
 ): Promise<FormState> {
   void prevState
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   // TODO: Future: restrict archive/delete controls to owner/admin company roles once company_members exists.
   if (val(formData, 'delete_test_confirmation') !== 'DELETE TEST DATA') {
@@ -249,7 +259,8 @@ export async function deleteTestCustomerWithLinkedTestRecords(
     .from('customers')
     .select('id')
     .eq('id', id)
-    .eq('created_by', user.id)
+    .eq('created_by', userId)
+    .eq('business_id', businessId)
     .maybeSingle()
 
   if (customerError || !customer) {
@@ -259,7 +270,8 @@ export async function deleteTestCustomerWithLinkedTestRecords(
   const { data: jobs, error: jobsError } = await supabase
     .from('jobs')
     .select('id')
-    .eq('created_by', user.id)
+    .eq('created_by', userId)
+    .eq('business_id', businessId)
     .eq('customer_id', id)
 
   if (jobsError) return { error: 'Unable to load linked jobs for test cleanup.' }
@@ -268,7 +280,8 @@ export async function deleteTestCustomerWithLinkedTestRecords(
   const { data: estimates, error: estimatesError } = await supabase
     .from('estimates')
     .select('id')
-    .eq('created_by', user.id)
+    .eq('created_by', userId)
+    .eq('business_id', businessId)
     .eq('customer_id', id)
 
   if (estimatesError) return { error: 'Unable to load linked estimates for test cleanup.' }
@@ -285,7 +298,8 @@ export async function deleteTestCustomerWithLinkedTestRecords(
     const { error: deleteExpensesError } = await supabase
       .from('expenses')
       .delete()
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
+      .eq('business_id', businessId)
       .in('job_id', jobIds)
 
     if (deleteExpensesError) return { error: 'Failed deleting linked expenses during test cleanup.' }
@@ -301,7 +315,8 @@ export async function deleteTestCustomerWithLinkedTestRecords(
   const { error: deleteMessageLogsError } = await supabase
     .from('message_logs')
     .delete()
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
+    .eq('business_id', businessId)
     .eq('customer_id', id)
 
   if (deleteMessageLogsError) return { error: 'Failed deleting customer message logs during test cleanup.' }
@@ -309,7 +324,8 @@ export async function deleteTestCustomerWithLinkedTestRecords(
   const { error: deletePortalTokensError } = await supabase
     .from('customer_portal_tokens')
     .delete()
-    .eq('created_by', user.id)
+    .eq('created_by', userId)
+    .eq('business_id', businessId)
     .eq('customer_id', id)
 
   if (deletePortalTokensError) return { error: 'Failed deleting customer portal tokens during test cleanup.' }
@@ -318,7 +334,8 @@ export async function deleteTestCustomerWithLinkedTestRecords(
     const { error: deleteEstimateItemsError } = await supabase
       .from('estimate_items')
       .delete()
-      .eq('created_by', user.id)
+      .eq('created_by', userId)
+      .eq('business_id', businessId)
       .in('estimate_id', estimateIds)
 
     if (deleteEstimateItemsError) return { error: 'Failed deleting estimate items during test cleanup.' }
@@ -328,7 +345,8 @@ export async function deleteTestCustomerWithLinkedTestRecords(
     const { error: deleteJobsError } = await supabase
       .from('jobs')
       .delete()
-      .eq('created_by', user.id)
+      .eq('created_by', userId)
+      .eq('business_id', businessId)
       .eq('customer_id', id)
 
     if (deleteJobsError) return { error: 'Failed deleting customer jobs during test cleanup.' }
@@ -338,7 +356,8 @@ export async function deleteTestCustomerWithLinkedTestRecords(
     const { error: deleteEstimatesError } = await supabase
       .from('estimates')
       .delete()
-      .eq('created_by', user.id)
+      .eq('created_by', userId)
+      .eq('business_id', businessId)
       .eq('customer_id', id)
 
     if (deleteEstimatesError) return { error: 'Failed deleting customer estimates during test cleanup.' }
@@ -347,7 +366,8 @@ export async function deleteTestCustomerWithLinkedTestRecords(
   const { error: deletePropertiesError } = await supabase
     .from('properties')
     .delete()
-    .eq('created_by', user.id)
+    .eq('created_by', userId)
+    .eq('business_id', businessId)
     .eq('customer_id', id)
 
   if (deletePropertiesError) return { error: 'Failed deleting customer properties during test cleanup.' }
@@ -356,7 +376,8 @@ export async function deleteTestCustomerWithLinkedTestRecords(
     .from('customers')
     .delete()
     .eq('id', id)
-    .eq('created_by', user.id)
+    .eq('created_by', userId)
+    .eq('business_id', businessId)
 
   if (deleteCustomerError) return { error: 'Failed deleting customer row during test cleanup.' }
 

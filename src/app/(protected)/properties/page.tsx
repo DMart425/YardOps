@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { formatDateOnly, getLocalDateStr, resolveTimeZone } from '@/lib/date'
 import { formatFrequencyLabel } from '@/lib/frequency'
-import { redirect } from 'next/navigation'
+import { requireBusinessContext } from '@/lib/business/context'
 
 const PAGE_SIZE = 50
 
@@ -34,13 +34,12 @@ export default async function PropertiesPage({
   const to = from + PAGE_SIZE
 
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const { data: settings } = await supabase
     .from('pricing_settings')
     .select('time_zone')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .maybeSingle()
   const timeZone = resolveTimeZone(settings?.time_zone)
   const today = getLocalDateStr(timeZone)
@@ -51,6 +50,7 @@ export default async function PropertiesPage({
     const { data: customersForFilter } = await supabase
       .from('customers')
       .select('id')
+      .eq('business_id', businessId)
       .in('status', statuses)
     filterCustomerIds = (customersForFilter ?? []).map(c => c.id)
   }
@@ -62,6 +62,7 @@ export default async function PropertiesPage({
     let customerNameQuery = supabase
       .from('customers')
       .select('id')
+      .eq('business_id', businessId)
       .or(`first_name.ilike.${pattern},last_name.ilike.${pattern}`)
 
     if (filter === 'leads') {
@@ -103,6 +104,7 @@ export default async function PropertiesPage({
         default_service_package, default_price,
         customers ( id, first_name, last_name, status )
       `)
+      .eq('business_id', businessId)
       .order('service_address', { ascending: true })
       .range(from, to)
 

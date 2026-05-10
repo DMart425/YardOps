@@ -1,9 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
 import type { Customer } from '@/types/database'
 import { formatDateOnly, getLocalDateStr, resolveTimeZone } from '@/lib/date'
 import { formatFrequencyLabel } from '@/lib/frequency'
+import { requireBusinessContext } from '@/lib/business/context'
 
 type PropertySummary = {
   id: string
@@ -51,13 +51,12 @@ export default async function CustomersPage({
   const to = from + PAGE_SIZE
 
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const { data: tzSettings } = await supabase
     .from('pricing_settings')
     .select('time_zone')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .maybeSingle()
   const timeZone = resolveTimeZone(tzSettings?.time_zone)
   const today = getLocalDateStr(timeZone)
@@ -73,6 +72,7 @@ export default async function CustomersPage({
         default_service_package, status
       )
     `)
+    .eq('business_id', businessId)
     .in('status', ['active', 'inactive'])
     .order('first_name', { ascending: true })
     .range(from, to)
@@ -101,6 +101,7 @@ export default async function CustomersPage({
     const { data: jobs } = await supabase
       .from('jobs')
       .select('customer_id, scheduled_date, scheduled_time_window')
+      .eq('business_id', businessId)
       .in('status', ['scheduled', 'in_progress', 'needs_reschedule'])
       .gte('scheduled_date', today)
       .in('customer_id', displayedCustomerIds)

@@ -1,17 +1,17 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { requireBusinessContext } from '@/lib/business/context'
 
 export async function getOrCreatePortalToken(customerId: string): Promise<{ token: string } | { error: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated.' }
+  const { userId, businessId } = await requireBusinessContext()
 
   // Upsert: create token if none exists, return existing if already there
   const { data, error } = await supabase
     .from('customer_portal_tokens')
     .upsert(
-      { customer_id: customerId, created_by: user.id },
+      { customer_id: customerId, business_id: businessId, created_by: userId },
       { onConflict: 'customer_id', ignoreDuplicates: true }
     )
     .select('token')
@@ -23,6 +23,7 @@ export async function getOrCreatePortalToken(customerId: string): Promise<{ toke
       .from('customer_portal_tokens')
       .select('token')
       .eq('customer_id', customerId)
+      .eq('business_id', businessId)
       .single()
 
     if (fetchError || !existing) return { error: 'Could not generate portal link.' }

@@ -1,10 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Property } from '@/types/database'
 import { ApplyParcelButton } from '@/app/(protected)/leads/[id]/ApplyParcelButton'
 import { formatDateOnly, formatTimestampDate, getLocalDateStr, resolveTimeZone } from '@/lib/date'
 import { estimateMowableAcres } from '@/lib/pricing'
+import { requireBusinessContext } from '@/lib/business/context'
 import { PropertyDangerZone } from './PropertyDangerZone'
 import { PropertyAssignmentSection } from './PropertyAssignmentSection'
 import { PropertyEditSection } from './PropertyEditSection'
@@ -31,27 +32,28 @@ export default async function PropertyDetailPage({
   const { return_to } = await searchParams
   const safeReturnTo = parseSafeReturnTo(return_to)
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const { data: settings } = await supabase
     .from('pricing_settings')
     .select('time_zone')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .maybeSingle()
   const timeZone = resolveTimeZone(settings?.time_zone ?? null)
   const today = getLocalDateStr(timeZone)
 
   const [{ data: property }, { data: customers }] = await Promise.all([
-    supabase.from('properties').select('*').eq('id', id).single(),
+    supabase.from('properties').select('*').eq('id', id).eq('business_id', businessId).single(),
     supabase
       .from('customers')
       .select('id, first_name, last_name, status')
+      .eq('business_id', businessId)
       .neq('status', 'archived')
       .order('first_name'),
   ])
 
   if (!property) notFound()
+  if (property.business_id !== businessId) notFound()
 
   // Revenue stats for this property
   const [

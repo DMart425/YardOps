@@ -1,14 +1,15 @@
 import { createClient } from '@/lib/supabase/server'
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Customer, Property } from '@/types/database'
 import { CopyPortalLinkButton } from '@/components/CopyPortalLinkButton'
 import { formatDateOnly, formatTimestampDate, getLocalDateStr, resolveTimeZone } from '@/lib/date'
+import { requireBusinessContext } from '@/lib/business/context'
 import { CustomerDangerZone } from './CustomerDangerZone'
 import { LeadStatusActions } from './LeadStatusActions'
 import { CustomerInfoSection } from './CustomerInfoSection'
 
-type CustomerWithTags = Customer & { tags?: string[] | null }
+type CustomerWithTags = Customer & { tags?: string[] | null; business_id?: string | null }
 
 export default async function CustomerDetailPage({
   params,
@@ -17,13 +18,12 @@ export default async function CustomerDetailPage({
 }) {
   const { id } = await params
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const { data: settings } = await supabase
     .from('pricing_settings')
     .select('time_zone')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .maybeSingle()
   const timeZone = resolveTimeZone(settings?.time_zone ?? null)
   const today = getLocalDateStr(timeZone)
@@ -37,7 +37,7 @@ export default async function CustomerDetailPage({
     { data: completedJobsStats },
     { data: lastCompletedJob },
   ] = await Promise.all([
-    supabase.from('customers').select('*').eq('id', id).single(),
+    supabase.from('customers').select('*').eq('id', id).eq('business_id', businessId).single(),
     supabase
       .from('properties')
       .select('id, property_name, service_address, city, service_frequency, status')
@@ -84,6 +84,7 @@ export default async function CustomerDetailPage({
 
   if (!customer) notFound()
   const customerRow = customer as CustomerWithTags
+  if (customerRow.business_id !== businessId) notFound()
 
   const completedCount = completedJobsCount ?? 0
   const completedStatsRows = completedJobsStats ?? []
