@@ -1,8 +1,8 @@
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createExpense } from '../../actions'
 import { getLocalDateStr, resolveTimeZone } from '@/lib/date'
+import { requireBusinessContext } from '@/lib/business/context'
 
 const CATEGORIES = [
   { value: 'fuel',      label: 'Fuel' },
@@ -21,13 +21,12 @@ export default async function NewExpensePage({
 }) {
   const { job_id: presetJobId } = await searchParams
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const { data: settings } = await supabase
     .from('pricing_settings')
     .select('time_zone')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .maybeSingle()
   const today = getLocalDateStr(resolveTimeZone(settings?.time_zone))
 
@@ -39,6 +38,7 @@ export default async function NewExpensePage({
   const { data: jobs } = await supabase
     .from('jobs')
     .select('id, scheduled_date, customers(first_name, last_name), properties(service_address)')
+    .eq('business_id', businessId)
     .gte('scheduled_date', sinceStr)
     .order('scheduled_date', { ascending: false })
     .limit(50)

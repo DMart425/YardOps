@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { updateExpense, deleteExpense } from '../../actions'
+import { requireBusinessContext } from '@/lib/business/context'
 
 const CATEGORIES = [
   { value: 'fuel',      label: 'Fuel' },
@@ -16,7 +17,9 @@ const CATEGORIES = [
 export default async function ExpenseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
-  const { data: expense } = await supabase.from('expenses').select('*').eq('id', id).single()
+  const { businessId } = await requireBusinessContext()
+
+  const { data: expense } = await supabase.from('expenses').select('*').eq('id', id).eq('business_id', businessId).single()
   if (!expense) notFound()
 
   // Recent jobs for the picker
@@ -25,6 +28,7 @@ export default async function ExpenseDetailPage({ params }: { params: Promise<{ 
   const { data: jobs } = await supabase
     .from('jobs')
     .select('id, scheduled_date, customers(first_name, last_name), properties(service_address)')
+    .eq('business_id', businessId)
     .gte('scheduled_date', since.toISOString().split('T')[0])
     .order('scheduled_date', { ascending: false })
     .limit(50)

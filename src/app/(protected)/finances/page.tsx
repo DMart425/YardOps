@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
 import { addDays, formatDateOnly, getDateOnlyMonthKey, getLocalDateStr, getLocalMonthKey, resolveTimeZone } from '@/lib/date'
 import FinancesExportButton from './FinancesExportButton'
+import { requireBusinessContext } from '@/lib/business/context'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const CATEGORY_LABELS: Record<string, string> = {
@@ -22,13 +22,12 @@ export default async function FinancesPage({
   const sp = await searchParams
 
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const { data: settings } = await supabase
     .from('pricing_settings')
     .select('time_zone')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .maybeSingle()
   const timeZone = resolveTimeZone(settings?.time_zone)
   const localToday = getLocalDateStr(timeZone)
@@ -46,6 +45,7 @@ export default async function FinancesPage({
   const { data: rawJobs } = await supabase
     .from('jobs')
     .select('id, amount_paid, price, payment_status, completed_at, customers(id, first_name, last_name)')
+    .eq('business_id', businessId)
     .in('payment_status', ['paid', 'partial'])
     .gte('completed_at', jobsQueryStart)
     .lte('completed_at', jobsQueryEnd)
@@ -57,6 +57,7 @@ export default async function FinancesPage({
   const { data: expenses } = await supabase
     .from('expenses')
     .select('id, purchased_at, amount, category, vendor, description')
+    .eq('business_id', businessId)
     .gte('purchased_at', yearStart)
     .lte('purchased_at', yearEnd)
     .order('purchased_at')
