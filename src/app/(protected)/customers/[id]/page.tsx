@@ -4,6 +4,7 @@ import Link from 'next/link'
 import type { Customer, Property } from '@/types/database'
 import { CopyPortalLinkButton } from '@/components/CopyPortalLinkButton'
 import { formatDateOnly, formatTimestampDate, getLocalDateStr, resolveTimeZone } from '@/lib/date'
+import { formatFrequencyLabel } from '@/lib/frequency'
 import { requireBusinessContext } from '@/lib/business/context'
 import { CustomerDangerZone } from './CustomerDangerZone'
 import { LeadStatusActions } from './LeadStatusActions'
@@ -31,7 +32,6 @@ export default async function CustomerDetailPage({
   const [
     { data: customer },
     { data: properties },
-    { data: jobs },
     { data: nextVisitJob },
     { count: completedJobsCount },
     { data: completedJobsStats },
@@ -40,19 +40,17 @@ export default async function CustomerDetailPage({
     supabase.from('customers').select('*').eq('id', id).eq('business_id', businessId).single(),
     supabase
       .from('properties')
-      .select('id, property_name, service_address, city, service_frequency, status')
+      .select(
+        'id, property_name, service_address, city, service_frequency, preferred_service_day, default_price, default_service_package, default_mowing_enabled, default_weed_eating_enabled, default_edging_enabled, default_blow_off_enabled, status'
+      )
       .eq('customer_id', id)
+      .eq('business_id', businessId)
       .order('service_address'),
-    supabase
-      .from('jobs')
-      .select('id, title, status, payment_status, scheduled_date, completed_at, price, amount_paid')
-      .eq('customer_id', id)
-      .order('scheduled_date', { ascending: false })
-      .limit(10),
     supabase
       .from('jobs')
       .select('id, scheduled_date, scheduled_time_window')
       .eq('customer_id', id)
+      .eq('business_id', businessId)
       .in('status', ['scheduled', 'in_progress', 'needs_reschedule'])
       .gte('scheduled_date', today)
       .order('scheduled_date', { ascending: true })
@@ -63,18 +61,21 @@ export default async function CustomerDetailPage({
       .from('jobs')
       .select('id', { count: 'exact', head: true })
       .eq('customer_id', id)
+      .eq('business_id', businessId)
       .eq('status', 'completed'),
     // Narrow completed-job fields needed for revenue/unpaid only.
     supabase
       .from('jobs')
       .select('price, amount_paid, payment_status')
       .eq('customer_id', id)
+      .eq('business_id', businessId)
       .eq('status', 'completed'),
     // Last visit needs only the most recent completed timestamp.
     supabase
       .from('jobs')
       .select('completed_at')
       .eq('customer_id', id)
+      .eq('business_id', businessId)
       .eq('status', 'completed')
       .not('completed_at', 'is', null)
       .order('completed_at', { ascending: false })
@@ -96,7 +97,7 @@ export default async function CustomerDetailPage({
       return s + Math.max(0, owed)
     }, 0)
   const lastVisit = lastCompletedJob?.completed_at ?? null
-  const propertyRows = (properties as Pick<Property, 'id' | 'property_name' | 'service_address' | 'city' | 'service_frequency' | 'status'>[] | null) ?? []
+  const propertyRows = (properties as Pick<Property, 'id' | 'property_name' | 'service_address' | 'city' | 'service_frequency' | 'preferred_service_day' | 'default_price' | 'default_service_package' | 'default_mowing_enabled' | 'default_weed_eating_enabled' | 'default_edging_enabled' | 'default_blow_off_enabled' | 'status'>[] | null) ?? []
   const activeProperties = propertyRows.filter(p => p.status !== 'archived')
   const archivedProperties = propertyRows.filter(p => p.status === 'archived')
   const mapProperty = activeProperties[0] ?? archivedProperties[0] ?? null
@@ -134,48 +135,21 @@ export default async function CustomerDetailPage({
         </div>
       )}
 
-      {/* Contact quick info */}
-      {(customerRow.phone || customerRow.email || mapsAddress) && (
-        <div className="card" style={{ marginBottom: '1.5rem' }}>
-          {customerRow.phone && (
-            <a href={`tel:${customerRow.phone}`} className="contact-row">
-              📞 {customerRow.phone}
-            </a>
-          )}
-          {customerRow.email && (
-            <a href={`mailto:${customerRow.email}`} className="contact-row">
-              ✉ {customerRow.email}
-            </a>
-          )}
-          {customerRow.preferred_contact_method && (
-            <div className="contact-row text-muted">
-              Prefers: {customerRow.preferred_contact_method.replace('_', ' ')}
-            </div>
-          )}
-          {(customerRow.phone || customerRow.email || customerRow.preferred_contact_method) && <div className="divider" />}
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {customerRow.phone && (
-              <a href={`tel:${customerRow.phone}`} className="btn btn-sm btn-secondary">📞 Call</a>
-            )}
-            {customerRow.phone && (
-              <a href={`sms:${customerRow.phone}`} className="btn btn-sm btn-secondary">💬 Text</a>
-            )}
-            {customerRow.email && (
-              <a href={`mailto:${customerRow.email}`} className="btn btn-sm btn-secondary">✉ Email</a>
-            )}
-            {mapsAddress && (
-              <a
-                href={`https://maps.google.com/?q=${encodeURIComponent(mapsAddress)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-sm btn-secondary"
-              >
-                📍 Maps
-              </a>
-            )}
+      <CustomerInfoSection customer={customerRow} mapsAddress={mapsAddress} />
+
+      <div className="detail-section">
+        <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+          <div>
+            <div className="section-heading" style={{ marginBottom: '8px' }}>Job History</div>
+            <p className="text-small text-muted" style={{ margin: 0 }}>
+              View this customer&apos;s recent jobs without loading full history on the customer detail page.
+            </p>
           </div>
+          <Link href={`/jobs`} className="btn btn-sm btn-secondary">
+            View all jobs
+          </Link>
         </div>
-      )}
+      </div>
 
       {/* History stats */}
       <div className="stat-grid" style={{ marginBottom: '1.5rem' }}>
@@ -232,35 +206,41 @@ export default async function CustomerDetailPage({
             <p className="text-muted text-small">No properties yet.</p>
           </div>
         ) : (
-          activeProperties.map((p) => (
-            <div key={p.id} className="card">
-              <div className="card-row">
-                <div>
-                  <div className="card-title">{p.property_name ?? p.service_address}</div>
-                  {p.property_name && <div className="card-meta">{p.service_address}{p.city ? `, ${p.city}` : ''}</div>}
-                  <div className="card-meta">{p.service_frequency?.replace('_', ' ')}</div>
-                </div>
-                <span className={`pill pill-${p.status}`}>{p.status}</span>
-              </div>
-              <div className="card-actions">
-                <Link href={`/properties/${p.id}`} className="btn btn-sm btn-secondary">Edit Property</Link>
-              </div>
-            </div>
-          ))
-        )}
+          activeProperties.map((p) => {
+            const frequency = p.service_frequency ? formatFrequencyLabel(p.service_frequency) : null
+            const preferredDay = p.preferred_service_day
+              ? p.preferred_service_day.replace(/_/g, ' ')
+              : 'No preferred day'
 
-        {archivedProperties.length > 0 && (
-          <div style={{ marginTop: '14px' }}>
-            <div className="section-heading" style={{ marginBottom: '8px', fontSize: '0.95rem' }}>
-              Archived Properties ({archivedProperties.length})
-            </div>
-            {archivedProperties.map((p) => (
-              <div key={p.id} className="card" style={{ opacity: 0.92 }}>
+            let serviceOptions: string | null = null
+            const hasBooleans =
+              p.default_mowing_enabled !== null ||
+              p.default_weed_eating_enabled !== null ||
+              p.default_edging_enabled !== null ||
+              p.default_blow_off_enabled !== null
+            if (hasBooleans) {
+              const services: string[] = []
+              if (p.default_mowing_enabled) services.push('Mowing')
+              if (p.default_weed_eating_enabled) services.push('Weed eating')
+              if (p.default_edging_enabled) services.push('Edging')
+              if (p.default_blow_off_enabled) services.push('Blow off')
+              serviceOptions = services.length > 0 ? services.join(', ') : null
+            }
+            if (!serviceOptions && p.default_service_package) {
+              serviceOptions = p.default_service_package.replace(/_/g, ' ')
+            }
+            const defaultPrice = p.default_price != null ? `$${p.default_price}` : null
+
+            return (
+              <div key={p.id} className="card">
                 <div className="card-row">
                   <div>
                     <div className="card-title">{p.property_name ?? p.service_address}</div>
                     {p.property_name && <div className="card-meta">{p.service_address}{p.city ? `, ${p.city}` : ''}</div>}
-                    <div className="card-meta">{p.service_frequency?.replace('_', ' ')}</div>
+                    {frequency && <div className="card-meta">🔁 {frequency}</div>}
+                    <div className="card-meta">📅 {preferredDay}</div>
+                    {serviceOptions && <div className="card-meta">⚙ {serviceOptions}</div>}
+                    {defaultPrice && <div className="card-meta">💲 {defaultPrice}</div>}
                   </div>
                   <span className={`pill pill-${p.status}`}>{p.status}</span>
                 </div>
@@ -268,44 +248,63 @@ export default async function CustomerDetailPage({
                   <Link href={`/properties/${p.id}`} className="btn btn-sm btn-secondary">Edit Property</Link>
                 </div>
               </div>
-            ))}
+            )
+          })
+        )}
+
+        {archivedProperties.length > 0 && (
+          <div style={{ marginTop: '14px' }}>
+            <div className="section-heading" style={{ marginBottom: '8px', fontSize: '0.95rem' }}>
+              Archived Properties ({archivedProperties.length})
+            </div>
+            {archivedProperties.map((p) => {
+              const frequency = p.service_frequency ? formatFrequencyLabel(p.service_frequency) : null
+              const preferredDay = p.preferred_service_day
+                ? p.preferred_service_day.replace(/_/g, ' ')
+                : 'No preferred day'
+
+              let serviceOptions: string | null = null
+              const hasBooleans =
+                p.default_mowing_enabled !== null ||
+                p.default_weed_eating_enabled !== null ||
+                p.default_edging_enabled !== null ||
+                p.default_blow_off_enabled !== null
+              if (hasBooleans) {
+                const services: string[] = []
+                if (p.default_mowing_enabled) services.push('Mowing')
+                if (p.default_weed_eating_enabled) services.push('Weed eating')
+                if (p.default_edging_enabled) services.push('Edging')
+                if (p.default_blow_off_enabled) services.push('Blow off')
+                serviceOptions = services.length > 0 ? services.join(', ') : null
+              }
+              if (!serviceOptions && p.default_service_package) {
+                serviceOptions = p.default_service_package.replace(/_/g, ' ')
+              }
+              const defaultPrice = p.default_price != null ? `$${p.default_price}` : null
+
+              return (
+                <div key={p.id} className="card" style={{ opacity: 0.92 }}>
+                  <div className="card-row">
+                    <div>
+                      <div className="card-title">{p.property_name ?? p.service_address}</div>
+                      {p.property_name && <div className="card-meta">{p.service_address}{p.city ? `, ${p.city}` : ''}</div>}
+                      {frequency && <div className="card-meta">🔁 {frequency}</div>}
+                      <div className="card-meta">📅 {preferredDay}</div>
+                      {serviceOptions && <div className="card-meta">⚙ {serviceOptions}</div>}
+                      {defaultPrice && <div className="card-meta">💲 {defaultPrice}</div>}
+                    </div>
+                    <span className={`pill pill-${p.status}`}>{p.status}</span>
+                  </div>
+                  <div className="card-actions">
+                    <Link href={`/properties/${p.id}`} className="btn btn-sm btn-secondary">Edit Property</Link>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
 
-      {/* Recent jobs */}
-      {jobs && jobs.length > 0 && (
-        <div className="detail-section">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <div className="section-heading" style={{ marginBottom: 0 }}>
-              Recent Jobs ({jobs.length})
-            </div>
-            <Link href={`/jobs/new?customer_id=${id}`} className="btn btn-sm btn-secondary">
-              + Add Job
-            </Link>
-          </div>
-          {jobs.map((j) => (
-            <Link key={j.id} href={`/jobs/${j.id}`} className="card card-link" style={{ display: 'block', marginBottom: '8px' }}>
-              <div className="card-row">
-                <div style={{ minWidth: 0 }}>
-                  <div className="card-title">{j.title}</div>
-                  <div className="card-meta">
-                    {j.completed_at
-                      ? `Completed ${formatTimestampDate(j.completed_at, timeZone)}`
-                      : j.scheduled_date
-                        ? `Scheduled ${formatDateOnly(j.scheduled_date)}`
-                        : 'No date'}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
-                  <span className={`pill pill-${j.status}`}>{j.status.replace(/_/g, ' ')}</span>
-                  {j.price != null && <span className="font-bold text-small">${j.price}</span>}
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
 
       {/* Edit form */}
       {/* Portal link */}
@@ -319,8 +318,6 @@ export default async function CustomerDetailPage({
           <CopyPortalLinkButton customerId={customerRow.id} />
         </div>
       </div>
-
-      <CustomerInfoSection customer={customerRow} />
 
       <CustomerDangerZone customerId={customerRow.id} />
     </div>
