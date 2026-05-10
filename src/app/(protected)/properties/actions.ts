@@ -109,7 +109,7 @@ export async function updateProperty(
   formData: FormData
 ): Promise<FormState> {
   const supabase = await createClient()
-  const { userId, businessId } = await requireBusinessContext()
+  const { businessId } = await requireBusinessContext()
 
   const customerId = str(formData, 'customer_id')
   if (!customerId) return { error: 'Please select a customer.' }
@@ -138,7 +138,7 @@ export async function updateProperty(
     if (geo) geoUpdate = { latitude: geo.latitude, longitude: geo.longitude }
   }
 
-  const { error } = await supabase
+  const { data: updatedProperty, error } = await supabase
     .from('properties')
     .update({
       customer_id: customerId,
@@ -170,10 +170,12 @@ export async function updateProperty(
       status: (formData.get('status') as string) || 'active',
     })
     .eq('id', id)
-    .eq('created_by', userId)
     .eq('business_id', businessId)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
+  if (!updatedProperty) return { error: 'Property not found or not owned by this business.' }
 
   revalidatePath('/properties')
   revalidatePath(`/properties/${id}`)
@@ -190,7 +192,7 @@ export async function applyParcelToProperty(
 ): Promise<FormState> {
   void _prevState
   const supabase = await createClient()
-  const { userId, businessId } = await requireBusinessContext()
+  const { businessId } = await requireBusinessContext()
 
   const propertyId  = formData.get('property_id') as string
   const parcelId    = formData.get('parcel_id') as string
@@ -199,7 +201,7 @@ export async function applyParcelToProperty(
 
   if (!propertyId || !parcelId) return { error: 'Missing data.' }
 
-  const { error } = await supabase
+  const { data: updatedProperty, error } = await supabase
     .from('properties')
     .update({
       parcel_id: parcelId,
@@ -207,10 +209,12 @@ export async function applyParcelToProperty(
       estimated_mowable_acres: mowableAcres,
     })
     .eq('id', propertyId)
-    .eq('created_by', userId)
     .eq('business_id', businessId)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
+  if (!updatedProperty) return { error: 'Property not found or not owned by this business.' }
 
   revalidatePath('/properties')
   revalidatePath(`/properties/${propertyId}`)
@@ -230,17 +234,19 @@ export async function archiveProperty(
   void prevState
   void formData
   const supabase = await createClient()
-  const { userId, businessId } = await requireBusinessContext()
+  const { businessId } = await requireBusinessContext()
 
   // TODO: Future: restrict archive/delete controls to owner/admin company roles once company_members exists.
-  const { error } = await supabase
+  const { data: archivedProperty, error } = await supabase
     .from('properties')
     .update({ status: 'archived' })
     .eq('id', id)
-    .eq('created_by', userId)
     .eq('business_id', businessId)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: 'Unable to archive property right now. Please try again.' }
+  if (!archivedProperty) return { error: 'Property not found or not owned by this business.' }
 
   revalidatePath('/properties')
   revalidatePath(`/properties/${id}`)
@@ -254,7 +260,7 @@ export async function deletePropertyPermanently(
 ): Promise<FormState> {
   void prevState
   const supabase = await createClient()
-  const { userId, businessId } = await requireBusinessContext()
+  const { businessId } = await requireBusinessContext()
 
   // TODO: Future: restrict archive/delete controls to owner/admin company roles once company_members exists.
   if (val(formData, 'delete_confirmation') !== 'DELETE') {
@@ -265,7 +271,6 @@ export async function deletePropertyPermanently(
     .from('properties')
     .select('id')
     .eq('id', id)
-    .eq('created_by', userId)
     .eq('business_id', businessId)
     .maybeSingle()
 
@@ -277,19 +282,16 @@ export async function deletePropertyPermanently(
     supabase
       .from('jobs')
       .select('id', { count: 'exact', head: true })
-      .eq('created_by', userId)
       .eq('business_id', businessId)
       .eq('property_id', id),
     supabase
       .from('estimates')
       .select('id', { count: 'exact', head: true })
-      .eq('created_by', userId)
       .eq('business_id', businessId)
       .eq('property_id', id),
     supabase
       .from('message_logs')
       .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
       .eq('business_id', businessId)
       .eq('property_id', id),
   ])
@@ -302,7 +304,6 @@ export async function deletePropertyPermanently(
     .from('properties')
     .delete()
     .eq('id', id)
-    .eq('created_by', userId)
     .eq('business_id', businessId)
 
   if (deleteError) {
@@ -320,7 +321,7 @@ export async function reassignProperty(
 ): Promise<FormState> {
   void prevState
   const supabase = await createClient()
-  const { userId, businessId } = await requireBusinessContext()
+  const { businessId } = await requireBusinessContext()
 
   const newCustomerId = str(formData, 'new_customer_id')
   if (!newCustomerId) return { error: 'Please select a customer to reassign this property.' }
@@ -329,7 +330,6 @@ export async function reassignProperty(
     .from('properties')
     .select('id, customer_id')
     .eq('id', id)
-    .eq('created_by', userId)
     .eq('business_id', businessId)
     .maybeSingle()
 
@@ -341,7 +341,6 @@ export async function reassignProperty(
     .from('customers')
     .select('id')
     .eq('id', newCustomerId)
-    .eq('created_by', userId)
     .eq('business_id', businessId)
     .maybeSingle()
 
@@ -351,15 +350,19 @@ export async function reassignProperty(
 
   const previousCustomerId = property.customer_id
 
-  const { error: updateError } = await supabase
+  const { data: updatedProperty, error: updateError } = await supabase
     .from('properties')
     .update({ customer_id: newCustomerId })
     .eq('id', id)
-    .eq('created_by', userId)
     .eq('business_id', businessId)
+    .select('id')
+    .maybeSingle()
 
   if (updateError) {
     return { error: 'Unable to reassign property right now. Please try again.' }
+  }
+  if (!updatedProperty) {
+    return { error: 'Property not found or not owned by this business.' }
   }
 
   revalidatePath('/properties')
@@ -377,13 +380,12 @@ export async function restoreProperty(
   void prevState
   void formData
   const supabase = await createClient()
-  const { userId, businessId } = await requireBusinessContext()
+  const { businessId } = await requireBusinessContext()
 
   const { data: property, error: propertyError } = await supabase
     .from('properties')
     .select('id')
     .eq('id', id)
-    .eq('created_by', userId)
     .eq('business_id', businessId)
     .maybeSingle()
 
@@ -391,15 +393,19 @@ export async function restoreProperty(
     return { error: 'Property not found.' }
   }
 
-  const { error: updateError } = await supabase
+  const { data: restoredProperty, error: updateError } = await supabase
     .from('properties')
     .update({ status: 'active' })
     .eq('id', id)
-    .eq('created_by', userId)
     .eq('business_id', businessId)
+    .select('id')
+    .maybeSingle()
 
   if (updateError) {
     return { error: 'Unable to restore property right now. Please try again.' }
+  }
+  if (!restoredProperty) {
+    return { error: 'Property not found or not owned by this business.' }
   }
 
   revalidatePath('/properties')
@@ -419,12 +425,11 @@ export async function backfillPropertyCoordinates(
   void _prevState
   void _formData
   const supabase = await createClient()
-  const { userId, businessId } = await requireBusinessContext()
+  const { businessId } = await requireBusinessContext()
 
   const { data: properties } = await supabase
     .from('properties')
     .select('id, service_address, city, state, postal_code')
-    .eq('created_by', userId)
     .eq('business_id', businessId)
     .or('latitude.is.null,longitude.is.null')
 
@@ -448,7 +453,6 @@ export async function backfillPropertyCoordinates(
         .from('properties')
         .update({ latitude: geo.latitude, longitude: geo.longitude })
         .eq('id', p.id)
-        .eq('created_by', userId)
         .eq('business_id', businessId)
       succeeded++
     } else {
