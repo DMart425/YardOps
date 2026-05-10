@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { formatDateOnly, formatTimestampDate, resolveTimeZone } from '@/lib/date'
 import { JobActions } from '@/components/JobActions'
@@ -7,6 +7,7 @@ import { JobPhotos } from '@/components/JobPhotos'
 import { DownloadInvoiceButton } from '@/components/DownloadInvoiceButton'
 import { ScheduleFollowUpCard } from '@/components/ScheduleFollowUpCard'
 import type { Job } from '@/types/database'
+import { requireBusinessContext } from '@/lib/business/context'
 
 type JobDetail = Job & {
   customers: { first_name: string; last_name: string | null; phone: string | null; email: string | null }
@@ -30,6 +31,7 @@ export default async function JobDetailPage({
 }) {
   const { id } = await params
   const supabase = await createClient()
+  const { userId, businessId } = await requireBusinessContext()
 
   const { data: jobRaw } = await supabase
     .from('jobs')
@@ -39,24 +41,22 @@ export default async function JobDetailPage({
       properties ( service_address, city, state, service_frequency, pet_warning, gate_code, access_notes, obstacle_notes, parking_notes )
     `)
     .eq('id', id)
+    .eq('business_id', businessId)
     .single()
 
   if (!jobRaw) notFound()
   const job = jobRaw as JobDetail
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
   const { data: profile } = await supabase
     .from('profiles')
     .select('business_name, business_phone, business_email')
-    .eq('id', user.id)
+    .eq('id', userId)
     .single()
 
   const { data: settings } = await supabase
     .from('pricing_settings')
     .select('venmo_handle, time_zone')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .maybeSingle()
   const venmoHandle = (settings?.venmo_handle as string | null) ?? null
   const timeZone = resolveTimeZone(settings?.time_zone ?? null)
@@ -65,12 +65,14 @@ export default async function JobDetailPage({
     .from('job_photos')
     .select('id, signed_url, kind, caption, created_at')
     .eq('job_id', id)
+    .eq('business_id', businessId)
     .order('created_at', { ascending: true })
 
   const { data: jobExpenses } = await supabase
     .from('expenses')
     .select('id, category, vendor, description, amount, purchased_at')
     .eq('job_id', id)
+    .eq('business_id', businessId)
     .order('purchased_at', { ascending: false })
 
   const customer = job.customers

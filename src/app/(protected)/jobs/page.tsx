@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
 import { addDays, formatDateOnly, formatTimestampDate, getLocalDateStr, resolveTimeZone } from '@/lib/date'
+import { requireBusinessContext } from '@/lib/business/context'
 
 type CustomerRelation = { first_name: string; last_name: string | null }
 type PropertyRelation = {
@@ -71,13 +71,12 @@ export default async function JobsPage({
   const completedFrom = (page - 1) * COMPLETED_PAGE_SIZE
   const completedTo = completedFrom + COMPLETED_PAGE_SIZE - 1
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const { data: settings } = await supabase
     .from('pricing_settings')
     .select('time_zone, blackout_dates')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .maybeSingle()
   const timeZone = resolveTimeZone(settings?.time_zone ?? null)
 
@@ -95,6 +94,7 @@ export default async function JobsPage({
   let query = supabase
     .from('jobs')
     .select('id, title, status, payment_status, price, amount_paid, scheduled_date, completed_at, scheduled_time_window, service_package, job_type, customers(first_name, last_name), properties(service_address, city, latitude, longitude)')
+    .eq('business_id', businessId)
 
   if (view === 'completed') {
     query = query.eq('status', 'completed').order('completed_at', { ascending: false })
@@ -149,6 +149,7 @@ export default async function JobsPage({
   const { count: overdueCount } = await supabase
     .from('jobs')
     .select('id', { count: 'exact', head: true })
+    .eq('business_id', businessId)
     .eq('status', 'completed')
     .in('payment_status', ['unpaid', 'partial'])
     .lt('completed_at', `${sevenDaysAgoStr}T00:00:00`)
