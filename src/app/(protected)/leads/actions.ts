@@ -54,8 +54,7 @@ export async function createLead(
 ): Promise<FormState> {
   void prevState
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const firstName = str(formData, 'first_name')
   if (!firstName) return { error: 'First name is required.' }
@@ -87,7 +86,8 @@ export async function createLead(
   const { data: customer, error: custError } = await supabase
     .from('customers')
     .insert({
-      created_by: user.id,
+      created_by: userId,
+      business_id: businessId,
       first_name: firstName,
       last_name: str(formData, 'last_name'),
       phone: str(formData, 'phone'),
@@ -110,7 +110,8 @@ export async function createLead(
   const { error: propError } = await supabase
     .from('properties')
     .insert({
-      created_by: user.id,
+      created_by: userId,
+      business_id: businessId,
       customer_id: customer.id,
       property_name: str(formData, 'property_name'),
       service_address: serviceAddress,
@@ -139,7 +140,7 @@ export async function createLead(
       .from('customers')
       .delete()
       .eq('id', customer.id)
-      .eq('created_by', user.id)
+      .eq('business_id', businessId)
 
     if (rollbackError) {
       return { error: `Property save failed after lead creation and automatic rollback failed: ${propError.message}` }
@@ -213,6 +214,7 @@ export async function convertWebsiteLead(
     .from('customers')
     .insert({
       created_by: userId,
+      business_id: businessId,
       first_name: firstName,
       last_name: lastName,
       phone: claimedLead.phone ?? null,
@@ -249,16 +251,18 @@ export async function archiveLead(
   void prevState
   void _formData
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { businessId } = await requireBusinessContext()
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from('customers')
     .update({ status: 'archived' })
     .eq('id', customerId)
-    .eq('created_by', user.id)
+    .eq('business_id', businessId)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { error: error.message }
+  if (!updated) return { error: 'Lead not found.' }
 
   revalidatePath('/leads')
   redirect('/leads')

@@ -54,6 +54,7 @@ export default async function LeadsPage({
       id, first_name, last_name, phone, email, notes, created_at,
       properties ( id, service_address, city, service_frequency )
     `)
+    .eq('business_id', businessId)
     .eq('status', 'lead')
     .order('created_at', { ascending: false })
     .range(from, to)

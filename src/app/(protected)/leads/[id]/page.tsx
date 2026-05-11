@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { LeadActions } from './LeadActions'
 import { ApplyParcelButton } from './ApplyParcelButton'
 import { normalizeFrequency, parseWebsiteServiceInterests } from '@/lib/frequency'
+import { requireBusinessContext } from '@/lib/business/context'
 
 const SERVICE_INTEREST_LABELS: Record<string, string> = {
   mowing: 'Lawn mowing',
@@ -85,6 +86,7 @@ export default async function LeadDetailPage({
 }) {
   const { id } = await params
   const supabase = await createClient()
+  const { businessId } = await requireBusinessContext()
 
   const { data: customer } = await supabase
     .from('customers')
@@ -93,6 +95,7 @@ export default async function LeadDetailPage({
       properties ( id, service_address, city, service_frequency, access_notes, internal_notes, parcel_id, parcel_acres, estimated_mowable_acres, default_service_package, default_mowing_enabled, default_weed_eating_enabled, default_edging_enabled, default_blow_off_enabled )
     `)
     .eq('id', id)
+    .eq('business_id', businessId)
     .eq('status', 'lead')
     .single()
 
@@ -143,6 +146,7 @@ export default async function LeadDetailPage({
     .from('estimates')
     .select('id, status, total, created_at')
     .eq('customer_id', id)
+    .eq('business_id', businessId)
     .order('created_at', { ascending: false })
     .limit(5)
 
