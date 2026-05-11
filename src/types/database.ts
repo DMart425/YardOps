@@ -33,6 +33,7 @@ export interface Profile {
 
 export interface Customer {
   id: string
+  business_id: string | null
   created_by: string
   first_name: string
   last_name: string | null
@@ -41,6 +42,7 @@ export interface Customer {
   preferred_contact_method: string | null
   notes: string | null
   status: CustomerStatus
+  tags: string[] | null
   created_at: string
   updated_at: string
 }
@@ -61,6 +63,7 @@ export interface Lead {
 
 export interface Property {
   id: string
+  business_id: string | null
   created_by: string
   customer_id: string
   parcel_id: string | null
@@ -101,6 +104,7 @@ export interface Property {
 
 export interface Job {
   id: string
+  business_id: string | null
   created_by: string
   customer_id: string
   property_id: string
@@ -138,6 +142,7 @@ export interface Job {
 
 export interface MessageLog {
   id: string
+  business_id: string | null
   user_id: string
   customer_id: string | null
   property_id: string | null
@@ -189,6 +194,7 @@ export type EstimateStatus = 'draft' | 'pending' | 'sent' | 'approved' | 'declin
 
 export interface Estimate {
   id: string
+  business_id: string | null
   created_by: string
   customer_id: string
   property_id: string
@@ -231,6 +237,7 @@ export interface AppNotification {
 
 export interface EstimateItem {
   id: string
+  business_id: string | null
   created_by: string
   estimate_id: string
   sort_order: number
