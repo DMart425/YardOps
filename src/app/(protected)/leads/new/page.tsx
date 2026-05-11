@@ -225,38 +225,41 @@ export default function NewLeadPage() {
             </div>
           </div>
 
-          <div className="form-row">
-            <div className="form-field">
-              <label className="form-label" htmlFor="service_frequency">Requested Frequency *</label>
-              <select
-                id="service_frequency"
-                name="service_frequency"
-                className="form-select"
-                defaultValue="one_time"
-              >
-                <option value="weekly">Weekly</option>
-                <option value="biweekly">Bi-Weekly</option>
-                <option value="one_time">One-Time</option>
-                <option value="custom">Custom</option>
-                <option value="paused">Paused</option>
-              </select>
-            </div>
-            <div className="form-field">
-              <label className="form-label" htmlFor="default_service_package">Requested Package</label>
-              <select
-                id="default_service_package"
-                name="default_service_package"
-                className="form-select"
-                defaultValue=""
-              >
-                <option value="">Not set</option>
-                <option value="mow_only">Mow Only</option>
-                <option value="mow_blow">Mow + Blow</option>
-                <option value="full_service_mow_edge_trim_blow">Full Service</option>
-                <option value="first_cut_overgrown">First Cut / Overgrown</option>
-                <option value="leaf_cleanup">Leaf Cleanup</option>
-                <option value="custom">Custom</option>
-              </select>
+          <div className="form-field">
+            <label className="form-label" htmlFor="service_frequency">Requested Frequency *</label>
+            <select
+              id="service_frequency"
+              name="service_frequency"
+              className="form-select"
+              defaultValue="one_time"
+            >
+              <option value="weekly">Weekly</option>
+              <option value="biweekly">Bi-Weekly</option>
+              <option value="one_time">One-Time</option>
+              <option value="custom">Custom</option>
+              <option value="paused">Paused</option>
+            </select>
+          </div>
+
+          <div className="form-field">
+            <label className="form-label">Requested Services</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+              <label className="checkbox-label">
+                <input type="checkbox" name="svc_mowing" value="true" defaultChecked />
+                Mowing
+              </label>
+              <label className="checkbox-label">
+                <input type="checkbox" name="svc_weed_eating" value="true" />
+                Weed Eating / Trimming
+              </label>
+              <label className="checkbox-label">
+                <input type="checkbox" name="svc_edging" value="true" />
+                Edging
+              </label>
+              <label className="checkbox-label">
+                <input type="checkbox" name="svc_blow_off" value="true" />
+                Blow Off Hard Surfaces
+              </label>
             </div>
           </div>
 

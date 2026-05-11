@@ -70,17 +70,29 @@ export async function createLead(
 
   const postalCode = str(formData, 'postal_code')
   const serviceFrequency = str(formData, 'service_frequency') ?? 'one_time'
-  const defaultServicePackage = str(formData, 'default_service_package')
+
+  // Individual service selections (checkboxes — present in FormData only when checked)
+  const svcMowing    = formData.get('svc_mowing')    === 'true'
+  const svcWeedEating = formData.get('svc_weed_eating') === 'true'
+  const svcEdging    = formData.get('svc_edging')    === 'true'
+  const svcBlowOff   = formData.get('svc_blow_off')  === 'true'
+
+  // Build a human-readable service summary for the intake notes
+  const selectedServices = [
+    svcMowing     && 'Mowing',
+    svcWeedEating && 'Weed eating / trimming',
+    svcEdging     && 'Edging',
+    svcBlowOff    && 'Blow off hard surfaces',
+  ].filter(Boolean).join(', ')
 
   const intakeAddress = [serviceAddress, city, state, postalCode].filter(Boolean).join(', ')
   const requestedFrequency = str(formData, 'service_frequency')
-  const requestedPackage = str(formData, 'default_service_package')
   const notes = buildLeadIntakeNotes({
     existingNotes: str(formData, 'notes'),
     sourceLabel: 'Manual lead',
     intakeAddress,
     requestedFrequency,
-    requestedPackage,
+    requestedPackage: selectedServices || null,
   })
 
   const { data: customer, error: custError } = await supabase
@@ -125,7 +137,10 @@ export async function createLead(
       parcel_acres: num(formData, 'parcel_acres'),
       estimated_mowable_acres: num(formData, 'estimated_mowable_acres'),
       lot_size_source: str(formData, 'lot_size_source') ?? 'manual',
-      default_service_package: defaultServicePackage,
+      default_mowing_enabled: svcMowing,
+      default_weed_eating_enabled: svcWeedEating,
+      default_edging_enabled: svcEdging,
+      default_blow_off_enabled: svcBlowOff,
       service_frequency: serviceFrequency,
       access_notes: str(formData, 'access_notes'),
       obstacle_notes: str(formData, 'obstacle_notes'),
