@@ -21,7 +21,7 @@ Last updated: 2026-05-11
 
 ## Current Checkpoint
 
-- **Latest commit:** `289b732` — Update YardOps architecture and handoff docs
+- **Latest commit:** `b9c02f3` — Harden leads business ownership
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -178,6 +178,7 @@ Commits: `8621e2d`, `9028e84`, `3c5371a`
 
 | Hash | Description |
 |------|-------------|
+| `b9c02f3` | Harden leads business ownership (Phase 2E Final) |
 | `289b732` | Update YardOps architecture and handoff docs |
 | `5037536` | Harden core business ownership (Phase 2E Group 3) |
 | `3c5371a` | Show itemized services on job cards |
@@ -226,19 +227,40 @@ All of the following were user-tested and confirmed working as of `289b732`:
 | Item | Status | Notes |
 |------|--------|-------|
 | DB password rotation | ⏸ Pending | Schedule at a safe pause point; do not interrupt active work |
+| Phase 2F — Final Multi-Business Audit | ⏸ Pending | See Architecture.md §16 for full 13-point checklist |
+| Phase 2G — Defense-in-Depth Cleanup | ⏸ Pending | See Architecture.md §16 for known items |
 | B.7a website frequency/service-interest intake | ⏸ Pending | `6c8bada` in WicksburgLawnService |
 | B.7b YardOps consumption of B.7a leads | ⏸ Pending | Verify normalization/carryover |
 | Stale jobs with `service_package = null` and no property booleans | ℹ️ Minor | Cards show no 🌿 line — acceptable for now, data cleanup optional |
-| RLS hardening checklist items | ℹ️ Future | See Architecture.md §15 |
+
+---
+
+## Post-Phase-2E Roadmap
+
+Full roadmap lives in Architecture.md §16. Summary:
+
+| Phase | Goal | Status |
+|-------|------|--------|
+| 2F | Final end-to-end multi-business audit | ⏸ Pending |
+| 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ⏸ Pending |
+| 3 | Public intake and lead workflow improvements | ⏸ Pending |
+| 4 | Operations UX / workflow polish | ⏸ Pending |
+| 5 | Reporting, automation, and growth features | ⏸ Pending |
+
+**Permanent Future-Handoff Requirements** (mandatory — see Architecture.md §16):
+Every future handoff must instruct the next chat to read ARCHITECTURE.md and HANDOFF.md first, remind it to update those docs after any verified/committed change, state the latest commit, current phase status, open items, workflow guardrails, and known security follow-ups (no secret values).
 
 ---
 
 ## Recommended Next Task
 
-Next project item is user-selected. Candidates include:
+**Immediate next task: Phase 2F — Final Multi-Business Audit**
 
-- B.7b: YardOps consumption of WicksburgLawnService B.7a leads (frequency normalization + service interest carryover)
-- RLS hardening checklist items (see Architecture.md §15)
+Phase 2F starts as a read-only audit. No migrations, no code changes, no SQL writes. Run the 13-point checklist in Architecture.md §16 and produce a findings report.
+
+After Phase 2F findings are reviewed, the next step will be user-selected from:
+- Phase 2G — Defense-in-depth cleanup (if Phase 2F surfaces issues)
+- Phase 3 — Public intake and lead workflow improvements
 - Any other explicitly selected item
 
 ---

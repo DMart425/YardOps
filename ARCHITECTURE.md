@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-11
-Current checkpoint commit: `289b732` (Update YardOps architecture and handoff docs)  
+Current checkpoint commit: `b9c02f3` (Harden leads business ownership)  
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -480,7 +480,126 @@ Website/manual intake address, frequency, and service interests are written into
 
 ---
 
-## 16. Design Principles
+## 16. Post-Phase-2E Roadmap
+
+### Phase 2F — Final Multi-Business Audit
+
+**Goal:** Run a final end-to-end audit now that Phase 2D and Phase 2E are complete.
+
+**Status:** ⏸ Pending
+
+**Audit scope:**
+1. Re-audit all business-owned tables.
+2. Confirm every YardOps-owned business table has `business_id NOT NULL`:
+   - `customers`, `properties`, `estimates`, `estimate_items`, `jobs`, `job_visits`, `job_photos`, `expenses`, `message_logs`, `equipment`, `maintenance_items`, `customer_portal_tokens`, `leads`
+3. Confirm all NOT NULL `business_id` foreign keys use `ON DELETE RESTRICT`.
+4. Confirm no business-owned table still has `ON DELETE SET NULL` on `business_id`.
+5. Confirm all business-owned RLS policies use `public.is_business_member(business_id)`.
+6. Confirm INSERT/UPDATE WITH CHECK policies require non-null `business_id` where applicable.
+7. Confirm user-scoped tables remain intentionally `auth.uid()`-scoped: `profiles`, `pricing_settings`, `push_subscriptions`, `brief_settings`.
+8. Confirm reference/special tables remain intentionally scoped: parcels (authenticated read + service-role policy), estimates (public quote token policy for `/quote/[token]`), `customer_portal_tokens` (server-side/public portal route behavior).
+9. Confirm app insert/update paths always set `business_id`.
+10. Confirm public/token routes still work: `/quote/[token]`, `/portal/[token]`, WicksburgLawnService public lead intake.
+11. Confirm exports/reporting queries are safely business-scoped.
+12. Confirm there are no remaining obvious `created_by`/`user_id`-only assumptions on business-owned data paths.
+13. Update ARCHITECTURE.md and HANDOFF.md after the audit is complete.
+
+---
+
+### Phase 2G — Defense-in-Depth Cleanup
+
+**Goal:** Clean up remaining hardening/consistency issues found during Phase 2D/2E and Phase 2F.
+
+**Status:** ⏸ Pending
+
+**Known items:**
+1. `DataExportSection.tsx` explicit `business_id` filter cleanup.
+2. Audit exports and reporting screens for business scoping.
+3. Continue checking for legacy `created_by`/`user_id` assumptions in business-owned queries.
+4. Continue replacing legacy `service_package`/package-name assumptions with itemized service booleans where appropriate.
+5. Do not remove legacy `default_service_package` yet unless a full compatibility audit says it is safe.
+6. Audit old notes/package compatibility paths before removing or rewriting legacy fields.
+7. Confirm `message_logs`, portal tokens, and customer-facing links continue to behave correctly after cleanup.
+8. Keep each cleanup patch small and reviewable.
+
+---
+
+### Phase 3 — Public Intake and Lead Workflow Improvements
+
+**Goal:** Improve the WicksburgLawnService → YardOps lead lifecycle now that hardening is stable.
+
+**Status:** ⏸ Pending
+
+**Potential tasks:**
+1. Improve public WicksburgLawnService intake to YardOps service mapping.
+2. Make website lead service interests prefill YardOps property booleans more directly during conversion.
+3. Improve lead conversion flow: lead → customer → property → estimate.
+4. Preserve customer/parcel/address/service info across the full flow.
+5. Reduce duplicated manual entry.
+6. Ensure public intake and manual YardOps lead creation use consistent service language: Mowing, Weed Eating, Edging, Blow Off.
+7. Keep WicksburgLawnService read-only unless explicitly asked to patch it.
+
+---
+
+### Phase 4 — Operations UX / Workflow Polish
+
+**Goal:** Improve day-to-day YardOps usability after data hardening.
+
+**Status:** ⏸ Pending
+
+**Potential tasks:**
+1. Customer/property workflow polish.
+2. Estimate builder polish.
+3. Estimate → job conversion polish.
+4. Jobs page/service card polish.
+5. Scheduling and recurring job improvements.
+6. Equipment/maintenance polish.
+7. Daily/weekly brief improvements.
+8. Reports/export improvements.
+9. Payment/portal/invoice polish.
+10. Better validation/errors for forms.
+
+---
+
+### Phase 5 — Reporting, Automation, and Growth Features
+
+**Goal:** Build features on top of the stable multi-business-safe foundation.
+
+**Status:** ⏸ Pending
+
+**Potential tasks:**
+1. Daily brief and weekly brief improvements.
+2. More useful revenue/expense reporting.
+3. Better route/day planning.
+4. Follow-up reminders.
+5. Customer service history improvements.
+6. Portal enhancements.
+7. Better public quote/intake analytics.
+8. Future multi-business/team/operator support if desired.
+
+---
+
+### Permanent Future-Handoff Requirements
+
+Every future handoff to a new chat MUST include:
+1. Instruction to read ARCHITECTURE.md and HANDOFF.md first.
+2. Reminder that those docs are living source-of-truth documents.
+3. Reminder to update those docs after verified/committed architecture, DB, migration, workflow, deployment, or major app behavior changes.
+4. Latest verified commit.
+5. Current Phase 2E / Phase 2F / post-hardening status.
+6. Current open/deferred items.
+7. Workflow guardrails:
+   - Run `git status --short` before staging/committing/applying.
+   - Never stage `.claude/`.
+   - Never use `supabase db push`.
+   - Use `npx supabase db query --linked --file` only after approval.
+   - Never commit/push/apply migrations without explicit approval.
+   - WicksburgLawnService is read-only unless explicitly told otherwise.
+8. Known security follow-ups, including Supabase password rotation, without including secret values.
+
+---
+
+## 17. Design Principles
 
 - **Mobile-first** — all pages designed for 320px+; sidebar hidden on mobile; bottom nav instead.
 - **Dark theme only** — CSS custom properties in `globals.css`; no light mode; no Tailwind.
@@ -492,7 +611,7 @@ Website/manual intake address, frequency, and service interests are written into
 
 ---
 
-## 17. Job Preservation Warnings
+## 18. Job Preservation Warnings
 
 These must not break during any refactor:
 
@@ -507,7 +626,7 @@ These must not break during any refactor:
 
 ---
 
-## 18. Developer Onboarding
+## 19. Developer Onboarding
 
 ### Prerequisites
 
