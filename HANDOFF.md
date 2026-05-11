@@ -16,13 +16,12 @@ Last updated: 2026-05-11
 | `DMart425/WicksburgLawnService` | Public business website + lead intake form |
 
 **Do not casually edit WicksburgLawnService during YardOps work.**
-WicksburgLawnService must be audited before hardening `leads.business_id`.
 
 ---
 
 ## Current Checkpoint
 
-- **Latest commit:** `5037536` — Harden core business ownership (Phase 2E Group 3)
+- **Latest commit:** `289b732` — Update YardOps architecture and handoff docs
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -88,7 +87,7 @@ Phase 2D commits (Waves 1–7):
 
 ---
 
-### Phase 2E — NOT NULL Hardening ✅ (leads deferred)
+### Phase 2E — NOT NULL Hardening ✅ (complete — all tables including leads)
 
 `business_id NOT NULL` enforced on all YardOps-owned tables. Each FK converted from `ON DELETE SET NULL` to `ON DELETE RESTRICT` before applying NOT NULL.
 
@@ -97,10 +96,10 @@ Phase 2D commits (Waves 1–7):
 | Group 1 | `estimate_items`, `job_visits`, `customer_portal_tokens`, `job_photos` | ✅ Applied + committed | `7200e5b` |
 | Group 2 | `equipment`, `maintenance_items` | ✅ Applied + committed | `5d5e81f` |
 | Group 3 | `customers`, `properties`, `estimates`, `jobs`, `expenses`, `message_logs` | ✅ Applied + committed | `5037536` |
-| `leads` | — | ⏸ **Deferred** | — |
+| `leads` | — | ✅ Applied + verified + user-tested | — |
 
-**Why `leads` is deferred:**
-`leads` has an external insert path through the WicksburgLawnService public intake form. Before hardening, audit the public intake to confirm every lead insert writes `business_id`. See Recommended Next Task below.
+**leads hardening notes:**
+WicksburgLawnService public intake was audited before applying. Confirmed every lead insert writes `business_id` via `YARDOPS_INTAKE_BUSINESS_ID` env var. 0 null rows across 9 existing leads. Public intake test passed after migration was applied. `leads_business_id_fkey` now uses `ON DELETE RESTRICT`.
 
 ---
 
@@ -171,6 +170,7 @@ Commits: `8621e2d`, `9028e84`, `3c5371a`
 | `20260511172000_fix_customer_portal_tokens_token_default.sql` | Fix token default to hex |
 | `20260511180000_phase2e_group2_not_null_equipment.sql` | Phase 2E Group 2 NOT NULL |
 | `20260511190000_phase2e_group3_not_null_core_operations.sql` | Phase 2E Group 3 NOT NULL |
+| `20260511200000_phase2e_leads_not_null.sql` | Phase 2E leads — business_id NOT NULL / FK ON DELETE RESTRICT |
 
 ---
 
@@ -178,6 +178,7 @@ Commits: `8621e2d`, `9028e84`, `3c5371a`
 
 | Hash | Description |
 |------|-------------|
+| `289b732` | Update YardOps architecture and handoff docs |
 | `5037536` | Harden core business ownership (Phase 2E Group 3) |
 | `3c5371a` | Show itemized services on job cards |
 | `9028e84` | Derive job service labels from property defaults |
@@ -203,7 +204,7 @@ Commits: `8621e2d`, `9028e84`, `3c5371a`
 
 ## Current Verified Behavior
 
-All of the following were user-tested and confirmed working as of `5037536`:
+All of the following were user-tested and confirmed working as of `289b732`:
 
 - ✅ Share Portal Link generates a working public URL
 - ✅ Public portal page loads and matches dark app styling
@@ -216,6 +217,7 @@ All of the following were user-tested and confirmed working as of `5037536`:
 - ✅ `recurring` no longer appears as a service label
 - ✅ Steve Pippin shows correct service label
 - ✅ Cedric Thomas shows "Mowing, Blow Off"
+- ✅ Public WicksburgLawnService intake form submits successfully with `leads.business_id NOT NULL` enforced
 
 ---
 
@@ -223,64 +225,21 @@ All of the following were user-tested and confirmed working as of `5037536`:
 
 | Item | Status | Notes |
 |------|--------|-------|
-| `leads.business_id NOT NULL` | ⏸ Deferred | Audit WicksburgLawnService intake path first |
 | DB password rotation | ⏸ Pending | Schedule at a safe pause point; do not interrupt active work |
 | B.7a website frequency/service-interest intake | ⏸ Pending | `6c8bada` in WicksburgLawnService |
 | B.7b YardOps consumption of B.7a leads | ⏸ Pending | Verify normalization/carryover |
 | Stale jobs with `service_package = null` and no property booleans | ℹ️ Minor | Cards show no 🌿 line — acceptable for now, data cleanup optional |
-| RLS hardening checklist items | ℹ️ Future | See Architecture.md §9 |
+| RLS hardening checklist items | ℹ️ Future | See Architecture.md §15 |
 
 ---
 
 ## Recommended Next Task
 
-**Read-only audit of WicksburgLawnService public intake + YardOps `leads` insert path** before hardening `leads.business_id`.
+Next project item is user-selected. Candidates include:
 
-Suggested audit scope:
-- Public WicksburgLawnService form payload — what fields does it send?
-- API/action/function that inserts the lead — does it write `business_id`?
-- Whether itemized services from the intake form map to YardOps property booleans.
-- Live `leads` null count on `business_id`.
-- `leads.business_id` current FK delete rule.
-- `leads` RLS policies.
-- Any existing null `business_id` rows — safe to backfill?
-
-### Read-Only SQL for Leads Audit
-
-Run these against `lewzqavgvltzwfeypvam` (read-only, no mutations):
-
-```sql
--- Null count check
-SELECT COUNT(*) AS total_rows,
-       COUNT(*) FILTER (WHERE business_id IS NULL) AS null_business_id
-FROM public.leads;
-
--- NOT NULL status
-SELECT table_name, column_name, is_nullable
-FROM information_schema.columns
-WHERE table_schema = 'public'
-  AND table_name = 'leads'
-  AND column_name = 'business_id';
-
--- FK delete rule
-SELECT tc.table_name, tc.constraint_name, rc.delete_rule
-FROM information_schema.table_constraints tc
-JOIN information_schema.referential_constraints rc
-  ON rc.constraint_name = tc.constraint_name
-JOIN information_schema.key_column_usage kcu
-  ON kcu.constraint_name = tc.constraint_name
-WHERE tc.table_schema = 'public'
-  AND tc.constraint_type = 'FOREIGN KEY'
-  AND kcu.column_name = 'business_id'
-  AND tc.table_name = 'leads';
-
--- RLS policies
-SELECT tablename, policyname, cmd, roles, qual, with_check
-FROM pg_policies
-WHERE schemaname = 'public'
-  AND tablename = 'leads'
-ORDER BY policyname;
-```
+- B.7b: YardOps consumption of WicksburgLawnService B.7a leads (frequency normalization + service interest carryover)
+- RLS hardening checklist items (see Architecture.md §15)
+- Any other explicitly selected item
 
 ---
 

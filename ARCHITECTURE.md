@@ -4,8 +4,8 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-11  
-Current checkpoint commit: `5037536` (Harden core business ownership — Phase 2E Group 3)  
+Last updated: 2026-05-11
+Current checkpoint commit: `289b732` (Update YardOps architecture and handoff docs)  
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -18,7 +18,6 @@ Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 **Rules:**
 - Do not casually edit WicksburgLawnService during YardOps work.
-- WicksburgLawnService must be audited before hardening `leads.business_id`.
 - Never merge responsibilities: YardOps is operations; WicksburgLawnService is a lead funnel only.
 
 YardOps enables the operator to:
@@ -147,7 +146,7 @@ All protected server actions and pages call `requireBusinessContext()` from `@/l
 
 A `businesses` table exists as the FK target for `business_id` on all business-owned tables. The `is_business_member(business_id)` function is used in RLS policies.
 
-### Business-Owned Tables (Phase 2E complete)
+### Business-Owned Tables (Phase 2E complete — all tables)
 
 All of the following tables have `business_id NOT NULL` with `ON DELETE RESTRICT`:
 
@@ -163,10 +162,9 @@ All of the following tables have `business_id NOT NULL` with `ON DELETE RESTRICT
 - `equipment`
 - `maintenance_items`
 - `customer_portal_tokens`
+- `leads`
 
-### Deferred
-
-- `leads` — `business_id` NOT NULL hardening deferred. External insert path (WicksburgLawnService) must be audited first.
+Phase 2E is fully complete. WicksburgLawnService public intake was audited before hardening `leads` — confirmed every insert writes `business_id` via `YARDOPS_INTAKE_BUSINESS_ID`. Public intake test passed after migration was applied and verified.
 
 ---
 
@@ -302,8 +300,8 @@ Business-owned tables use `public.is_business_member(business_id)` in all SELECT
 ### `job_photos`
 - `id`, `job_id`, `business_id` **NOT NULL`, and photo/storage fields
 
-### `leads` (website intake — partially owned)
-- `id`, `business_id` (nullable — **NOT NULL hardening deferred**)
+### `leads` (website intake)
+- `id`, `business_id` **NOT NULL** (FK → businesses, ON DELETE RESTRICT)
 - `name`, `phone`, `email`, `address`, `frequency`, `notes`
 - `status` (`'new'` | `'converted'` | `'archived'`)
 - `created_by` (nullable), `created_at`
@@ -466,7 +464,6 @@ Website/manual intake address, frequency, and service interests are written into
 
 | Item | Status | Notes |
 |------|--------|-------|
-| `leads.business_id NOT NULL` | ⏸ Deferred | Audit WicksburgLawnService intake path first — see HANDOFF.md |
 | DB password rotation | ⏸ Pending | Schedule at a safe pause |
 | B.7a website frequency/service intake | ⏸ Pending | WicksburgLawnService `6c8bada` |
 | B.7b YardOps consumption of B.7a leads | ⏸ Pending | |
