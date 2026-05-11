@@ -21,7 +21,7 @@ Last updated: 2026-05-11
 
 ## Current Checkpoint
 
-- **Latest commit:** `b9c02f3` — Harden leads business ownership
+- **Latest commit:** `e4d0879` — Document post-hardening roadmap
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -145,6 +145,29 @@ Commit: `6b2c553`
 
 ---
 
+### Phase 2F — Final Multi-Business Audit ✅
+
+Read-only audit run against live DB (`lewzqavgvltzwfeypvam`). All 13 business-owned tables verified. No blockers or must-fix items found.
+
+**Verified:**
+- All 13 business-owned tables have `business_id NOT NULL` → `businesses(id)` with `ON DELETE RESTRICT`
+- Zero null `business_id` rows across all 13 tables
+- All business-owned RLS policies use `is_business_member(business_id)` with `WITH CHECK` requiring `NOT NULL`
+- User-scoped tables (`profiles`, `pricing_settings`, `push_subscriptions`, `brief_settings`) correctly remain `auth.uid()`-scoped
+- Reference/special policies preserved (`parcels`, public estimate token, portal token route)
+- All protected server actions call `requireBusinessContext()` and set/scope `business_id`; no `created_by`-only data access
+- Public/token routes work correctly; WicksburgLawnService intake confirmed business-scoped
+- `finances/page.tsx` explicitly scopes all queries to `businessId`
+
+**Defense-in-depth findings (Phase 2G candidates):**
+- `DataExportSection.tsx` — no explicit `business_id` filter; RLS-only (highest priority cleanup)
+- `portal/[token]/page.tsx` — jobs query scoped by `customer_id` only; no `business_id`
+- `quote/[token]/actions.ts` — `customers`/`properties` updates in `acceptEstimate` lack `business_id` scope
+- Cron routes — no `business_id` filter on jobs/estimates; single-business only
+- `leads` RLS SELECT/DELETE has redundant `business_id IS NOT NULL` check (cosmetic)
+
+---
+
 ### Job Service Label Fixes ✅
 
 **Problem:** Job cards showed `recurring` as the service label. `job_type` is a scheduling concept and must never appear as a service scope.
@@ -178,6 +201,7 @@ Commits: `8621e2d`, `9028e84`, `3c5371a`
 
 | Hash | Description |
 |------|-------------|
+| `e4d0879` | Document post-hardening roadmap |
 | `b9c02f3` | Harden leads business ownership (Phase 2E Final) |
 | `289b732` | Update YardOps architecture and handoff docs |
 | `5037536` | Harden core business ownership (Phase 2E Group 3) |
@@ -227,8 +251,8 @@ All of the following were user-tested and confirmed working as of `289b732`:
 | Item | Status | Notes |
 |------|--------|-------|
 | DB password rotation | ⏸ Pending | Schedule at a safe pause point; do not interrupt active work |
-| Phase 2F — Final Multi-Business Audit | ⏸ Pending | See Architecture.md §16 for full 13-point checklist |
-| Phase 2G — Defense-in-Depth Cleanup | ⏸ Pending | See Architecture.md §16 for known items |
+| Phase 2F — Final Multi-Business Audit | ✅ Complete | All 13 tables verified — no blockers found |
+| Phase 2G — Defense-in-Depth Cleanup | ⏸ Pending | See Architecture.md §16 for specific findings |
 | B.7a website frequency/service-interest intake | ⏸ Pending | `6c8bada` in WicksburgLawnService |
 | B.7b YardOps consumption of B.7a leads | ⏸ Pending | Verify normalization/carryover |
 | Stale jobs with `service_package = null` and no property booleans | ℹ️ Minor | Cards show no 🌿 line — acceptable for now, data cleanup optional |
@@ -241,7 +265,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 
 | Phase | Goal | Status |
 |-------|------|--------|
-| 2F | Final end-to-end multi-business audit | ⏸ Pending |
+| 2F | Final end-to-end multi-business audit | ✅ Complete |
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ⏸ Pending |
 | 3 | Public intake and lead workflow improvements | ⏸ Pending |
 | 4 | Operations UX / workflow polish | ⏸ Pending |
@@ -254,12 +278,18 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Immediate next task: Phase 2F — Final Multi-Business Audit**
+**Immediate next task: Phase 2G — Defense-in-Depth Cleanup**
 
-Phase 2F starts as a read-only audit. No migrations, no code changes, no SQL writes. Run the 13-point checklist in Architecture.md §16 and produce a findings report.
+Start with `DataExportSection.tsx`: add explicit `business_id` filter to the `customers`, `properties`, and `jobs` export queries. This is the highest-priority Phase 2G item — it replaces RLS-only scoping with explicit defense in the component.
 
-After Phase 2F findings are reviewed, the next step will be user-selected from:
-- Phase 2G — Defense-in-depth cleanup (if Phase 2F surfaces issues)
+Full Phase 2G task list is in Architecture.md §16. Items in order:
+1. `DataExportSection.tsx` — add explicit `business_id` filters *(start here)*
+2. `portal/[token]/page.tsx` — add `business_id` filter to jobs query
+3. `quote/[token]/actions.ts` — add `business_id` scoping to customer/property updates in `acceptEstimate`
+4. Cron routes — document multi-business scoping gap; address when multi-business needed
+5. `leads` RLS SELECT/DELETE — cosmetic `business_id IS NOT NULL` cleanup
+
+After Phase 2G cleanup patches are reviewed and approved, the next step will be user-selected from:
 - Phase 3 — Public intake and lead workflow improvements
 - Any other explicitly selected item
 

@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-11
-Current checkpoint commit: `b9c02f3` (Harden leads business ownership)  
+Current checkpoint commit: `e4d0879` (Document post-hardening roadmap)  
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -486,23 +486,27 @@ Website/manual intake address, frequency, and service interests are written into
 
 **Goal:** Run a final end-to-end audit now that Phase 2D and Phase 2E are complete.
 
-**Status:** ⏸ Pending
+**Status:** ✅ Complete — PASSED (2026-05-11)
 
-**Audit scope:**
-1. Re-audit all business-owned tables.
-2. Confirm every YardOps-owned business table has `business_id NOT NULL`:
-   - `customers`, `properties`, `estimates`, `estimate_items`, `jobs`, `job_visits`, `job_photos`, `expenses`, `message_logs`, `equipment`, `maintenance_items`, `customer_portal_tokens`, `leads`
-3. Confirm all NOT NULL `business_id` foreign keys use `ON DELETE RESTRICT`.
-4. Confirm no business-owned table still has `ON DELETE SET NULL` on `business_id`.
-5. Confirm all business-owned RLS policies use `public.is_business_member(business_id)`.
-6. Confirm INSERT/UPDATE WITH CHECK policies require non-null `business_id` where applicable.
-7. Confirm user-scoped tables remain intentionally `auth.uid()`-scoped: `profiles`, `pricing_settings`, `push_subscriptions`, `brief_settings`.
-8. Confirm reference/special tables remain intentionally scoped: parcels (authenticated read + service-role policy), estimates (public quote token policy for `/quote/[token]`), `customer_portal_tokens` (server-side/public portal route behavior).
-9. Confirm app insert/update paths always set `business_id`.
-10. Confirm public/token routes still work: `/quote/[token]`, `/portal/[token]`, WicksburgLawnService public lead intake.
-11. Confirm exports/reporting queries are safely business-scoped.
-12. Confirm there are no remaining obvious `created_by`/`user_id`-only assumptions on business-owned data paths.
-13. Update ARCHITECTURE.md and HANDOFF.md after the audit is complete.
+**Audit results:**
+
+All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfeypvam`:
+
+| Result | Detail |
+|--------|--------|
+| `business_id NOT NULL` | ✅ All 13 tables: `customers`, `properties`, `estimates`, `estimate_items`, `jobs`, `job_visits`, `job_photos`, `expenses`, `message_logs`, `equipment`, `maintenance_items`, `customer_portal_tokens`, `leads` |
+| `business_id` FK target | ✅ All 13 → `businesses(id)` |
+| FK delete rule | ✅ All 13 use `ON DELETE RESTRICT` — no `ON DELETE SET NULL` remains |
+| Null `business_id` rows | ✅ Zero across all 13 tables |
+| Business-owned RLS | ✅ All 13 use `is_business_member(business_id)`; INSERT/UPDATE WITH CHECK require `business_id IS NOT NULL` |
+| User-scoped tables | ✅ `profiles`, `pricing_settings`, `push_subscriptions`, `brief_settings` all use `(SELECT auth.uid())` pattern |
+| Reference/special tables | ✅ `parcels` authenticated-read + service-role preserved; `estimates` public quote token policy preserved |
+| App insert/update paths | ✅ All protected server actions call `requireBusinessContext()` and set/scope `business_id`; no `created_by`-only data access found |
+| Public/token routes | ✅ `/quote/[token]` and `/portal/[token]` work correctly; WicksburgLawnService intake confirmed business-scoped |
+| Exports/reporting | ✅ `finances/page.tsx` explicitly scopes all queries to `businessId`; `DataExportSection.tsx` relies on RLS only (Phase 2G cleanup candidate) |
+| No blockers | ✅ No must-fix items found |
+
+**Defense-in-depth findings (tracked in Phase 2G):** see Phase 2G section below.
 
 ---
 
@@ -510,17 +514,20 @@ Website/manual intake address, frequency, and service interests are written into
 
 **Goal:** Clean up remaining hardening/consistency issues found during Phase 2D/2E and Phase 2F.
 
-**Status:** ⏸ Pending
+**Status:** ⏸ Pending — next task
 
-**Known items:**
-1. `DataExportSection.tsx` explicit `business_id` filter cleanup.
-2. Audit exports and reporting screens for business scoping.
-3. Continue checking for legacy `created_by`/`user_id` assumptions in business-owned queries.
-4. Continue replacing legacy `service_package`/package-name assumptions with itemized service booleans where appropriate.
-5. Do not remove legacy `default_service_package` yet unless a full compatibility audit says it is safe.
-6. Audit old notes/package compatibility paths before removing or rewriting legacy fields.
-7. Confirm `message_logs`, portal tokens, and customer-facing links continue to behave correctly after cleanup.
-8. Keep each cleanup patch small and reviewable.
+**Known items (from Phase 2F audit):**
+
+1. **`DataExportSection.tsx`** — no explicit `business_id` filter on `customers`/`properties`/`jobs` queries. Uses `createClient()` with RLS only. Fix: fetch `businessId` via `requireBusinessContext()` and add `.eq('business_id', businessId)` to all three queries. *(Highest priority — defense against RLS drift)*
+2. **`portal/[token]/page.tsx`** — `jobs` query uses only `customer_id`, no `business_id` filter. The portal token row already has `business_id`; use it to scope the query. *(Low risk today; multi-business leak if ever multi-business)*
+3. **`quote/[token]/actions.ts`** — `customers.update()` and `properties.update()` in `acceptEstimate` have no `business_id` filter; gated by `public_token` lookup only. Fix: derive `business_id` from the fetched estimate row and add to both update calls.
+4. **Cron routes** (`morning-summary`, `evening-summary`) — query `jobs`/`estimates` without `business_id` filter and grab `pricing_settings` with `.limit(1)`. Safe for single-business only; needs business iteration before multi-business use.
+5. **`leads` RLS SELECT/DELETE policies** — QUAL redundantly includes `business_id IS NOT NULL`; harmless now that column is NOT NULL but inconsistent with other tables. Cosmetic cleanup only.
+6. Continue checking for legacy `created_by`/`user_id` assumptions in business-owned queries.
+7. Continue replacing legacy `service_package`/package-name assumptions with itemized service booleans where appropriate.
+8. Do not remove legacy `default_service_package` yet — still referenced in `scheduleFollowUpJob` fallback chain. Full compatibility audit required before removal.
+9. Confirm `message_logs`, portal tokens, and customer-facing links continue to behave correctly after each cleanup patch.
+10. Keep each cleanup patch small and reviewable.
 
 ---
 
