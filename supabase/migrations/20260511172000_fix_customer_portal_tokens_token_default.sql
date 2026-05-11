@@ -1,0 +1,32 @@
+-- Target project ref: lewzqavgvltzwfeypvam
+-- Fix: change customer_portal_tokens.token column default from base64url to hex.
+--
+-- Context:
+--   The token column default was:
+--     encode(gen_random_bytes(24), 'base64url'::text)
+--   PostgreSQL's encode() function does not support 'base64url' prior to PostgreSQL 16.
+--   The Supabase project runs PostgreSQL 15. Every attempt to insert a portal token row
+--   failed with:
+--     code:    22023
+--     message: unrecognized encoding: "base64url"
+--   This caused the column default to never fire, the insert to be rejected, and
+--   getOrCreatePortalToken() to always return { error: 'Could not generate portal link.' }.
+--
+-- Fix:
+--   Change the token column default to:
+--     encode(gen_random_bytes(32), 'hex')
+--   encode(..., 'hex') is supported on all PostgreSQL versions.
+--   hex output is URL-safe (characters 0-9, a-f only).
+--   32 random bytes produces a 64-character token (more entropy than the original 24-byte source).
+--
+-- This migration does NOT:
+--   - alter business_id or any other column
+--   - add or remove NOT NULL constraints
+--   - change RLS or policies
+--   - change unique constraints or indexes
+--   - touch any table other than customer_portal_tokens
+--   - include Phase 2E Group 2 or Group 3 changes
+--   - include leads
+
+ALTER TABLE public.customer_portal_tokens
+  ALTER COLUMN token SET DEFAULT encode(gen_random_bytes(32), 'hex');
