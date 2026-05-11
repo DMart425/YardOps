@@ -27,6 +27,21 @@ type JobListRow = {
   properties: PropertyRelation | PropertyRelation[] | null
 }
 
+// Maps stored service_package codes → friendly display labels.
+// job_type ('recurring', 'one_time') is intentionally excluded: it is a
+// scheduling concept, not a service scope description.
+const SERVICE_LABELS: Record<string, string> = {
+  mow_only:      'Mow Only',
+  mow_trim_blow: 'Mow, Trim & Blow',
+  trim_cleanup:  'Trim & Cleanup',
+  full_service:  'Full Service',
+}
+
+function formatServicePackage(pkg: string | null | undefined): string | null {
+  if (!pkg) return null
+  return SERVICE_LABELS[pkg] ?? pkg.replace(/_/g, ' ')
+}
+
 const FILTERS_SCHEDULED = [
   ['upcoming', 'Upcoming'],
   ['today',    'Today'],
@@ -320,9 +335,7 @@ export default async function JobsPage({
                   const p = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
                   const customerName = c ? `${c.first_name}${c.last_name ? ' ' + c.last_name : ''}` : 'No customer'
                   const addr = p ? `${p.service_address}${p.city ? ', ' + p.city : ''}` : 'No address'
-                  const service = job.service_package
-                    ? job.service_package.replace(/_/g, ' ')
-                    : (job.job_type ? job.job_type.replace(/_/g, ' ') : null)
+                  const service = formatServicePackage(job.service_package)
                   const dateTime = job.scheduled_date
                     ? `${formatDateOnly(job.scheduled_date, { weekday: 'short', month: 'short', day: 'numeric' })}${job.scheduled_time_window ? ` · ${job.scheduled_time_window}` : ''}`
                     : 'No date'
@@ -359,9 +372,7 @@ export default async function JobsPage({
             const p = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
             const customerName = c ? `${c.first_name}${c.last_name ? ' ' + c.last_name : ''}` : 'No customer'
             const addr = p ? `${p.service_address}${p.city ? ', ' + p.city : ''}` : 'No address'
-            const service = job.service_package
-              ? job.service_package.replace(/_/g, ' ')
-              : (job.job_type ? job.job_type.replace(/_/g, ' ') : null)
+            const service = formatServicePackage(job.service_package)
             const dateTime = view === 'completed'
               ? (job.completed_at
                 ? formatTimestampDate(job.completed_at as string, timeZone, { weekday: 'short', month: 'short', day: 'numeric' })

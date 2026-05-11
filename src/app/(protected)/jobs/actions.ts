@@ -6,6 +6,27 @@ import { revalidatePath } from 'next/cache'
 import type { FormState } from '@/types/database'
 import { requireBusinessContext } from '@/lib/business/context'
 
+// Derives a service_package code from a property's individual service booleans.
+// Used as a fallback when neither the parent job nor default_service_package is set.
+function deriveServicePackageFromBooleans(prop: {
+  default_mowing_enabled?: boolean | null
+  default_weed_eating_enabled?: boolean | null
+  default_edging_enabled?: boolean | null
+  default_blow_off_enabled?: boolean | null
+} | null): string | null {
+  if (!prop) return null
+  const hasMow  = !!prop.default_mowing_enabled
+  const hasWeed = !!prop.default_weed_eating_enabled
+  const hasEdge = !!prop.default_edging_enabled
+  const hasBlow = !!prop.default_blow_off_enabled
+  if (!hasMow && !hasWeed && !hasEdge && !hasBlow) return null
+  if (hasMow && !hasWeed && !hasEdge && !hasBlow) return 'mow_only'
+  if (hasMow && hasWeed && !hasEdge && hasBlow)   return 'mow_trim_blow'
+  if (!hasMow && (hasWeed || hasEdge || hasBlow)) return 'trim_cleanup'
+  if (hasMow  && (hasWeed || hasEdge || hasBlow)) return 'full_service'
+  return null
+}
+
 type JobRescheduleFields = {
   reschedule_count: number | null
   reschedule_log: string | null
@@ -119,7 +140,7 @@ export async function scheduleFollowUpJob(
 
   const { data: existing } = await supabase
     .from('jobs')
-    .select('*, properties(default_price, default_service_package)')
+    .select('*, properties(default_price, default_service_package, default_mowing_enabled, default_weed_eating_enabled, default_edging_enabled, default_blow_off_enabled)')
     .eq('id', id)
     .eq('business_id', businessId)
     .single()
@@ -150,7 +171,10 @@ export async function scheduleFollowUpJob(
       property_id:           existing.property_id,
       title:                 existing.title,
       job_type:              'recurring',
-      service_package:       existing.service_package ?? existing.properties?.default_service_package ?? null,
+      service_package:       existing.service_package
+                               ?? existing.properties?.default_service_package
+                               ?? deriveServicePackageFromBooleans(existing.properties)
+                               ?? null,
       scheduled_date:        nextDate,
       scheduled_time_window: storedNextTimeWindow,
       price:                 existing.price ?? existing.properties?.default_price ?? null,
