@@ -44,6 +44,7 @@ export default async function TodayPage() {
     supabase
       .from('app_notifications')
       .select('id, user_id, notification_type, title, body, link_path, estimate_id, is_reviewed, reviewed_at, created_at')
+      .eq('user_id', userId)
       .eq('notification_type', 'estimate_approved')
       .eq('is_reviewed', false)
       .order('created_at', { ascending: false })

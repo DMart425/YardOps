@@ -1,9 +1,9 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import type { FormState } from '@/types/database'
+import { requireBusinessContext } from '@/lib/business/context'
 
 function val(formData: FormData, key: string): string {
   return ((formData.get(key) as string) ?? '').trim()
@@ -15,8 +15,7 @@ export async function markNotificationReviewed(
 ): Promise<FormState> {
   void prevState
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId } = await requireBusinessContext()
 
   const notificationId = val(formData, 'notification_id')
   if (!notificationId) {
@@ -30,7 +29,7 @@ export async function markNotificationReviewed(
       reviewed_at: new Date().toISOString(),
     })
     .eq('id', notificationId)
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .eq('notification_type', 'estimate_approved')
 
   if (error) {

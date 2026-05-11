@@ -12,6 +12,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   const { count: estimateNotificationCount } = await supabase
     .from('app_notifications')
     .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
     .eq('notification_type', 'estimate_approved')
     .eq('is_reviewed', false)
 
