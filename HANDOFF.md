@@ -1,301 +1,312 @@
-# YardOps Handoff (Source of Truth)
+# YardOps Handoff — Operational State
 
-Last updated: 2026-05-06
+> **Living document.** Future coder chats MUST update this file whenever architecture, database state,
+> workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
+> Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-## Official Source of Truth
-
-- Repo: DMart425/YardOps
-- Branch: main
-- Official commits:
-  - 124c22a - B.6: distinguish customer quote acceptance vs manual approval + persistent notifications
-  - 628d77a - customer/property cleanup, reassignment, restore, archived-property separation
-  - a306d6b - safe estimate delete control
-  - 745fa01 - customer quick actions
-  - 9c1915c - parcel source metadata and property parcel import
-  - 4642128 - hardened/aligned lead cleanup controls
-  - d02df30 - feat: show imported parcel summary on estimates (zero-acre normalization + EstimateForm summary card)
-  - 58879bc - B.7c-a: property default service boolean columns (migration + types)
-  - 701fed8 - B.7c-b: property default service checkboxes + estimate defaults
-- Pending commits:
-  - B.7a: Website B.7a (6c8bada in DMart425/WicksburgLawnService) - canonical frequency values + service interests in lead notes
-  - B.7b: YardOps consumes website B.7a leads - normalize frequency, parse service interests, apply estimate defaults
-  - B.7d: lead -> property workflow polish (lead-context return flow + lead detail edit actions)
-
-## Standing Coding Workflow
-
-- This ChatGPT thread is for audit/planning/review.
-- Coder makes local changes only.
-- Coder does not commit or push until approved.
-- Coder must read AGENTS.md and ARCHITECTURE.md before each phase.
-- Coder must keep changes scoped.
-- Coder must run:
-  - npm run lint
-  - npm run build
-  - npm test if it exists; if not, report no test script exists.
-- Coder must return:
-  - changed file list
-  - full diff
-  - exact validation outputs
-  - manual tests run
-  - known issues or uncertainty
-- Commit/push only after approval.
-
-## Supabase Migration Workflow
-
-- Coder creates migration files only.
-- Coder does not apply migrations to live Supabase.
-- Coder returns migration SQL/diff.
-- Migration is reviewed in ChatGPT.
-- Assistant applies approved migration to the confirmed Supabase project.
-- App is tested against real DB before commit/push.
-
-Current confirmed Supabase project ref:
-- lewzqavgvltzwfeypvam
-
-Applied migration:
-- 20260505203500_create_parcel_sources.sql
-
-Confirmed parcel_sources seed:
-- houston_county_al_parcels -> Houston County, AL
-
-## Current Architecture Decisions
-
-- Customers are people/contacts/billing relationship.
-- Properties are first-class records and remain their own section.
-- Jobs represent scheduled/completed work.
-- Estimates represent quoted/proposed work.
-- Website leads live in public.leads.
-- Manual leads live in customers with status = 'lead'.
-- Manual leads may own properties before becoming active customers.
-- Lead-status customers should display as "(Lead)" in property dropdowns.
-- Website Lead -> Manual Lead/customer record -> Active Customer is the intended lead lifecycle.
-
-## Cleanup/Delete Rules
-
-- Customer and property delete controls exist but require typed confirmation.
-- Safe deletes block real business history.
-- Test cleanup exists for customer-linked fake/test records.
-- Estimate delete requires typed DELETE and deletes only estimate_items + estimate.
-- Website lead delete requires typed DELETE and redirects to /leads.
-- Website lead quick red X and Clear All were removed.
-- Manual lead cleanup uses the Customer Danger Zone.
-
-## Parcel Architecture
-
-- parcels.source matches parcel_sources.source_key.
-- parcel_sources provides source metadata such as county/state.
-- Parcel lookup imports raw parcel fields such as PhysAddr, CityName, StateAbbr, ZipCode when present.
-- County/state fallback comes from parcel_sources metadata.
-- City/ZIP are not guessed.
-- PropertyForm requires service_address, city, state, and county.
-- PropertyForm supports parcel import and manual override.
-- EstimateForm uses parcel lookup for mowing-time inputs and now shows the imported parcel summary display.
-
-## Known Next Candidates
-
-- ~~Estimate parcel summary display.~~ (completed: d02df30)
-- Lead page polish if more inconsistencies appear.
-- Better archived/customer/lead filters.
-- Duplicate property/address detection.
-- Future parcel county imports using parcel_sources.
-- Eventually move toward company roles/Owner vs field operator permissions.
-- Workflow refactor: unify lead/customer/property/estimate creation paths (see Workflow Refactor Checkpoint below).
-
-## Guardrails
-
-- Do not redesign the whole app unless explicitly asked.
-- Do not add schema/migration/RLS/env changes unless explicitly approved.
-- Do not remove lead-status customers from property assignment.
-- Do not make destructive actions one-click.
-- Do not hardcode county/state defaults in UI/forms.
-- Keep changes phase-scoped and reviewable.
+Last updated: 2026-05-11
 
 ---
 
-## Workflow Refactor Checkpoint
+## Repos
 
-Last updated: 2026-05-05
+| Repo | Purpose |
+|------|---------|
+| `DMart425/YardOps` | Private operations app — this repo |
+| `DMart425/WicksburgLawnService` | Public business website + lead intake form |
 
-### Phase A Status
+**Do not casually edit WicksburgLawnService during YardOps work.**
+WicksburgLawnService must be audited before hardening `leads.business_id`.
 
-Phase A current workflow audit was completed on 2026-05-05. No code was changed. No commits or pushes were made. The audit produced a full workflow map and creation path matrix.
+---
 
-### Phase B.2 Status
+## Current Checkpoint
 
-Phase B.2 (lead-first creation hardening) was completed after Phase B.1.
+- **Latest commit:** `5037536` — Harden core business ownership (Phase 2E Group 3)
+- **Branch:** `main`
+- **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
+- **Deployment:** Vercel, auto-deploys on push to `main`
+- **Production URL:** https://app.wicksburglawnservice.com
 
-- `createLead()` now creates only a lead/contact (`customers.status = 'lead'`) and does not create a property row.
-- `convertWebsiteLead()` now creates only a lead/contact (`customers.status = 'lead'`), marks the website lead as converted, and does not create a property row.
-- Website/manual intake address and requested frequency are preserved in customer notes so details are not lost before full property creation.
-- Property creation now happens afterward from lead/contact/customer context via `/properties/new?customer_id=...`.
+> **Note:** The Supabase DB password was exposed in a prior session and needs rotation. User has asked
+> not to interrupt active work repeatedly for this. Rotate at a safe pause point.
+> Do NOT document the exposed password here or anywhere in the repo.
 
-### Phase B.3 Status
+---
 
-Phase B.3 (estimate workflow hardening + lightweight revisions) was completed after Phase B.2.
+## Workflow Rules (Mandatory)
 
-- `/estimates/new` no longer supports inline customer creation or inline property creation.
-- Estimate creation now requires selecting an existing contact/customer and an existing property.
-- Editing a `sent` or `approved` estimate now increments `revision_number`, sets `last_revised_at`, resets `status` to `draft`, and clears `accepted_at`.
-- Marking an estimate as sent now sets `last_sent_at`.
-- Converted estimates are locked from editing.
-- Public quote and internal estimate detail now show revision context when `revision_number > 1`.
+Before every change:
+1. Run `git status --short` and confirm clean state.
+2. `.claude/` may exist as untracked — **never stage or commit it**.
+3. Work in small, explicitly approved steps.
 
-### Phase B.4 Status
+For DB/migration changes:
+- Draft migration file first and return a pre-approval report.
+- Apply only after explicit user approval.
+- Use `npx supabase db query --linked --file "<migration file>"` to apply.
+- **Do NOT use `supabase db push`** — remote/local migration history mismatch exists.
+- Verify live DB state after apply (read-only SQL).
+- User tests before commit.
+- Commit migration file only after explicit approval.
 
-Phase B.4 (estimate revision UX polish) was completed after Phase B.3.
+For code changes:
+- Stage only explicitly approved files.
+- Never stage `.claude/`, unrelated migrations, or unrelated app code.
+- Never commit or push without explicit approval.
+- Never change `.env`, deployment settings, RLS, NOT NULL constraints, or app code outside the approved scope.
 
-- Internal estimate detail: revised draft estimates now show a warning banner — "This estimate was revised and must be sent again before approval."
-- Internal estimate detail: SMS preview first line now reads "here is your revised lawn service estimate" when `revision_number > 1`.
-- Estimate edit page: editing a `sent` estimate shows an inline warning — "Saving changes will mark this estimate as draft and it must be sent again."
-- Estimate edit page: editing an `approved` estimate shows a stronger inline warning — "Saving changes will revoke the prior approval. The customer will need to approve the revised estimate again."
-- Status actions: "Mark as Sent" button label changes to "Send Revised Estimate" when `revision_number > 1`.
-- Public quote page: already showed "Revised Estimate v{N}" and "Updated <date>" from Phase B.3; no additional changes needed.
+---
 
-### Phase B.5 Status
+## Completed Phases
 
-Phase B.5 (lead -> property -> estimate handoff fixes) was completed after Phase B.4.
+### Phase 2D — RLS Business Scoping ✅
 
-- Manual `/leads/new` now captures full property data up front and creates both `customers(status='lead')` and a complete `properties` row in one flow.
-- Manual lead creation now supports parcel import on `/leads/new` so address + acreage can be imported before save.
-- If property creation fails after customer insert in manual lead flow, customer insert is rolled back and a clear error is returned.
-- Lead detail no longer shows duplicate Add Property actions when no property exists; only one clear Add Property path remains.
-- Converted/manual lead Add Property path now prefills available intake data (address/frequency/package) into `/properties/new` via query params.
-- `/properties/new` now accepts prefill query params for address/frequency/package/acres and applies them to `PropertyForm` defaults.
-- Estimate property queries for `/estimates/new` and `/estimates/[id]/edit` now include `service_frequency` and `default_service_package`.
-- Estimate form now auto-applies selected property defaults for mow-time (from acres), frequency, and service package-derived service levels, while parcel lookup remains available as an override tool.
+All RLS policies on business-owned tables have been replaced with business-scoped policies using `public.is_business_member(business_id)`.
 
-### Phase B.6 Status
+**User-scoped tables** (unchanged — still use `auth.uid()` directly):
+- `pricing_settings`
+- `profiles`
+- `push_subscriptions`
+- `brief_settings`
 
-Phase B.6 (estimate approval source tracking + persistent in-app notifications) was completed after Phase B.5.
+**Parcels:** remain authenticated-readable with service-role policy preserved.
 
-- `estimates` approval metadata is now tracked with `approved_by_source`, `manually_approved_at`, and `approval_note` in the local code and migration file.
-- Public quote acceptance now records `approved_by_source = 'customer_quote'`, preserves push behavior, and attempts to create an `app_notifications` row for the estimate owner without failing the customer flow if notification creation fails.
-- Manual approval from estimate detail now requires an approval note and records `approved_by_source = 'manual'`, `manually_approved_at`, and `approval_note`.
-- Revising a sent/approved estimate back to draft now also clears approval metadata in addition to clearing `accepted_at`.
-- Today page now shows a compact approved-estimate notification card for unreviewed notifications, and marking one reviewed clears it for that user.
-- Protected navigation now shows an Estimates badge count for unreviewed approved-estimate notifications.
-- Migration file was created locally only and was not applied to Supabase.
+**Public estimate token policy** on `estimates` was preserved.
 
-### Phase B.7c-a Status
+Phase 2D commits (Waves 1–7):
 
-Phase B.7c-a (property default service boolean columns — schema + types only) was completed after Phase B.7b.
+| Commit | Description |
+|--------|-------------|
+| `a66a5dd` | Replace Wave 1 RLS policies with business scoping |
+| `3a45952` | Replace Wave 2 RLS policies with business scoping |
+| `246ba55` | Replace Wave 3 RLS policies with business scoping |
+| `f31c3d2` | Replace Wave 4 RLS policies with business scoping |
+| `4ba5112` | Replace Wave 5 RLS policies with business scoping |
+| `44b941e` | Replace Wave 6 RLS policies — user-scoped settings/profile/subscription |
+| `548f5bb` | Replace Wave 7 RLS policies — parcels/brief_settings |
 
-- Migration `supabase/migrations/20260506000200_property_default_service_booleans.sql` was applied and verified on the confirmed Supabase project (`lewzqavgvltzwfeypvam`).
-- Adds four nullable boolean columns to `public.properties`:
-  - `default_mowing_enabled boolean`
-  - `default_weed_eating_enabled boolean`
-  - `default_edging_enabled boolean`
-  - `default_blow_off_enabled boolean`
-- All four columns are nullable. `null` means "not yet reviewed." `true`/`false` mean explicitly set.
-- Backfill applied for `mow_only`, `mow_blow`, `full_service_mow_edge_trim_blow`, `first_cut_overgrown`. `leaf_cleanup`, `custom`, and `null` are left as `null` (not reviewed / ambiguous).
-- `default_service_package` column is NOT dropped and NOT removed from types or forms in this phase.
-- `src/types/database.ts` — `Property` interface updated with the four new boolean fields.
-- No UI behavior changed: `PropertyForm.tsx`, `EstimateForm.tsx`, `properties/actions.ts`, estimate queries, and job behavior are all untouched.
+---
 
-Next: B.7c-b — replace the Service Package dropdown in `PropertyForm` with checkboxes and wire up `EstimateForm` defaults from property boolean columns.
+### Phase 2E — NOT NULL Hardening ✅ (leads deferred)
 
-### Phase B.7c-b Status
+`business_id NOT NULL` enforced on all YardOps-owned tables. Each FK converted from `ON DELETE SET NULL` to `ON DELETE RESTRICT` before applying NOT NULL.
 
-Phase B.7c-b (PropertyForm Default Services checkboxes + EstimateForm property boolean defaults) was completed on 2026-05-06 and committed in `701fed8`. No migration was created or applied.
+| Group | Tables | Status | Commit |
+|-------|--------|--------|--------|
+| Group 1 | `estimate_items`, `job_visits`, `customer_portal_tokens`, `job_photos` | ✅ Applied + committed | `7200e5b` |
+| Group 2 | `equipment`, `maintenance_items` | ✅ Applied + committed | `5d5e81f` |
+| Group 3 | `customers`, `properties`, `estimates`, `jobs`, `expenses`, `message_logs` | ✅ Applied + committed | `5037536` |
+| `leads` | — | ⏸ **Deferred** | — |
 
-- `src/components/forms/PropertyForm.tsx` — Service Package `<select>` replaced with four Default Services checkboxes: Mowing, Weed eating / trimming, Edging, Blow off hard surfaces. Initial state derived from: property boolean columns (if any non-null) → legacy `default_service_package` string fallback → safe defaults (mowing=true, others=false). Controlled checkboxes save `true`/`false` to DB (unchecked = `false`, not `null`).
-- `src/app/(protected)/properties/actions.ts` — `createProperty` and `updateProperty` now save the four boolean columns from form checkboxes. `default_service_package` is no longer written from form submissions (existing DB values are preserved on update, new properties get `null`).
-- `src/app/(protected)/properties/new/page.tsx` — Added `parseBoolParam` helper and accepts four boolean query params (`default_mowing_enabled`, `default_weed_eating_enabled`, `default_edging_enabled`, `default_blow_off_enabled`). Values are passed to `PropertyForm` `defaultValues`.
-- `src/app/(protected)/leads/[id]/page.tsx` — Add Property link now passes website service interests as boolean query params. Removed `default_service_package` from URL params. Falls back to no params (PropertyForm defaults) when no service interests block exists.
-- `src/components/forms/EstimateForm.tsx` — `PropertyOption` interface updated with 4 boolean fields. New `propertyBooleanDefaults()` helper maps boolean columns to `weedEatingLevel`/`edgingLevel`/`blowOffLevel`. Default priority: property booleans (if any non-null) > website service interests (only when all booleans are null) > legacy package fallback (only when booleans are null and no website interests exist) > hardcoded defaults. `default_mowing_enabled === false` sets `mowingMinutes: 0`.
-- `src/app/(protected)/estimates/new/page.tsx` — Property select query updated to include 4 boolean fields.
-- `src/app/(protected)/estimates/[id]/edit/page.tsx` — Local `PropertyOption` type, property select queries, and properties mapping updated to include 4 boolean fields.
-- `src/app/(protected)/properties/[id]/page.tsx` — Detail card now shows "Default services" row based on boolean columns. Falls back to legacy "Package" display if booleans are all null and `default_service_package` is set.
-- `default_service_package` DB column is NOT dropped or cleared.
-- No migration was created.
-- Committed and pushed as `701fed8`.
+**Why `leads` is deferred:**
+`leads` has an external insert path through the WicksburgLawnService public intake form. Before hardening, audit the public intake to confirm every lead insert writes `business_id`. See Recommended Next Task below.
 
-### Phase B.7d Status
+---
 
-Phase B.7d (lead -> property flow polish) was implemented locally on 2026-05-06. No migration was created or applied.
+### Portal Token Fixes ✅
 
-- `src/app/(protected)/leads/[id]/page.tsx` — Add Property flow now includes `return_to=/leads/:id`. Actions now include Edit Lead / Contact (`/customers/:id`) and Edit Property (`/properties/:id?return_to=/leads/:id`) when a property exists. Build Estimate and Archive Lead remain unchanged.
-- `src/app/(protected)/properties/new/page.tsx` — Added safe parsing for optional `return_to` query param and used it for back/cancel links plus form pass-through.
-- `src/components/forms/PropertyForm.tsx` — Added optional hidden `return_to` field support.
-- `src/app/(protected)/properties/actions.ts` — Added safe internal `return_to` validation and redirect support in both `createProperty` and `updateProperty`. Invalid or external targets are ignored.
-- `src/app/(protected)/properties/[id]/page.tsx` — Added safe `return_to` support for back link, cancel, and save flow so lead-context property edits return to the lead detail page.
-- No schema or RLS changes.
+Root causes and fixes:
 
-### Current Workflow Drift (Confirmed in Phase A Audit)
+| Problem | Fix |
+|---------|-----|
+| `customer_portal_tokens.customer_id` was a bare unique index — invisible to PostgREST `onConflict` | Dropped bare index, added formal `UNIQUE` constraint |
+| `token` column default used `encode(..., 'base64url')` — unsupported on PostgreSQL 15 (Supabase) | Changed default to `encode(gen_random_bytes(32), 'hex')` |
+| Portal page used hardcoded light colors — invisible on dark YardOps theme | Replaced all hardcoded colors with CSS variables |
 
-1. **Website lead conversion previously created sparse property records (resolved in Phase B.2).** `convertWebsiteLead()` no longer inserts properties during conversion.
+**Share Portal Link now works. Public portal page loads and matches app styling.**
 
-2. **Manual Add Lead now creates a full property record (updated in Phase B.5).** `createLead()` now creates a lead contact and complete property together using required property validation fields.
+Commits: `7200e5b` (schema), `fd5818d` (portal styling)
 
-3. **Add Property via `/properties/new` uses full `PropertyForm` validation.** This path correctly requires all address fields, parcel import support, and geocoding. It is the only path that creates complete property records.
+---
 
-4. **Estimate inline new customer/property creation paths were removed in Phase B.3.** Estimate creation now requires existing contact/customer + existing property, and no longer creates customers/properties inline.
+### Equipment Removal Flow ✅
 
-5. **Parcel lookup exists in multiple different patterns.** Four places, three implementation patterns: website lead detail uses direct `ilike` on `parcels`; property detail uses the same direct `ilike`; EstimateForm inline new-property uses a raw fetch with manual math; PropertyForm and EstimateForm parcel display use the shared `ParcelLookup` component.
+- `deleteEquipment(equipmentId)` verifies active business ownership (`id + business_id`).
+- `maintenance_items.equipment_id` has `ON DELETE CASCADE` — linked maintenance records removed automatically.
+- Danger Zone card on equipment detail page with `window.confirm()` guard.
 
-6. **Lead/customer/property creation flows are scattered.** There is no single entry point that walks through contact → property → estimate. Each section creates records independently, producing structural inconsistencies over time.
+Commit: `e23a1df`
 
-7. **`normalized_address` and `full_address` columns exist in the `Property` type but are never written.** No create or update path populates these fields.
+---
 
-8. **Jobs and Today page wiring must be protected during any refactor.** These sections have complex dependencies (see Job Preservation Warnings below).
+### Lead Itemized Service Checkboxes ✅
 
-### Intended Target Lifecycle
+Manual lead form (`/leads/new`) replaced a package dropdown with four individual checkboxes:
+- Mowing
+- Weed Eating / Trimming
+- Edging
+- Blow Off Hard Surfaces
 
+`createLead()` writes directly to `default_mowing_enabled`, `default_weed_eating_enabled`, `default_edging_enabled`, `default_blow_off_enabled`. No schema migration needed — columns already existed.
+
+Lead → property → estimate/job service carryover confirmed working.
+
+Commit: `6b2c553`
+
+---
+
+### Job Service Label Fixes ✅
+
+**Problem:** Job cards showed `recurring` as the service label. `job_type` is a scheduling concept and must never appear as a service scope.
+
+**Fix applied:**
+- `job_type` is never displayed as a service label.
+- Job cards now derive service display from linked property booleans first (itemized list).
+- Legacy `service_package` codes remain as fallback when booleans are not set.
+- `scheduleFollowUpJob` now derives and persists `service_package` from property booleans when parent job has no package.
+
+Commits: `8621e2d`, `9028e84`, `3c5371a`
+
+---
+
+## Committed Migrations (Full List)
+
+| File | Description |
+|------|-------------|
+| `20260505203500_create_parcel_sources.sql` | Parcel sources lookup table |
+| `20260506000200_property_default_service_booleans.sql` | Four service boolean columns on properties |
+| `20260511170000_phase2e_group1_not_null_empty_tables.sql` | Phase 2E Group 1 NOT NULL |
+| `20260511171000_fix_customer_portal_tokens_customer_unique.sql` | Formal UNIQUE constraint on portal tokens |
+| `20260511172000_fix_customer_portal_tokens_token_default.sql` | Fix token default to hex |
+| `20260511180000_phase2e_group2_not_null_equipment.sql` | Phase 2E Group 2 NOT NULL |
+| `20260511190000_phase2e_group3_not_null_core_operations.sql` | Phase 2E Group 3 NOT NULL |
+
+---
+
+## Commit History (Recent, Newest First)
+
+| Hash | Description |
+|------|-------------|
+| `5037536` | Harden core business ownership (Phase 2E Group 3) |
+| `3c5371a` | Show itemized services on job cards |
+| `9028e84` | Derive job service labels from property defaults |
+| `8621e2d` | Fix job service labels (remove job_type fallback) |
+| `6b2c553` | Use itemized services for manual leads |
+| `e23a1df` | Add equipment removal flow |
+| `5d5e81f` | Harden equipment business ownership (Phase 2E Group 2) |
+| `fd5818d` | Polish customer portal styling |
+| `4991772` | Temporary portal-actions diagnostic logging (then cleaned up) |
+| `7200e5b` | Harden portal token schema (Phase 2E Group 1 + portal fixes) |
+| `ffbd42b` | Polish lead property return flow (Phase B.7d) |
+| `701fed8` | B.7c-b: property default service checkboxes + estimate defaults |
+| `58879bc` | B.7c-a: property default service boolean columns (migration + types) |
+| `548f5bb` | Wave 7 RLS (parcels/brief_settings) |
+| `44b941e` | Wave 6 RLS (user-scoped settings/profile/subscription) |
+| `4ba5112` | Wave 5 RLS |
+| `f31c3d2` | Wave 4 RLS |
+| `246ba55` | Wave 3 RLS |
+| `3a45952` | Wave 2 RLS |
+| `a66a5dd` | Wave 1 RLS |
+
+---
+
+## Current Verified Behavior
+
+All of the following were user-tested and confirmed working as of `5037536`:
+
+- ✅ Share Portal Link generates a working public URL
+- ✅ Public portal page loads and matches dark app styling
+- ✅ Equipment create / edit works
+- ✅ Maintenance item flow works
+- ✅ Equipment removal works (cascades to maintenance records)
+- ✅ Manual lead itemized service form works
+- ✅ Lead → estimate → job service carryover works
+- ✅ Job cards show itemized services (e.g., "Mowing, Blow Off")
+- ✅ `recurring` no longer appears as a service label
+- ✅ Steve Pippin shows correct service label
+- ✅ Cedric Thomas shows "Mowing, Blow Off"
+
+---
+
+## Open / Deferred Items
+
+| Item | Status | Notes |
+|------|--------|-------|
+| `leads.business_id NOT NULL` | ⏸ Deferred | Audit WicksburgLawnService intake path first |
+| DB password rotation | ⏸ Pending | Schedule at a safe pause point; do not interrupt active work |
+| B.7a website frequency/service-interest intake | ⏸ Pending | `6c8bada` in WicksburgLawnService |
+| B.7b YardOps consumption of B.7a leads | ⏸ Pending | Verify normalization/carryover |
+| Stale jobs with `service_package = null` and no property booleans | ℹ️ Minor | Cards show no 🌿 line — acceptable for now, data cleanup optional |
+| RLS hardening checklist items | ℹ️ Future | See Architecture.md §9 |
+
+---
+
+## Recommended Next Task
+
+**Read-only audit of WicksburgLawnService public intake + YardOps `leads` insert path** before hardening `leads.business_id`.
+
+Suggested audit scope:
+- Public WicksburgLawnService form payload — what fields does it send?
+- API/action/function that inserts the lead — does it write `business_id`?
+- Whether itemized services from the intake form map to YardOps property booleans.
+- Live `leads` null count on `business_id`.
+- `leads.business_id` current FK delete rule.
+- `leads` RLS policies.
+- Any existing null `business_id` rows — safe to backfill?
+
+### Read-Only SQL for Leads Audit
+
+Run these against `lewzqavgvltzwfeypvam` (read-only, no mutations):
+
+```sql
+-- Null count check
+SELECT COUNT(*) AS total_rows,
+       COUNT(*) FILTER (WHERE business_id IS NULL) AS null_business_id
+FROM public.leads;
+
+-- NOT NULL status
+SELECT table_name, column_name, is_nullable
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'leads'
+  AND column_name = 'business_id';
+
+-- FK delete rule
+SELECT tc.table_name, tc.constraint_name, rc.delete_rule
+FROM information_schema.table_constraints tc
+JOIN information_schema.referential_constraints rc
+  ON rc.constraint_name = tc.constraint_name
+JOIN information_schema.key_column_usage kcu
+  ON kcu.constraint_name = tc.constraint_name
+WHERE tc.table_schema = 'public'
+  AND tc.constraint_type = 'FOREIGN KEY'
+  AND kcu.column_name = 'business_id'
+  AND tc.table_name = 'leads';
+
+-- RLS policies
+SELECT tablename, policyname, cmd, roles, qual, with_check
+FROM pg_policies
+WHERE schemaname = 'public'
+  AND tablename = 'leads'
+ORDER BY policyname;
 ```
-Lead / Contact
-  → Property (with full address + optional parcel import)
-    → Estimate (quoted scope and price, sent to customer)
-      → Job (scheduled work execution)
-        → Completion / Payment / Next Scheduled Job (via auto-schedule or manual)
-```
 
-### Working Business Rules
+---
 
-- Estimate is the normal agreement / contract-like step before service begins.
-- Active customer status should usually mean an estimate was approved or service terms were otherwise agreed to.
-- Manual "Mark Active" (via `markLeadCustomerActive()`) can remain but should be treated as an exception / manual override path, not the normal promotion path.
-- Jobs are the schedule and work execution layer and must remain central.
-- Jobs can record same-day operational changes and small add-ons.
-- New recurring scope or major quoted work should go through an estimate first.
+## Guardrails
 
-### Likely Refactor Direction (Not Yet Implemented)
+- Do not redesign the app unless explicitly asked.
+- Do not add schema/migration/RLS/env changes unless explicitly approved.
+- Do not remove lead-status customers from property assignment.
+- Do not make destructive actions one-click.
+- Do not hardcode county/state defaults in UI or forms.
+- Keep changes phase-scoped and reviewable.
+- Never stage or commit `.claude/`.
+- Never apply SQL to any Supabase project without confirming the ref is `lewzqavgvltzwfeypvam`.
+- Never use `supabase db push` — use `npx supabase db query --linked --file`.
 
-- Lead/customer/contact workspace should become the center of the app — the starting point for the full lifecycle.
-- Properties should belong to a lead/customer/contact and be created from that context.
-- Property creation from `/properties/new` standalone should remain but should not be the primary creation-first entry point.
-- Top-level Properties page should remain as search, reference, and management — not a random creation-first starting point.
-- Estimates should normally be launched from a lead/customer/property context.
-- Estimates page should remain as reference and management.
-- Jobs page remains the **primary** schedule and work execution center. It should not be demoted, hidden, or reduced in scope during any refactor.
-- Today page remains the daily operational view and must not change behavior during refactor.
+---
 
-### Job Preservation Warnings
+## Job Preservation Warnings
 
 These must not break during any refactor:
 
-- **Recurring auto-schedule:** `completeJob()` checks `property.auto_schedule_next`, `service_frequency`, and `scheduled_date`. All three must remain present and non-null for next-job creation.
-- **Recurrence chain:** `recurrence_source` (parent job ID) and `next_job_created_id` (child job ID) form the recurring chain. These columns and their values must not be removed or reset.
-- **`started_at` → `actual_minutes`:** `markInProgress()` sets `started_at`; `completeJob()` consumes it to compute `actual_minutes`. These must stay coupled.
-- **Reschedule log:** `reschedule_count` and `reschedule_log` are append-only. No edit path may reset them.
-- **Today page date assumptions:** Today page compares `scheduled_date` as a plain `YYYY-MM-DD` string and `completed_at` as a full ISO timestamp. Both formats must stay stable.
-- **Estimate visit fields:** `visit_scheduled_date` and `visit_scheduled_time` appear on Today page under a separate section. These must survive any estimate schema changes.
-- **`payment_status` enum:** Values `unpaid`, `partial`, `paid`, `not_billable` are used across Jobs, Today, and Finances. Renaming any value is a breaking change and requires a deliberate migration.
-- **FK cascades:** `job_photos`, `job_visits`, and `expenses` all use `job_id` as FK. Any job delete or merge must handle cascades correctly.
-
-### Backup Status
-
-- User created a zipped repo backup locally before the refactor planning phase.
-- A Supabase backup **script** ZIP was created. The in-database snapshot does **not** exist until the `create_backup` SQL inside that ZIP is executed directly in Supabase.
-- The backup script excludes `public.parcels` because parcel data is backed up separately.
-- These backups are not Supabase-managed PITR or project-level backups. They are manual snapshots.
-- **Before starting any refactor code changes:** open the backup ZIP, run the `create_backup` SQL in the Supabase SQL editor, and confirm the snapshot table was created successfully.
-
-### Next-Session Recommendation
-
-- Start a new chat/session for the workflow refactor planning.
-- Begin with Phase B: decide target workflow and page roles before writing any code.
-- Do not start coding the refactor until the target workflow is approved.
-- Do **not** start by coding helpers, abstractions, or duplicate detection — those come after the core paths are working.
-- Refactor one small path at a time. Each path must be validated (lint + build) and committed before starting the next.
-- Do not remove or break existing Jobs functionality at any point during the refactor.
-- Keep HANDOFF.md updated at each checkpoint.
+- **Recurring auto-schedule:** `completeJob()` checks `property.auto_schedule_next`, `service_frequency`, `scheduled_date`. All must remain present.
+- **Recurrence chain:** `recurrence_source` (parent) and `next_job_created_id` (child) must not be removed or reset.
+- **`started_at` → `actual_minutes`:** `markInProgress()` sets `started_at`; `completeJob()` computes `actual_minutes`. These must stay coupled.
+- **Reschedule log:** `reschedule_count` and `reschedule_log` are append-only.
+- **Today page date assumptions:** `scheduled_date` as `YYYY-MM-DD`; `completed_at` as full ISO timestamp.
+- **Estimate visit fields:** `visit_scheduled_date` and `visit_scheduled_time` appear on Today page.
+- **`payment_status` enum:** `unpaid`, `partial`, `paid`, `not_billable` — renaming any value is a breaking change.
+- **FK cascades:** `job_photos`, `job_visits`, `expenses` all use `job_id` as FK.
