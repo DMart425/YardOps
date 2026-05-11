@@ -46,26 +46,29 @@ function formatServicePackage(pkg: string | null | undefined): string | null {
   return SERVICE_LABELS[pkg] ?? pkg.replace(/_/g, ' ')
 }
 
+// Builds an itemized service list from property boolean columns.
+// Returns e.g. "Mowing, Blow Off" or null if no booleans are set.
+function formatServiceBooleans(prop: PropertyRelation | null | undefined): string | null {
+  if (!prop) return null
+  const parts: string[] = []
+  if (prop.default_mowing_enabled)      parts.push('Mowing')
+  if (prop.default_weed_eating_enabled) parts.push('Weed Eating')
+  if (prop.default_edging_enabled)      parts.push('Edging')
+  if (prop.default_blow_off_enabled)    parts.push('Blow Off')
+  return parts.length > 0 ? parts.join(', ') : null
+}
+
 // Derives a human-readable service label for a job card.
-// Priority: explicit service_package → property boolean-derived label → null.
+// Priority: property booleans (most precise) → service_package code (legacy fallback).
 // job_type ('recurring', 'one_time') is intentionally never used here.
 function serviceLabel(
   pkg: string | null | undefined,
   propRaw: PropertyRelation | PropertyRelation[] | null | undefined
 ): string | null {
-  if (pkg) return formatServicePackage(pkg)
   const prop = Array.isArray(propRaw) ? propRaw[0] : propRaw
-  if (!prop) return null
-  const hasMow  = !!prop.default_mowing_enabled
-  const hasWeed = !!prop.default_weed_eating_enabled
-  const hasEdge = !!prop.default_edging_enabled
-  const hasBlow = !!prop.default_blow_off_enabled
-  if (!hasMow && !hasWeed && !hasEdge && !hasBlow) return null
-  if (hasMow && !hasWeed && !hasEdge && !hasBlow) return 'Mow Only'
-  if (hasMow && hasWeed && !hasEdge && hasBlow)   return 'Mow, Trim & Blow'
-  if (!hasMow && (hasWeed || hasEdge || hasBlow)) return 'Trim & Cleanup'
-  if (hasMow  && (hasWeed || hasEdge || hasBlow)) return 'Full Service'
-  return null
+  const fromBooleans = formatServiceBooleans(prop)
+  if (fromBooleans) return fromBooleans
+  return formatServicePackage(pkg)
 }
 
 const FILTERS_SCHEDULED = [
