@@ -134,6 +134,32 @@ export async function logService(itemId: string, equipmentId: string, formData: 
   revalidatePath('/equipment/' + equipmentId)
 }
 
+export async function deleteEquipment(equipmentId: string) {
+  const supabase = await createClient()
+  const { businessId } = await requireBusinessContext()
+
+  // Verify ownership before delete — no cross-business deletes
+  const { data: eq } = await supabase
+    .from('equipment')
+    .select('id')
+    .eq('id', equipmentId)
+    .eq('business_id', businessId)
+    .maybeSingle()
+
+  if (!eq) throw new Error('Equipment not found.')
+
+  // maintenance_items.equipment_id has ON DELETE CASCADE —
+  // the database automatically removes linked maintenance_items on equipment delete.
+  await supabase
+    .from('equipment')
+    .delete()
+    .eq('id', equipmentId)
+    .eq('business_id', businessId)
+
+  revalidatePath('/equipment')
+  redirect('/equipment')
+}
+
 export async function deleteMaintenanceItem(itemId: string, equipmentId: string) {
   const supabase = await createClient()
   const { businessId } = await requireBusinessContext()

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { updateEquipment } from '../actions'
 import MaintenanceSchedule from './MaintenanceSchedule'
 import SavedToast from './SavedToast'
+import { DeleteEquipmentButton } from './DeleteEquipmentButton'
 import { getLocalDateStr, resolveTimeZone } from '@/lib/date'
 import { requireBusinessContext } from '@/lib/business/context'
 
@@ -113,6 +114,17 @@ export default async function EquipmentDetailPage({ params }: { params: Promise<
           currentHours={equipment.current_hours ?? 0}
           localToday={localToday}
         />
+      </div>
+
+      {/* Danger zone */}
+      <div className="card" style={{ marginTop: '1.25rem', borderColor: 'var(--color-danger)' }}>
+        <div className="section-heading" style={{ marginBottom: '0.5rem', color: 'var(--color-danger)' }}>
+          Danger Zone
+        </div>
+        <p className="text-small text-muted" style={{ marginBottom: '0.75rem' }}>
+          Removing this equipment will also permanently delete all linked maintenance records.
+        </p>
+        <DeleteEquipmentButton equipmentId={id} equipmentName={equipment.name} />
       </div>
     </div>
   )
