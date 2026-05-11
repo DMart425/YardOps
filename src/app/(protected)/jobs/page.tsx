@@ -9,6 +9,10 @@ type PropertyRelation = {
   city: string | null
   latitude: number | null
   longitude: number | null
+  default_mowing_enabled: boolean | null
+  default_weed_eating_enabled: boolean | null
+  default_edging_enabled: boolean | null
+  default_blow_off_enabled: boolean | null
 }
 
 type JobListRow = {
@@ -40,6 +44,28 @@ const SERVICE_LABELS: Record<string, string> = {
 function formatServicePackage(pkg: string | null | undefined): string | null {
   if (!pkg) return null
   return SERVICE_LABELS[pkg] ?? pkg.replace(/_/g, ' ')
+}
+
+// Derives a human-readable service label for a job card.
+// Priority: explicit service_package → property boolean-derived label → null.
+// job_type ('recurring', 'one_time') is intentionally never used here.
+function serviceLabel(
+  pkg: string | null | undefined,
+  propRaw: PropertyRelation | PropertyRelation[] | null | undefined
+): string | null {
+  if (pkg) return formatServicePackage(pkg)
+  const prop = Array.isArray(propRaw) ? propRaw[0] : propRaw
+  if (!prop) return null
+  const hasMow  = !!prop.default_mowing_enabled
+  const hasWeed = !!prop.default_weed_eating_enabled
+  const hasEdge = !!prop.default_edging_enabled
+  const hasBlow = !!prop.default_blow_off_enabled
+  if (!hasMow && !hasWeed && !hasEdge && !hasBlow) return null
+  if (hasMow && !hasWeed && !hasEdge && !hasBlow) return 'Mow Only'
+  if (hasMow && hasWeed && !hasEdge && hasBlow)   return 'Mow, Trim & Blow'
+  if (!hasMow && (hasWeed || hasEdge || hasBlow)) return 'Trim & Cleanup'
+  if (hasMow  && (hasWeed || hasEdge || hasBlow)) return 'Full Service'
+  return null
 }
 
 const FILTERS_SCHEDULED = [
@@ -108,7 +134,7 @@ export default async function JobsPage({
 
   let query = supabase
     .from('jobs')
-    .select('id, title, status, payment_status, price, amount_paid, scheduled_date, completed_at, scheduled_time_window, service_package, job_type, customers(first_name, last_name), properties(service_address, city, latitude, longitude)')
+    .select('id, title, status, payment_status, price, amount_paid, scheduled_date, completed_at, scheduled_time_window, service_package, job_type, customers(first_name, last_name), properties(service_address, city, latitude, longitude, default_mowing_enabled, default_weed_eating_enabled, default_edging_enabled, default_blow_off_enabled)')
     .eq('business_id', businessId)
 
   if (view === 'completed') {
@@ -335,7 +361,7 @@ export default async function JobsPage({
                   const p = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
                   const customerName = c ? `${c.first_name}${c.last_name ? ' ' + c.last_name : ''}` : 'No customer'
                   const addr = p ? `${p.service_address}${p.city ? ', ' + p.city : ''}` : 'No address'
-                  const service = formatServicePackage(job.service_package)
+                  const service = serviceLabel(job.service_package, job.properties)
                   const dateTime = job.scheduled_date
                     ? `${formatDateOnly(job.scheduled_date, { weekday: 'short', month: 'short', day: 'numeric' })}${job.scheduled_time_window ? ` · ${job.scheduled_time_window}` : ''}`
                     : 'No date'
@@ -372,7 +398,7 @@ export default async function JobsPage({
             const p = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
             const customerName = c ? `${c.first_name}${c.last_name ? ' ' + c.last_name : ''}` : 'No customer'
             const addr = p ? `${p.service_address}${p.city ? ', ' + p.city : ''}` : 'No address'
-            const service = formatServicePackage(job.service_package)
+            const service = serviceLabel(job.service_package, job.properties)
             const dateTime = view === 'completed'
               ? (job.completed_at
                 ? formatTimestampDate(job.completed_at as string, timeZone, { weekday: 'short', month: 'short', day: 'numeric' })
