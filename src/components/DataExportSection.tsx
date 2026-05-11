@@ -1,19 +1,24 @@
 import { createClient } from '@/lib/supabase/server'
+import { requireBusinessContext } from '@/lib/business/context'
 import CsvExportButton from '@/components/CsvExportButton'
 
 export async function DataExportSection() {
   const supabase = await createClient()
+  const { businessId } = await requireBusinessContext()
 
   const [customersRes, propertiesRes, jobsRes] = await Promise.all([
     supabase
       .from('customers')
-      .select('id, first_name, last_name, phone, email, status, notes, created_at'),
+      .select('id, first_name, last_name, phone, email, status, notes, created_at')
+      .eq('business_id', businessId),
     supabase
       .from('properties')
-      .select('id, customer_id, property_name, service_address, city, state, postal_code, parcel_acres, estimated_mowable_acres, service_frequency, default_price, latitude, longitude, status, created_at'),
+      .select('id, customer_id, property_name, service_address, city, state, postal_code, parcel_acres, estimated_mowable_acres, service_frequency, default_price, latitude, longitude, status, created_at')
+      .eq('business_id', businessId),
     supabase
       .from('jobs')
-      .select('id, customer_id, property_id, status, payment_status, scheduled_date, completed_at, price, amount_paid, actual_minutes, service_package, title, created_at'),
+      .select('id, customer_id, property_id, status, payment_status, scheduled_date, completed_at, price, amount_paid, actual_minutes, service_package, title, created_at')
+      .eq('business_id', businessId),
   ])
 
   const today = new Date().toISOString().split('T')[0]
