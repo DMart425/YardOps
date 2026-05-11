@@ -4,6 +4,7 @@ import { PropertyForm } from '@/components/forms/PropertyForm'
 import { createProperty } from '../actions'
 import type { Property } from '@/types/database'
 import { normalizeFrequency } from '@/lib/frequency'
+import { requireBusinessContext } from '@/lib/business/context'
 
 function parseOptionalNumber(value?: string): number | null {
   if (!value) return null
@@ -93,10 +94,12 @@ export default async function NewPropertyPage({
   }
 
   const supabase = await createClient()
+  const { businessId } = await requireBusinessContext()
 
   const { data: customers } = await supabase
     .from('customers')
     .select('id, first_name, last_name, status')
+    .eq('business_id', businessId)
     .neq('status', 'archived')
     .order('first_name')
 

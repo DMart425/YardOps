@@ -150,6 +150,7 @@ export default async function PropertiesPage({
     const { data: jobs } = await supabase
       .from('jobs')
       .select('property_id, scheduled_date, scheduled_time_window')
+      .eq('business_id', businessId)
       .in('status', ['scheduled', 'in_progress', 'needs_reschedule'])
       .gte('scheduled_date', today)
       .in('property_id', displayedPropertyIds)

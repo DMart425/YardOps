@@ -66,16 +66,19 @@ export default async function PropertyDetailPage({
       .from('jobs')
       .select('id', { count: 'exact', head: true })
       .eq('property_id', id)
+      .eq('business_id', businessId)
       .eq('status', 'completed'),
     supabase
       .from('jobs')
       .select('price, amount_paid, payment_status')
       .eq('property_id', id)
+      .eq('business_id', businessId)
       .eq('status', 'completed'),
     supabase
       .from('jobs')
       .select('completed_at')
       .eq('property_id', id)
+      .eq('business_id', businessId)
       .eq('status', 'completed')
       .not('completed_at', 'is', null)
       .order('completed_at', { ascending: false })
@@ -85,6 +88,7 @@ export default async function PropertyDetailPage({
       .from('jobs')
       .select('id, scheduled_date, scheduled_time_window')
       .eq('property_id', id)
+      .eq('business_id', businessId)
       .in('status', ['scheduled', 'in_progress', 'needs_reschedule'])
       .gte('scheduled_date', today)
       .order('scheduled_date', { ascending: true })
@@ -105,6 +109,7 @@ export default async function PropertyDetailPage({
     .from('customers')
     .select('id, first_name, last_name, status')
     .eq('id', p.customer_id)
+    .eq('business_id', businessId)
     .maybeSingle()
   const currentCustomer = currentCustomerData ?? (customers ?? []).find(c => c.id === p.customer_id) ?? null
   const currentCustomerName = currentCustomer
