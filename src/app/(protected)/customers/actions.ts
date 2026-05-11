@@ -285,6 +285,7 @@ export async function deleteTestCustomerWithLinkedTestRecords(
     const { error: deleteJobPhotosError } = await supabase
       .from('job_photos')
       .delete()
+      .eq('business_id', businessId)
       .in('job_id', jobIds)
 
     if (deleteJobPhotosError) return { error: 'Failed deleting linked job photos during test cleanup.' }
@@ -300,6 +301,7 @@ export async function deleteTestCustomerWithLinkedTestRecords(
     const { error: deleteJobVisitsError } = await supabase
       .from('job_visits')
       .delete()
+      .eq('business_id', businessId)
       .in('job_id', jobIds)
 
     if (deleteJobVisitsError) return { error: 'Failed deleting linked job visits during test cleanup.' }
