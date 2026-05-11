@@ -18,6 +18,15 @@ export async function getOrCreatePortalToken(customerId: string): Promise<{ toke
     .single()
 
   if (error || !data) {
+    // TEMP DIAGNOSTIC LOGGING — remove after portal link failure is resolved
+    console.error('[portal-actions] customer_portal_tokens upsert failed', {
+      customerId,
+      businessId,
+      userId,
+      error,
+      hasData: Boolean(data),
+    })
+
     // Upsert with ignoreDuplicates returns nothing on conflict — fetch existing
     const { data: existing, error: fetchError } = await supabase
       .from('customer_portal_tokens')
@@ -26,7 +35,17 @@ export async function getOrCreatePortalToken(customerId: string): Promise<{ toke
       .eq('business_id', businessId)
       .single()
 
-    if (fetchError || !existing) return { error: 'Could not generate portal link.' }
+    if (fetchError || !existing) {
+      console.error('[portal-actions] customer_portal_tokens fallback fetch failed', {
+        customerId,
+        businessId,
+        userId,
+        fetchError,
+        hasExisting: Boolean(existing),
+      })
+      return { error: 'Could not generate portal link.' }
+    }
+
     return { token: existing.token }
   }
 
