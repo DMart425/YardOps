@@ -20,16 +20,16 @@ export default async function CustomerPortalPage({
   const { token } = await params
   const supabase  = createAdminClient()
 
-  // Look up token → customer_id + created_by (for profile)
+  // Look up token → customer_id + created_by (for profile) + business_id (for scoping)
   const { data: portalRow } = await supabase
     .from('customer_portal_tokens')
-    .select('customer_id, created_by')
+    .select('customer_id, created_by, business_id')
     .eq('token', token)
     .single()
 
   if (!portalRow) notFound()
 
-  const { customer_id, created_by } = portalRow
+  const { customer_id, created_by, business_id } = portalRow
 
   // Parallel fetches
   const [
@@ -52,6 +52,7 @@ export default async function CustomerPortalPage({
       .from('jobs')
       .select('id, status, payment_status, price, amount_paid, scheduled_date, completed_at, service_package')
       .eq('customer_id', customer_id)
+      .eq('business_id', business_id)
       .order('scheduled_date', { ascending: false })
       .limit(30),
     supabase
