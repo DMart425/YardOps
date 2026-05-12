@@ -21,7 +21,7 @@ Last updated: 2026-05-11
 
 ## Current Checkpoint
 
-- **Latest commit:** `71975dd` — Scope portal jobs by business
+- **Latest commit:** `70fa054` — Modernize portal service labels
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -216,6 +216,8 @@ Commits: `8621e2d`, `9028e84`, `3c5371a`
 
 | Hash | Description |
 |------|-------------|
+| `70fa054` | Modernize portal service labels (Phase 2G) |
+| `22e1538` | Document portal scoping cleanup |
 | `71975dd` | Scope portal jobs by business (Phase 2G — portal business_id) |
 | `8ea0350` | Document Wicksburg phone formatting |
 | `0399455` | Document YardOps phone formatting |
@@ -272,6 +274,7 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ YardOps phone inputs format as `(xxx) xxx-xxxx` while typing (manual lead, customer edit, estimate new-customer, quote confirm)
 - ✅ WicksburgLawnService public quote form phone input formats as `(xxx) xxx-xxxx` while typing (`2a7b0f8`)
 - ✅ Customer portal jobs scoped by both `customer_id` and `business_id` (`71975dd`)
+- ✅ Customer portal service labels use property booleans first (Mowing / Weed Eating / Edging / Blow Off), fall back to friendly legacy labels (`70fa054`)
 
 ---
 
@@ -281,7 +284,7 @@ All of the following were user-tested and confirmed working as of `289b732`:
 |------|--------|-------|
 | DB password rotation | ⏸ Pending | Schedule at a safe pause point; do not interrupt active work |
 | Phase 2F — Final Multi-Business Audit | ✅ Complete | All 13 tables verified — no blockers found |
-| Phase 2G — Defense-in-Depth Cleanup | ⏸ In Progress | Task 1 ✅, Patch B ✅, Patch C ✅, portal scoping ✅; next: portal service label modernization |
+| Phase 2G — Defense-in-Depth Cleanup | ⏸ In Progress | Task 1 ✅, Patch B ✅, Patch C ✅, portal scoping ✅, portal labels ✅; next: quote acceptEstimate business_id |
 | WicksburgLawnService phone input formatting (Patch C) | ✅ Complete | `2a7b0f8` in WicksburgLawnService — separate repo, no YardOps changes |
 | B.7a website frequency/service-interest intake | ⏸ Pending | `6c8bada` in WicksburgLawnService |
 | B.7b YardOps consumption of B.7a leads | ⏸ Pending | Verify normalization/carryover |
@@ -308,16 +311,16 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Immediate next task: Phase 2G — portal/[token]/page.tsx service label modernization**
+**Immediate next task: Phase 2G — `quote/[token]/actions.ts` business_id scoping**
 
-The customer portal currently displays job service labels using `pkgLabel(j.service_package)`, which is the legacy package code. Service booleans on the linked property are the current source of truth. The portal should use the same display priority as job cards: property booleans first, `service_package` as fallback for old rows.
+`acceptEstimate()` in `src/app/quote/[token]/actions.ts` updates `customers` and `properties` but does not include a `business_id` filter on those updates. They are currently gated only by the `public_token` lookup on the estimate row. Adding `business_id` from the fetched estimate provides defense-in-depth.
 
-Scope: YardOps only (`src/app/portal/[token]/page.tsx`). No schema changes. No migrations.
+Scope: YardOps only (`src/app/quote/[token]/actions.ts`). No schema changes. No migrations.
 
 Steps:
-1. Inspect `src/app/portal/[token]/page.tsx` — find the jobs query and the `pkgLabel` function
-2. Expand the jobs query to join linked property boolean columns (`default_mowing_enabled`, `default_weed_eating_enabled`, `default_edging_enabled`, `default_blow_off_enabled`) — either via a join on `property_id` or a separate properties fetch
-3. Replace `pkgLabel()` with a helper that checks booleans first (Mowing / Weed Eating / Edging / Blow Off), falls back to `service_package` friendly label
+1. Inspect `src/app/quote/[token]/actions.ts` — find `acceptEstimate` and the customers/properties update calls
+2. Confirm `business_id` is already present on the fetched estimate row (or add it to the select if not)
+3. Add `.eq('business_id', businessId)` to both the `customers` update and the `properties` update
 4. Run `npx tsc --noEmit`
 5. Return a patch report before staging
 
@@ -326,8 +329,8 @@ Remaining Phase 2G items after this (in Architecture.md §16):
 2. ~~Patch B — YardOps phone formatting~~ ✅ complete
 3. ~~Patch C — WicksburgLawnService phone formatting~~ ✅ complete
 4. ~~`portal/[token]/page.tsx` business_id scoping~~ ✅ complete
-5. `portal/[token]/page.tsx` service label modernization — **next task**
-6. `quote/[token]/actions.ts` — add `business_id` scoping to customer/property updates in `acceptEstimate`
+5. ~~`portal/[token]/page.tsx` service label modernization~~ ✅ complete
+6. `quote/[token]/actions.ts` — add `business_id` scoping to `acceptEstimate` — **next task**
 7. Cron routes — document multi-business scoping gap; address when multi-business needed
 8. `leads` RLS SELECT/DELETE — cosmetic `business_id IS NOT NULL` cleanup
 

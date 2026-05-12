@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-11
-Current checkpoint commit: `71975dd` (Scope portal jobs by business)
+Current checkpoint commit: `70fa054` (Modernize portal service labels)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -548,13 +548,20 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 - Added `.eq('business_id', business_id)` to the jobs query alongside existing `customer_id` filter
 - No SQL/migrations. No behavior change beyond scoping.
 
-**Next item — `portal/[token]/page.tsx` service label modernization:**
+**`portal/[token]/page.tsx` service label modernization ✅ (user-tested `70fa054`):**
 
-- The portal currently displays `pkgLabel(j.service_package)` as the service name on job cards
-- `service_package` is legacy — property service booleans are the current source of truth
-- The portal jobs query should also fetch the linked property's four boolean columns
-- Display logic should follow the same priority as job cards: property booleans first (Mowing / Weed Eating / Edging / Blow Off), fall back to `service_package` for old rows
-- No schema changes needed — boolean columns already exist on `properties`
+- Added `property_id` to jobs select
+- Added parallel properties fetch (scoped by `customer_id` + `business_id`) to retrieve the four boolean columns
+- Built `propertyMap: Map<string, PropertyBooleans>` from fetched properties
+- Added `SERVICE_LABELS` map and `serviceLabel(pkg, prop)` helper (module-level): property booleans first → `SERVICE_LABELS[pkg]` → title-cased code → `'Lawn Service'`
+- Removed old inline `pkgLabel()` — replaced both call sites (Upcoming + Service History) with `serviceLabel()`
+- No SQL/migrations. No schema changes.
+
+**Next item — `quote/[token]/actions.ts` business_id scoping:**
+
+- `customers.update()` and `properties.update()` in `acceptEstimate` have no `business_id` filter
+- Currently gated only by `public_token` lookup on the estimate
+- Fix: derive `business_id` from the fetched estimate row and add to both update calls
 
 **Remaining items (after Patch B):**
 
