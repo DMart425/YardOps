@@ -21,7 +21,7 @@ Last updated: 2026-05-11
 
 ## Current Checkpoint
 
-- **Latest commit:** `e4d0879` — Document post-hardening roadmap
+- **Latest commit:** `9b61a62` — Improve data export content
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -160,11 +160,26 @@ Read-only audit run against live DB (`lewzqavgvltzwfeypvam`). All 13 business-ow
 - `finances/page.tsx` explicitly scopes all queries to `businessId`
 
 **Defense-in-depth findings (Phase 2G candidates):**
-- `DataExportSection.tsx` — no explicit `business_id` filter; RLS-only (highest priority cleanup)
+- `DataExportSection.tsx` — ✅ Fixed in Phase 2G Task 1 (see below)
 - `portal/[token]/page.tsx` — jobs query scoped by `customer_id` only; no `business_id`
 - `quote/[token]/actions.ts` — `customers`/`properties` updates in `acceptEstimate` lack `business_id` scope
 - Cron routes — no `business_id` filter on jobs/estimates; single-business only
 - `leads` RLS SELECT/DELETE has redundant `business_id IS NOT NULL` check (cosmetic)
+
+---
+
+### Phase 2G — DataExportSection.tsx Cleanup ✅
+
+**User-tested in production.** Two commits applied to `DataExportSection.tsx`:
+
+- `f0edcc8` — Added explicit `business_id` filter to all three export queries via `requireBusinessContext()`. Replaced RLS-only scoping with defense-in-depth.
+- `9b61a62` — Export content improvements:
+  - Customer phone numbers formatted as `(xxx) xxx-xxxx` in CSV output
+  - `customer_name` column added to properties export (after `customer_id`)
+  - `customer_name` column added to jobs export (after `customer_id`)
+  - `services` column added to jobs export: property booleans first (Mowing / Weed Eating / Edging / Blow Off), falls back to friendly `service_package` label; raw `service_package` retained for legacy/debug context
+
+No schema changes. No migrations. The four property boolean columns already existed from `20260506000200_property_default_service_booleans.sql`.
 
 ---
 
@@ -201,6 +216,9 @@ Commits: `8621e2d`, `9028e84`, `3c5371a`
 
 | Hash | Description |
 |------|-------------|
+| `9b61a62` | Improve data export content (Phase 2G Task 1 — export cleanup) |
+| `f0edcc8` | Scope data exports by business (Phase 2G Task 1 — business_id filter) |
+| `1c209ac` | Document Phase 2F audit results |
 | `e4d0879` | Document post-hardening roadmap |
 | `b9c02f3` | Harden leads business ownership (Phase 2E Final) |
 | `289b732` | Update YardOps architecture and handoff docs |
@@ -243,6 +261,10 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ Steve Pippin shows correct service label
 - ✅ Cedric Thomas shows "Mowing, Blow Off"
 - ✅ Public WicksburgLawnService intake form submits successfully with `leads.business_id NOT NULL` enforced
+- ✅ Data exports filter by `business_id` explicitly (not RLS-only)
+- ✅ Customers CSV exports phone numbers formatted as `(xxx) xxx-xxxx`
+- ✅ Properties CSV exports include `customer_name`
+- ✅ Jobs CSV exports include `customer_name` and human-readable `services` label
 
 ---
 
@@ -252,7 +274,8 @@ All of the following were user-tested and confirmed working as of `289b732`:
 |------|--------|-------|
 | DB password rotation | ⏸ Pending | Schedule at a safe pause point; do not interrupt active work |
 | Phase 2F — Final Multi-Business Audit | ✅ Complete | All 13 tables verified — no blockers found |
-| Phase 2G — Defense-in-Depth Cleanup | ⏸ Pending | See Architecture.md §16 for specific findings |
+| Phase 2G — Defense-in-Depth Cleanup | ⏸ In Progress | Task 1 (DataExportSection.tsx) ✅ complete; Patch B next (see Recommended Next Task) |
+| WicksburgLawnService phone input formatting (Patch C) | ⏸ Pending | Separate repo — do not mix with YardOps commits |
 | B.7a website frequency/service-interest intake | ⏸ Pending | `6c8bada` in WicksburgLawnService |
 | B.7b YardOps consumption of B.7a leads | ⏸ Pending | Verify normalization/carryover |
 | Stale jobs with `service_package = null` and no property booleans | ℹ️ Minor | Cards show no 🌿 line — acceptable for now, data cleanup optional |
@@ -278,20 +301,30 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Immediate next task: Phase 2G — Defense-in-Depth Cleanup**
+**Immediate next task: Patch B — YardOps phone input formatting**
 
-Start with `DataExportSection.tsx`: add explicit `business_id` filter to the `customers`, `properties`, and `jobs` export queries. This is the highest-priority Phase 2G item — it replaces RLS-only scoping with explicit defense in the component.
+All four YardOps phone input fields should format as `(xxx) xxx-xxxx` on keystroke. Scope: YardOps repo only — do not touch WicksburgLawnService.
 
-Full Phase 2G task list is in Architecture.md §16. Items in order:
-1. `DataExportSection.tsx` — add explicit `business_id` filters *(start here)*
-2. `portal/[token]/page.tsx` — add `business_id` filter to jobs query
-3. `quote/[token]/actions.ts` — add `business_id` scoping to customer/property updates in `acceptEstimate`
-4. Cron routes — document multi-business scoping gap; address when multi-business needed
-5. `leads` RLS SELECT/DELETE — cosmetic `business_id IS NOT NULL` cleanup
+Files to update:
+- `src/app/(protected)/leads/new/page.tsx` — manual lead phone field
+- `src/app/(protected)/customers/[id]/_form.tsx` — customer edit phone field
+- `src/components/forms/EstimateForm.tsx` — inline new-customer phone field (`new_customer_phone`)
+- `src/app/quote/[token]/QuoteConfirmForm.tsx` — public quote confirmation phone field
 
-After Phase 2G cleanup patches are reviewed and approved, the next step will be user-selected from:
-- Phase 3 — Public intake and lead workflow improvements
-- Any other explicitly selected item
+New shared helper:
+- `src/lib/format.ts` — export `formatPhoneInput(value: string): string`
+- Formats 10-digit numbers as `(xxx) xxx-xxxx`; handles leading `1`; passthrough for unrecognized formats
+- Apply via the safest minimal input handler approach for each component; use controlled input only where appropriate
+
+**WicksburgLawnService phone input (Patch C) is a separate task in that repo. Do not mix with YardOps commits.**
+
+Remaining Phase 2G items after Patch B (in Architecture.md §16):
+1. ~~`DataExportSection.tsx`~~ ✅ complete
+2. Patch B phone formatting — next task
+3. `portal/[token]/page.tsx` — add `business_id` filter to jobs query
+4. `quote/[token]/actions.ts` — add `business_id` scoping to customer/property updates in `acceptEstimate`
+5. Cron routes — document multi-business scoping gap; address when multi-business needed
+6. `leads` RLS SELECT/DELETE — cosmetic `business_id IS NOT NULL` cleanup
 
 ---
 

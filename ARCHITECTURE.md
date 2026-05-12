@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-11
-Current checkpoint commit: `e4d0879` (Document post-hardening roadmap)  
+Current checkpoint commit: `9b61a62` (Improve data export content)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -503,7 +503,7 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 | Reference/special tables | ✅ `parcels` authenticated-read + service-role preserved; `estimates` public quote token policy preserved |
 | App insert/update paths | ✅ All protected server actions call `requireBusinessContext()` and set/scope `business_id`; no `created_by`-only data access found |
 | Public/token routes | ✅ `/quote/[token]` and `/portal/[token]` work correctly; WicksburgLawnService intake confirmed business-scoped |
-| Exports/reporting | ✅ `finances/page.tsx` explicitly scopes all queries to `businessId`; `DataExportSection.tsx` relies on RLS only (Phase 2G cleanup candidate) |
+| Exports/reporting | ✅ `finances/page.tsx` explicitly scopes all queries to `businessId`; `DataExportSection.tsx` was RLS-only at audit time (fixed in Phase 2G Task 1) |
 | No blockers | ✅ No must-fix items found |
 
 **Defense-in-depth findings (tracked in Phase 2G):** see Phase 2G section below.
@@ -514,11 +514,30 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 
 **Goal:** Clean up remaining hardening/consistency issues found during Phase 2D/2E and Phase 2F.
 
-**Status:** ⏸ Pending — next task
+**Status:** ⏸ In Progress
 
-**Known items (from Phase 2F audit):**
+**Completed items:**
 
-1. **`DataExportSection.tsx`** — no explicit `business_id` filter on `customers`/`properties`/`jobs` queries. Uses `createClient()` with RLS only. Fix: fetch `businessId` via `requireBusinessContext()` and add `.eq('business_id', businessId)` to all three queries. *(Highest priority — defense against RLS drift)*
+1. **`DataExportSection.tsx`** ✅ — **User-tested in production (`9b61a62`).** Two patches applied:
+   - `f0edcc8`: Added `requireBusinessContext()` and explicit `.eq('business_id', businessId)` to all three export queries (customers, properties, jobs). Replaced RLS-only scoping with explicit defense.
+   - `9b61a62`: Export content improvements:
+     - Customer `phone` formatted as `(xxx) xxx-xxxx` in CSV output (passthrough for unrecognized formats)
+     - `customer_name` column added to properties and jobs exports (built from already-fetched customers data — no extra query)
+     - `services` column added to jobs export: property boolean columns checked first (Mowing / Weed Eating / Edging / Blow Off); falls back to friendly `service_package` label; `service_package` retained for legacy/debug context
+     - Four property boolean columns added to properties select to support jobs service label derivation
+
+**Next item (Patch B — YardOps phone input formatting):**
+
+- `leads/new/page.tsx` — manual lead phone field
+- `customers/[id]/_form.tsx` — customer edit phone field
+- `EstimateForm.tsx` — inline new-customer phone field
+- `quote/[token]/QuoteConfirmForm.tsx` — public quote confirmation phone field (YardOps repo)
+- Add `src/lib/format.ts` with shared `formatPhoneInput()` helper
+- Format `(xxx) xxx-xxxx` on keystroke via `onChange` handler on each controlled input
+- WicksburgLawnService phone input formatting is a **separate Patch C** in that repo — do not mix with YardOps commits
+
+**Remaining items (after Patch B):**
+
 2. **`portal/[token]/page.tsx`** — `jobs` query uses only `customer_id`, no `business_id` filter. The portal token row already has `business_id`; use it to scope the query. *(Low risk today; multi-business leak if ever multi-business)*
 3. **`quote/[token]/actions.ts`** — `customers.update()` and `properties.update()` in `acceptEstimate` have no `business_id` filter; gated by `public_token` lookup only. Fix: derive `business_id` from the fetched estimate row and add to both update calls.
 4. **Cron routes** (`morning-summary`, `evening-summary`) — query `jobs`/`estimates` without `business_id` filter and grab `pricing_settings` with `.limit(1)`. Safe for single-business only; needs business iteration before multi-business use.
