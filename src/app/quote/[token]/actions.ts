@@ -11,6 +11,7 @@ type QuoteEstimate = {
   customer_id: string
   property_id: string
   created_by: string | null
+  business_id: string
 }
 
 type QuoteCustomer = {
@@ -42,7 +43,7 @@ export async function acceptEstimate(
   // 1. Fetch estimate by token
   const { data: estimateRaw } = await supabase
     .from('estimates')
-    .select('id, status, valid_until, customer_id, property_id, created_by')
+    .select('id, status, valid_until, customer_id, property_id, created_by, business_id')
     .eq('public_token', token)
     .single()
 
@@ -81,6 +82,7 @@ export async function acceptEstimate(
       email,
     })
     .eq('id', estimate.customer_id)
+    .eq('business_id', estimate.business_id)
 
   // 3. Flip lead → active
   const { data: customer } = await supabase
@@ -94,6 +96,7 @@ export async function acceptEstimate(
       .from('customers')
       .update({ status: 'active' })
       .eq('id', estimate.customer_id)
+      .eq('business_id', estimate.business_id)
   }
 
   // 4. Update property access notes
@@ -102,6 +105,7 @@ export async function acceptEstimate(
       .from('properties')
       .update({ access_notes: accessNotes })
       .eq('id', estimate.property_id)
+      .eq('business_id', estimate.business_id)
   }
 
   // 5. Mark estimate approved
