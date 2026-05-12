@@ -67,11 +67,11 @@ export default async function QuotePage({
       {/* Header — matches wicksburglawnservice.com */}
       <div style={{ background: '#0a0a0a', borderBottom: '1px solid rgba(255,255,255,0.1)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
         <Image src="/logo.png" alt="Wicksburg Lawn Service" width={56} height={56} style={{ objectFit: 'contain', width: '56px', height: '56px' }} />
-        <div>
+        <div style={{ flex: '1 1 0', minWidth: 0 }}>
           <div style={{ color: '#34d399', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.2em' }}>Local Lawn Service</div>
           <div style={{ color: '#f5f5f5', fontWeight: 700, fontSize: '1.125rem', lineHeight: 1.2 }}>Wicksburg Lawn Service</div>
         </div>
-        <div style={{ marginLeft: 'auto' }}>
+        <div style={{ marginLeft: 'auto', flexShrink: 0, whiteSpace: 'nowrap' }}>
           <a href="tel:3343207514" style={{
             background: '#10b981', color: '#0a0a0a', textDecoration: 'none',
             borderRadius: '10px', padding: '8px 16px', fontSize: '0.875rem', fontWeight: 600,
@@ -99,7 +99,7 @@ export default async function QuotePage({
             background: 'rgba(52,211,153,0.08)', border: '2px solid #34d399', borderRadius: '10px',
             padding: '14px 16px', marginBottom: '16px', color: '#34d399', fontWeight: 600,
           }}>
-            ✅ You&apos;ve already accepted this estimate. We&apos;ll be in touch soon!
+            ✅ Estimate accepted. We&apos;ll be in touch soon!
           </div>
         )}
 
