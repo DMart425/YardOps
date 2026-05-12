@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-11
-Current checkpoint commit: `de10c59` (Format YardOps phone inputs)
+Current checkpoint commit: `71975dd` (Scope portal jobs by business)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -541,11 +541,20 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 - Public quote intake form phone input now formats as `(xxx) xxx-xxxx` while typing
 - No YardOps files changed. No SQL/migrations. Committed separately in WicksburgLawnService repo.
 
-**Next item — `portal/[token]/page.tsx` business_id scoping:**
+**`portal/[token]/page.tsx` business_id scoping ✅ (user-tested `71975dd`):**
 
-- The `jobs` query in `portal/[token]/page.tsx` is scoped by `customer_id` only; no `business_id` filter
-- The portal token row already carries `business_id`; use it to scope the jobs query
-- Low risk today (single-business); multi-business leak if app ever scales to multi-tenant
+- Added `business_id` to the `customer_portal_tokens` select
+- Destructured `business_id` from portal token row
+- Added `.eq('business_id', business_id)` to the jobs query alongside existing `customer_id` filter
+- No SQL/migrations. No behavior change beyond scoping.
+
+**Next item — `portal/[token]/page.tsx` service label modernization:**
+
+- The portal currently displays `pkgLabel(j.service_package)` as the service name on job cards
+- `service_package` is legacy — property service booleans are the current source of truth
+- The portal jobs query should also fetch the linked property's four boolean columns
+- Display logic should follow the same priority as job cards: property booleans first (Mowing / Weed Eating / Edging / Blow Off), fall back to `service_package` for old rows
+- No schema changes needed — boolean columns already exist on `properties`
 
 **Remaining items (after Patch B):**
 
