@@ -535,12 +535,17 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 - `quote/[token]/QuoteConfirmForm.tsx` — quote confirmation phone edit field now formats on input; existing value displays formatted when editing begins
 - WicksburgLawnService phone input formatting is **Patch C** — separate repo, separate commit
 
-**Next item (Patch C — WicksburgLawnService phone input formatting):**
+**Patch C — WicksburgLawnService phone input formatting ✅ (user-tested `2a7b0f8` in `DMart425/WicksburgLawnService`):**
 
-- `app/page.tsx` in `DMart425/WicksburgLawnService` — public quote intake form phone field
-- Add local `formatPhoneInput` helper (same logic as YardOps `src/lib/format.ts`)
-- Update controlled `onChange` handler on the phone input to format on keystroke
-- Commit separately in the WicksburgLawnService repo — do not mix with YardOps commits
+- `app/page.tsx` — added local `formatPhoneInput` helper (same logic as YardOps `src/lib/format.ts`); updated controlled phone `onChange` to format on keystroke
+- Public quote intake form phone input now formats as `(xxx) xxx-xxxx` while typing
+- No YardOps files changed. No SQL/migrations. Committed separately in WicksburgLawnService repo.
+
+**Next item — `portal/[token]/page.tsx` business_id scoping:**
+
+- The `jobs` query in `portal/[token]/page.tsx` is scoped by `customer_id` only; no `business_id` filter
+- The portal token row already carries `business_id`; use it to scope the jobs query
+- Low risk today (single-business); multi-business leak if app ever scales to multi-tenant
 
 **Remaining items (after Patch B):**
 

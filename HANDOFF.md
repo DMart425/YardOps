@@ -267,6 +267,7 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ Properties CSV exports include `customer_name`
 - ✅ Jobs CSV exports include `customer_name` and human-readable `services` label
 - ✅ YardOps phone inputs format as `(xxx) xxx-xxxx` while typing (manual lead, customer edit, estimate new-customer, quote confirm)
+- ✅ WicksburgLawnService public quote form phone input formats as `(xxx) xxx-xxxx` while typing (`2a7b0f8`)
 
 ---
 
@@ -276,8 +277,8 @@ All of the following were user-tested and confirmed working as of `289b732`:
 |------|--------|-------|
 | DB password rotation | ⏸ Pending | Schedule at a safe pause point; do not interrupt active work |
 | Phase 2F — Final Multi-Business Audit | ✅ Complete | All 13 tables verified — no blockers found |
-| Phase 2G — Defense-in-Depth Cleanup | ⏸ In Progress | Task 1 (DataExportSection.tsx) ✅ complete; Patch B ✅ complete; Patch C next |
-| WicksburgLawnService phone input formatting (Patch C) | ⏸ Pending — next | Separate repo — do not mix with YardOps commits |
+| Phase 2G — Defense-in-Depth Cleanup | ⏸ In Progress | Task 1 ✅, Patch B ✅, Patch C ✅; next: portal/[token]/page.tsx business_id scoping |
+| WicksburgLawnService phone input formatting (Patch C) | ✅ Complete | `2a7b0f8` in WicksburgLawnService — separate repo, no YardOps changes |
 | B.7a website frequency/service-interest intake | ⏸ Pending | `6c8bada` in WicksburgLawnService |
 | B.7b YardOps consumption of B.7a leads | ⏸ Pending | Verify normalization/carryover |
 | Stale jobs with `service_package = null` and no property booleans | ℹ️ Minor | Cards show no 🌿 line — acceptable for now, data cleanup optional |
@@ -303,26 +304,24 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Immediate next task: Patch C — WicksburgLawnService public quote form phone input formatting**
+**Immediate next task: Phase 2G — `portal/[token]/page.tsx` business_id scoping**
 
-Scope: `DMart425/WicksburgLawnService` repo only. Do not touch YardOps.
+The `jobs` query in `src/app/portal/[token]/page.tsx` is currently scoped by `customer_id` only — no `business_id` filter. The portal token row already carries `business_id`; use it to scope the query as defense-in-depth.
 
-File to update:
-- `app/page.tsx` — the public quote intake form has a controlled phone input (`form.phone` state) with a bare `onChange` handler; wrap it with a local `formatPhoneInput` helper
+Scope: YardOps only. No schema changes. No migrations.
 
-Implementation:
-- Add a local `formatPhoneInput` function to `app/page.tsx` (same logic as YardOps `src/lib/format.ts` — no shared lib needed in the separate repo)
-- Update `onChange` to call `formatPhoneInput(e.target.value)` before setting state
-- The API route (`app/api/quote/route.ts`) already passes the phone value through as-is — no changes needed there; formatted value will be stored in `leads.phone`
-- Commit separately in the WicksburgLawnService repo
+Steps:
+1. Inspect `src/app/portal/[token]/page.tsx` — find the jobs query and the portal token fetch
+2. Derive `business_id` from the fetched portal token row
+3. Add `.eq('business_id', businessId)` to the jobs query alongside the existing `customer_id` filter
+4. Run `npx tsc --noEmit`
+5. Return a patch report before staging
 
-**Do not mix with YardOps commits. Do not edit any YardOps file.**
-
-Remaining Phase 2G items after Patch C (in Architecture.md §16):
+Remaining Phase 2G items after this (in Architecture.md §16):
 1. ~~`DataExportSection.tsx`~~ ✅ complete
 2. ~~Patch B — YardOps phone formatting~~ ✅ complete
-3. Patch C — WicksburgLawnService phone formatting — next task
-4. `portal/[token]/page.tsx` — add `business_id` filter to jobs query
+3. ~~Patch C — WicksburgLawnService phone formatting~~ ✅ complete
+4. `portal/[token]/page.tsx` — add `business_id` filter to jobs query — **next task**
 5. `quote/[token]/actions.ts` — add `business_id` scoping to customer/property updates in `acceptEstimate`
 6. Cron routes — document multi-business scoping gap; address when multi-business needed
 7. `leads` RLS SELECT/DELETE — cosmetic `business_id IS NOT NULL` cleanup
