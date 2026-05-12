@@ -1,10 +1,11 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useState } from 'react'
 import { updateCustomer } from '../actions'
 import Link from 'next/link'
 import type { Customer, FormState } from '@/types/database'
 import { Toast } from '@/components/Toast'
+import { formatPhoneInput } from '@/lib/format'
 
 const CUSTOMER_TAGS = ['Seasonal', 'Commercial', 'Priority', 'Cash Only', 'Key Holder', 'HOA']
 
@@ -16,6 +17,7 @@ export function CustomerEditForm({ customer }: { customer: Customer }) {
     updateCustomer.bind(null, customer.id),
     { error: null }
   )
+  const [phoneValue, setPhoneValue] = useState(formatPhoneInput(customer.phone ?? ''))
 
   return (
     <form action={action} className="form">
@@ -48,7 +50,14 @@ export function CustomerEditForm({ customer }: { customer: Customer }) {
 
       <div className="form-field">
         <label className="form-label" htmlFor="edit_phone">Phone</label>
-        <input id="edit_phone" name="phone" type="tel" className="form-input" defaultValue={customer.phone ?? ''} />
+        <input
+          id="edit_phone"
+          name="phone"
+          type="tel"
+          className="form-input"
+          value={phoneValue}
+          onChange={e => setPhoneValue(formatPhoneInput(e.target.value))}
+        />
       </div>
 
       <div className="form-field">

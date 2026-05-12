@@ -10,6 +10,7 @@ import ParcelLookup from '@/components/ParcelLookup'
 import type { ImportedParcel } from '@/components/ParcelLookup'
 import { parseWebsiteServiceInterests } from '@/lib/frequency'
 import { addDays } from '@/lib/date'
+import { formatPhoneInput } from '@/lib/format'
 
 interface CustomerOption { id: string; first_name: string; last_name: string | null; phone?: string | null; notes?: string | null }
 interface PropertyOption {
@@ -403,7 +404,7 @@ export function EstimateForm({
                 className="form-input"
                 placeholder="(334) 555-0123"
                 value={newCustomerPhone}
-                onChange={e => setNewCustomerPhone(e.target.value)}
+                onChange={e => setNewCustomerPhone(formatPhoneInput(e.target.value))}
                 required
               />
             </div>

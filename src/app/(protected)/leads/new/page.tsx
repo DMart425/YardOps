@@ -6,6 +6,7 @@ import Link from 'next/link'
 import type { FormState } from '@/types/database'
 import ParcelLookup from '@/components/ParcelLookup'
 import type { ImportedParcel } from '@/components/ParcelLookup'
+import { formatPhoneInput } from '@/lib/format'
 
 export default function NewLeadPage() {
   const [state, action, pending] = useActionState<FormState, FormData>(createLead, { error: null })
@@ -18,6 +19,7 @@ export default function NewLeadPage() {
   const [parcelAcres, setParcelAcres] = useState('')
   const [mowableAcres, setMowableAcres] = useState('')
   const [lotSizeSource, setLotSizeSource] = useState('manual')
+  const [phone, setPhone] = useState('')
 
   function handleParcelImport(parcel: ImportedParcel) {
     setServiceAddress(parcel.streetAddress || parcel.address)
@@ -81,6 +83,8 @@ export default function NewLeadPage() {
                 type="tel"
                 className="form-input"
                 placeholder="(334) 555-0123"
+                value={phone}
+                onChange={e => setPhone(formatPhoneInput(e.target.value))}
               />
             </div>
             <div className="form-field">

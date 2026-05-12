@@ -3,6 +3,7 @@
 import { useActionState, useState } from 'react'
 import { acceptEstimate, declineEstimate } from './actions'
 import type { AcceptState, DeclineState } from './actions'
+import { formatPhoneInput } from '@/lib/format'
 
 interface Props {
   token: string
@@ -26,6 +27,7 @@ export default function QuoteConfirmForm({
   const [declineState, declineAction, declinePending] = useActionState<DeclineState, FormData>(declineEstimate, {})
   const [editing, setEditing] = useState(false)
   const [showDecline, setShowDecline] = useState(false)
+  const [phoneInput, setPhoneInput] = useState(formatPhoneInput(phone ?? ''))
 
   if (state.success) {
     return (
@@ -161,7 +163,7 @@ export default function QuoteConfirmForm({
       <div style={{ marginBottom: '1rem' }}>
         <label style={labelStyle}>Phone</label>
         {editing
-          ? <input name="phone" type="tel" defaultValue={phone ?? ''} style={inputStyle} />
+          ? <input name="phone" type="tel" value={phoneInput} onChange={e => setPhoneInput(formatPhoneInput(e.target.value))} style={inputStyle} />
           : <><div style={readonlyStyle}>{phone || <span style={{ color: 'var(--q-text-subtle)' }}>—</span>}</div><input type="hidden" name="phone" value={phone ?? ''} /></>
         }
       </div>
