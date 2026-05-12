@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-11
-Current checkpoint commit: `9b61a62` (Improve data export content)
+Current checkpoint commit: `de10c59` (Format YardOps phone inputs)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -526,15 +526,21 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
      - `services` column added to jobs export: property boolean columns checked first (Mowing / Weed Eating / Edging / Blow Off); falls back to friendly `service_package` label; `service_package` retained for legacy/debug context
      - Four property boolean columns added to properties select to support jobs service label derivation
 
-**Next item (Patch B — YardOps phone input formatting):**
+**Patch B — YardOps phone input formatting ✅ (user-tested `de10c59`):**
 
-- `leads/new/page.tsx` — manual lead phone field
-- `customers/[id]/_form.tsx` — customer edit phone field
-- `EstimateForm.tsx` — inline new-customer phone field
-- `quote/[token]/QuoteConfirmForm.tsx` — public quote confirmation phone field (YardOps repo)
-- Add `src/lib/format.ts` with shared `formatPhoneInput()` helper
-- Format `(xxx) xxx-xxxx` on keystroke via `onChange` handler on each controlled input
-- WicksburgLawnService phone input formatting is a **separate Patch C** in that repo — do not mix with YardOps commits
+- Added `src/lib/format.ts` — exports `formatPhoneInput(value: string): string`; formats 10-digit numbers as `(xxx) xxx-xxxx`; handles leading `1`; graceful partial progress while typing; passthrough for unrecognized formats
+- `leads/new/page.tsx` — manual lead phone field now formats on input (controlled `useState`)
+- `customers/[id]/_form.tsx` — customer edit phone field now formats on input; existing raw-digit values display formatted on open (initialized via `formatPhoneInput`)
+- `EstimateForm.tsx` — inline new-customer phone field now formats on input (existing state wrapped with `formatPhoneInput`)
+- `quote/[token]/QuoteConfirmForm.tsx` — quote confirmation phone edit field now formats on input; existing value displays formatted when editing begins
+- WicksburgLawnService phone input formatting is **Patch C** — separate repo, separate commit
+
+**Next item (Patch C — WicksburgLawnService phone input formatting):**
+
+- `app/page.tsx` in `DMart425/WicksburgLawnService` — public quote intake form phone field
+- Add local `formatPhoneInput` helper (same logic as YardOps `src/lib/format.ts`)
+- Update controlled `onChange` handler on the phone input to format on keystroke
+- Commit separately in the WicksburgLawnService repo — do not mix with YardOps commits
 
 **Remaining items (after Patch B):**
 

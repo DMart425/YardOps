@@ -21,7 +21,7 @@ Last updated: 2026-05-11
 
 ## Current Checkpoint
 
-- **Latest commit:** `9b61a62` — Improve data export content
+- **Latest commit:** `de10c59` — Format YardOps phone inputs
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -216,6 +216,7 @@ Commits: `8621e2d`, `9028e84`, `3c5371a`
 
 | Hash | Description |
 |------|-------------|
+| `de10c59` | Format YardOps phone inputs (Patch B) |
 | `9b61a62` | Improve data export content (Phase 2G Task 1 — export cleanup) |
 | `f0edcc8` | Scope data exports by business (Phase 2G Task 1 — business_id filter) |
 | `1c209ac` | Document Phase 2F audit results |
@@ -265,6 +266,7 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ Customers CSV exports phone numbers formatted as `(xxx) xxx-xxxx`
 - ✅ Properties CSV exports include `customer_name`
 - ✅ Jobs CSV exports include `customer_name` and human-readable `services` label
+- ✅ YardOps phone inputs format as `(xxx) xxx-xxxx` while typing (manual lead, customer edit, estimate new-customer, quote confirm)
 
 ---
 
@@ -274,8 +276,8 @@ All of the following were user-tested and confirmed working as of `289b732`:
 |------|--------|-------|
 | DB password rotation | ⏸ Pending | Schedule at a safe pause point; do not interrupt active work |
 | Phase 2F — Final Multi-Business Audit | ✅ Complete | All 13 tables verified — no blockers found |
-| Phase 2G — Defense-in-Depth Cleanup | ⏸ In Progress | Task 1 (DataExportSection.tsx) ✅ complete; Patch B next (see Recommended Next Task) |
-| WicksburgLawnService phone input formatting (Patch C) | ⏸ Pending | Separate repo — do not mix with YardOps commits |
+| Phase 2G — Defense-in-Depth Cleanup | ⏸ In Progress | Task 1 (DataExportSection.tsx) ✅ complete; Patch B ✅ complete; Patch C next |
+| WicksburgLawnService phone input formatting (Patch C) | ⏸ Pending — next | Separate repo — do not mix with YardOps commits |
 | B.7a website frequency/service-interest intake | ⏸ Pending | `6c8bada` in WicksburgLawnService |
 | B.7b YardOps consumption of B.7a leads | ⏸ Pending | Verify normalization/carryover |
 | Stale jobs with `service_package = null` and no property booleans | ℹ️ Minor | Cards show no 🌿 line — acceptable for now, data cleanup optional |
@@ -301,30 +303,29 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Immediate next task: Patch B — YardOps phone input formatting**
+**Immediate next task: Patch C — WicksburgLawnService public quote form phone input formatting**
 
-All four YardOps phone input fields should format as `(xxx) xxx-xxxx` on keystroke. Scope: YardOps repo only — do not touch WicksburgLawnService.
+Scope: `DMart425/WicksburgLawnService` repo only. Do not touch YardOps.
 
-Files to update:
-- `src/app/(protected)/leads/new/page.tsx` — manual lead phone field
-- `src/app/(protected)/customers/[id]/_form.tsx` — customer edit phone field
-- `src/components/forms/EstimateForm.tsx` — inline new-customer phone field (`new_customer_phone`)
-- `src/app/quote/[token]/QuoteConfirmForm.tsx` — public quote confirmation phone field
+File to update:
+- `app/page.tsx` — the public quote intake form has a controlled phone input (`form.phone` state) with a bare `onChange` handler; wrap it with a local `formatPhoneInput` helper
 
-New shared helper:
-- `src/lib/format.ts` — export `formatPhoneInput(value: string): string`
-- Formats 10-digit numbers as `(xxx) xxx-xxxx`; handles leading `1`; passthrough for unrecognized formats
-- Apply via the safest minimal input handler approach for each component; use controlled input only where appropriate
+Implementation:
+- Add a local `formatPhoneInput` function to `app/page.tsx` (same logic as YardOps `src/lib/format.ts` — no shared lib needed in the separate repo)
+- Update `onChange` to call `formatPhoneInput(e.target.value)` before setting state
+- The API route (`app/api/quote/route.ts`) already passes the phone value through as-is — no changes needed there; formatted value will be stored in `leads.phone`
+- Commit separately in the WicksburgLawnService repo
 
-**WicksburgLawnService phone input (Patch C) is a separate task in that repo. Do not mix with YardOps commits.**
+**Do not mix with YardOps commits. Do not edit any YardOps file.**
 
-Remaining Phase 2G items after Patch B (in Architecture.md §16):
+Remaining Phase 2G items after Patch C (in Architecture.md §16):
 1. ~~`DataExportSection.tsx`~~ ✅ complete
-2. Patch B phone formatting — next task
-3. `portal/[token]/page.tsx` — add `business_id` filter to jobs query
-4. `quote/[token]/actions.ts` — add `business_id` scoping to customer/property updates in `acceptEstimate`
-5. Cron routes — document multi-business scoping gap; address when multi-business needed
-6. `leads` RLS SELECT/DELETE — cosmetic `business_id IS NOT NULL` cleanup
+2. ~~Patch B — YardOps phone formatting~~ ✅ complete
+3. Patch C — WicksburgLawnService phone formatting — next task
+4. `portal/[token]/page.tsx` — add `business_id` filter to jobs query
+5. `quote/[token]/actions.ts` — add `business_id` scoping to customer/property updates in `acceptEstimate`
+6. Cron routes — document multi-business scoping gap; address when multi-business needed
+7. `leads` RLS SELECT/DELETE — cosmetic `business_id IS NOT NULL` cleanup
 
 ---
 
