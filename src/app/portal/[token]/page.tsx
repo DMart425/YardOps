@@ -12,6 +12,33 @@ function fmt$(n: number) {
   return '$' + n.toFixed(2).replace(/\.00$/, '')
 }
 
+const SERVICE_LABELS: Record<string, string> = {
+  mow_only:      'Mow Only',
+  mow_trim_blow: 'Mow, Trim & Blow',
+  trim_cleanup:  'Trim & Cleanup',
+  full_service:  'Full Service',
+}
+
+type PropertyBooleans = {
+  default_mowing_enabled?: boolean | null
+  default_weed_eating_enabled?: boolean | null
+  default_edging_enabled?: boolean | null
+  default_blow_off_enabled?: boolean | null
+}
+
+function serviceLabel(pkg: string | null | undefined, prop: PropertyBooleans | null | undefined): string {
+  if (prop) {
+    const parts: string[] = []
+    if (prop.default_mowing_enabled)      parts.push('Mowing')
+    if (prop.default_weed_eating_enabled) parts.push('Weed Eating')
+    if (prop.default_edging_enabled)      parts.push('Edging')
+    if (prop.default_blow_off_enabled)    parts.push('Blow Off')
+    if (parts.length > 0) return parts.join(', ')
+  }
+  if (!pkg) return 'Lawn Service'
+  return SERVICE_LABELS[pkg] ?? pkg.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+}
+
 export default async function CustomerPortalPage({
   params,
 }: {
@@ -37,6 +64,7 @@ export default async function CustomerPortalPage({
     { data: profile },
     { data: jobs },
     { data: pricing },
+    { data: properties },
   ] = await Promise.all([
     supabase
       .from('customers')
@@ -50,7 +78,7 @@ export default async function CustomerPortalPage({
       .single(),
     supabase
       .from('jobs')
-      .select('id, status, payment_status, price, amount_paid, scheduled_date, completed_at, service_package')
+      .select('id, status, payment_status, price, amount_paid, scheduled_date, completed_at, service_package, property_id')
       .eq('customer_id', customer_id)
       .eq('business_id', business_id)
       .order('scheduled_date', { ascending: false })
@@ -60,6 +88,11 @@ export default async function CustomerPortalPage({
       .select('venmo_handle, time_zone')
       .eq('user_id', created_by)
       .maybeSingle(),
+    supabase
+      .from('properties')
+      .select('id, default_mowing_enabled, default_weed_eating_enabled, default_edging_enabled, default_blow_off_enabled')
+      .eq('customer_id', customer_id)
+      .eq('business_id', business_id),
   ])
 
   if (!customer) notFound()
@@ -68,6 +101,10 @@ export default async function CustomerPortalPage({
   const businessPhone = profile?.business_phone ?? null
   const venmoHandle   = (pricing?.venmo_handle as string | null) ?? null
   const timeZone = resolveTimeZone(pricing?.time_zone)
+
+  const propertyMap = new Map<string, PropertyBooleans>(
+    (properties ?? []).map(p => [p.id as string, p as PropertyBooleans])
+  )
 
   const allJobs  = jobs ?? []
   const upcoming = allJobs.filter(j => j.status === 'scheduled' || j.status === 'in_progress')
@@ -78,9 +115,6 @@ export default async function CustomerPortalPage({
   const totalUnpaid = history
     .filter(j => j.payment_status !== 'paid')
     .reduce((s, j) => s + Math.max(0, (j.price ?? 0) - (j.amount_paid ?? 0)), 0)
-
-  const pkgLabel = (pkg: string | null) =>
-    pkg ? pkg.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Lawn Service'
 
   return (
     <div style={{
@@ -192,7 +226,7 @@ export default async function CustomerPortalPage({
             }}>
               <div>
                 <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: 'var(--color-text)' }}>
-                  {pkgLabel(j.service_package)}
+                  {serviceLabel(j.service_package, propertyMap.get(j.property_id as string) ?? null)}
                 </div>
                 <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>
                   {j.scheduled_date ? fmtDate(j.scheduled_date) : 'Date TBD'}
@@ -246,7 +280,7 @@ export default async function CustomerPortalPage({
               }}>
                 <div>
                   <div style={{ fontWeight: 500, fontSize: '0.9375rem', color: 'var(--color-text)' }}>
-                    {pkgLabel(j.service_package)}
+                    {serviceLabel(j.service_package, propertyMap.get(j.property_id as string) ?? null)}
                   </div>
                   <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>
                     {j.completed_at
