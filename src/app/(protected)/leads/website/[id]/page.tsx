@@ -153,7 +153,7 @@ export default async function WebsiteLeadDetailPage({
         <div className="section-heading">Request Details</div>
         <div className="card">
           <div className="card-row">
-            <span className="text-muted text-small">Requested Service</span>
+            <span className="text-muted text-small">Service Frequency</span>
             <span>{formatFrequencyLabel(lead.frequency)}</span>
           </div>
 
