@@ -116,7 +116,7 @@ export default async function QuotePage({
                 </div>
               )}
               <div style={{ color: '#0a0a0a', fontWeight: 700, fontSize: '1rem' }}>
-                {FREQ_LABELS[frequency] ?? frequency} Lawn Service
+                Service Frequency — {FREQ_LABELS[frequency] ?? frequency}
               </div>
               <div style={{ color: 'rgba(0,0,0,0.55)', fontSize: '0.8125rem', marginTop: '2px', fontWeight: 700 }}>{address}</div>
             </div>
