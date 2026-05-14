@@ -583,19 +583,21 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 - **Deferred:** when multi-business support is actively being built, the routes will need to iterate per business (fetch all businesses, loop, scope each query by `business_id`, send per-business push to that business's users) or accept a scoped business context.
 - **Do not change cron route code until multi-business support is being actively built.**
 
-**`leads` RLS SELECT/DELETE cosmetic cleanup ⏸ Remaining:**
+**`leads` RLS SELECT/DELETE cosmetic cleanup ✅ Applied and verified:**
 
-- Migration drafted: `supabase/migrations/20260513200000_phase2g_leads_rls_cosmetic.sql` (committed `e85cbcc` — file exists in repo but not yet applied and user-verified in production)
-- Proposed change: drop and recreate `leads_select_business_member` (SELECT) and `leads_delete_business_member` (DELETE) to remove the redundant `business_id IS NOT NULL AND` prefix from both USING clauses
-- Both policies would use only `public.is_business_member(business_id)` — `leads.business_id` is already `NOT NULL` at the schema level so the check is redundant
-- `leads_insert_business_member` and `leads_update_business_member` would remain unchanged — still include `business_id IS NOT NULL AND is_business_member(business_id)`
-- Cosmetic only. No behavior change. No app code changes required.
-- **Do not apply migration without explicit approval.** Confirm project ref `lewzqavgvltzwfeypvam` before any SQL execution.
+- Migration file: `supabase/migrations/20260513200000_phase2g_leads_rls_cosmetic.sql` (committed `e85cbcc`)
+- Applied manually via Supabase SQL Editor on `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service / production) — Supabase CLI was unavailable due to `cli_login_postgres` role permission error on `SUPABASE_DB_PASSWORD`; SQL Editor succeeded
+- `leads_select_business_member` (SELECT) — USING clause now: `is_business_member(business_id)` — redundant `business_id IS NOT NULL AND` prefix removed
+- `leads_delete_business_member` (DELETE) — USING clause now: `is_business_member(business_id)` — redundant `business_id IS NOT NULL AND` prefix removed
+- `leads_insert_business_member` (INSERT) — WITH CHECK unchanged: `((business_id IS NOT NULL) AND is_business_member(business_id))`
+- `leads_update_business_member` (UPDATE) — USING and WITH CHECK unchanged: `((business_id IS NOT NULL) AND is_business_member(business_id))`
+- Cosmetic only. No behavior change. No app code changes. `leads.business_id` is already `NOT NULL` at schema level so the removed check was redundant.
+- Verified via `pg_policies` query — all four policies confirmed correct.
 
-**Phase 2G status: ⏸ In Progress. Remaining items:**
+**Phase 2G status: ✅ Active cleanup list complete. One item deferred:**
 
 - **Cron routes multi-business scoping:** documented and deferred — do not change cron route code until multi-business support is actively being built.
-- **`leads` RLS SELECT/DELETE cosmetic cleanup:** migration drafted, not yet applied or verified — see above.
+- **`leads` RLS SELECT/DELETE cosmetic cleanup:** ✅ applied and verified — complete.
 
 **Ongoing standing notes:**
 

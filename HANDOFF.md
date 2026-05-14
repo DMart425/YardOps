@@ -299,6 +299,7 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ Website lead detail `"Requested Service"` label renamed to `"Service Frequency"` — consistent with quote page wording (`1941585`)
 - ✅ Manual lead detail page aligned with website lead detail visual style: `detail-section` wrappers, headings outside cards, `"Contact Info"` with icon rows and Call/Text/Email quick-action buttons, structured intake text stripped from visible notes (`820b053`)
 - ✅ Manual lead detail request/property display merged: no-property case shows `"Requested Service Setup"` prominently; matching property suppresses duplicate section; differing property or multi-property shows compact `"Original website request: ..."` note (`4001837`)
+- ✅ `leads` RLS SELECT/DELETE cosmetic cleanup applied and verified — `leads_select_business_member` and `leads_delete_business_member` USING clauses now use `is_business_member(business_id)` only; INSERT/UPDATE policies unchanged; applied via SQL Editor on `lewzqavgvltzwfeypvam` (CLI unavailable due to role permission error)
 
 ---
 
@@ -308,7 +309,7 @@ All of the following were user-tested and confirmed working as of `289b732`:
 |------|--------|-------|
 | DB password rotation | ⏸ Pending | Schedule at a safe pause point; do not interrupt active work |
 | Phase 2F — Final Multi-Business Audit | ✅ Complete | All 13 tables verified — no blockers found |
-| Phase 2G — `leads` RLS SELECT/DELETE cosmetic cleanup | ⏸ Remaining | Migration drafted (`e85cbcc`) — not yet applied or verified; cosmetic only, no behavior change |
+| Phase 2G — `leads` RLS SELECT/DELETE cosmetic cleanup | ✅ Complete | Applied via SQL Editor on `lewzqavgvltzwfeypvam`; SELECT/DELETE now use `is_business_member(business_id)` only; INSERT/UPDATE unchanged |
 | Phase 2G — Cron routes multi-business scoping | ⏸ Deferred | Acceptable for single-business; address when multi-business support is being built |
 | WicksburgLawnService phone input formatting (Patch C) | ✅ Complete | `2a7b0f8` in WicksburgLawnService — separate repo, no YardOps changes |
 | B.7a website frequency/service-interest intake | ⏸ Pending | `6c8bada` in WicksburgLawnService |
@@ -324,7 +325,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 | Phase | Goal | Status |
 |-------|------|--------|
 | 2F | Final end-to-end multi-business audit | ✅ Complete |
-| 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ⏸ In Progress — leads RLS cosmetic cleanup remaining; cron scoping deferred |
+| 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
 | 3 | Public intake and lead workflow improvements | ⏸ In Progress — UI/copy polish complete; intake/conversion flow remaining |
 | 4 | Operations UX / workflow polish | ⏸ Pending |
 | 5 | Reporting, automation, and growth features | ⏸ Pending |
@@ -336,13 +337,37 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Immediate next task: Phase 2G — `leads` RLS SELECT/DELETE cosmetic cleanup**
+**Immediate next task: Phase 3 — Lead conversion flow improvements**
 
-The migration file already exists at `supabase/migrations/20260513200000_phase2g_leads_rls_cosmetic.sql` (committed `e85cbcc`) but has not yet been applied to the live DB or user-verified.
+Phase 2G active cleanup is complete (cron scoping deferred). Phase 3 UI/copy polish is complete. The remaining Phase 3 work is the functional lead lifecycle.
 
-**This is cosmetic only.** The existing RLS is already functionally correct — `leads.business_id` is `NOT NULL` at the schema level, so the redundant `business_id IS NOT NULL AND` prefix in the SELECT and DELETE USING clauses is harmless. The cleanup removes the redundancy for consistency with other business-owned tables.
+**Goal:** Reduce manual re-entry and friction in the website lead → customer → property → estimate flow.
 
-**Pre-approval required before any SQL or migration work.** Steps:
+Key areas:
+1. Audit `convertWebsiteLead()` server action — confirm what data is preserved vs. lost on conversion (phone, email, address, frequency, service interests)
+2. Audit the Add Property prefill link — confirm all intake fields (address, frequency, service booleans) carry through correctly from the lead detail page
+3. Identify any steps where the operator must manually re-enter data that was already captured in the intake form
+4. Ensure intake (WicksburgLawnService) and manual YardOps lead creation use consistent service language (Mowing, Weed Eating / Trimming, Edging, Blow Off Hard Surfaces)
+
+Scope: YardOps only. No SQL/migrations unless a schema gap is found. Do not modify WicksburgLawnService unless explicitly approved.
+
+Starting point: read `src/app/(protected)/leads/actions.ts` (specifically `convertWebsiteLead`) and `src/app/(protected)/leads/[id]/page.tsx` (specifically `addPropertyHref` construction).
+
+**Do not run SQL or apply migrations without approval.**
+
+Phase 3 completed tasks (all user-tested in production):
+1. ~~Frequency display — website lead detail page~~ ✅ (`0589026`)
+2. ~~Frequency display — lead detail property card~~ ✅ (`3cc8a77`)
+3. ~~Show service interests on website lead detail page~~ ✅ (`591ca1b`)
+4. ~~Clean website lead notes display~~ ✅ (`f496246`)
+5. ~~Quote page summary frequency label fix~~ ✅ (`5f9ba2d`)
+6. ~~Website lead detail frequency label rename~~ ✅ (`1941585`)
+7. ~~Manual lead detail visual alignment~~ ✅ (`820b053`)
+8. ~~Manual lead request/property display merge~~ ✅ (`4001837`)
+
+**Phase 2G — active cleanup complete. Cron scoping deferred until multi-business support is actively built.**
+
+(Previous next task `Phase 2G — leads RLS SELECT/DELETE cosmetic cleanup` is now complete.)
 1. Review the migration file content and confirm it matches the agreed change.
 2. Confirm target project ref is `lewzqavgvltzwfeypvam`.
 3. Await explicit user approval before applying.
