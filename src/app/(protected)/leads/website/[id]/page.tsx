@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { WebsiteLeadDangerZone, WebsiteLeadStatusActions } from './WebsiteLeadActions'
 import { estimateMowableAcres } from '@/lib/pricing'
 import { requireBusinessContext } from '@/lib/business/context'
+import { formatFrequencyLabel } from '@/lib/frequency'
 
 export default async function WebsiteLeadDetailPage({
   params,
@@ -127,7 +128,7 @@ export default async function WebsiteLeadDetailPage({
         <div className="card">
           <div className="card-row">
             <span className="text-muted text-small">Requested Service</span>
-            <span>{lead.frequency || 'Not specified'}</span>
+            <span>{formatFrequencyLabel(lead.frequency)}</span>
           </div>
 
           {lead.notes ? (
