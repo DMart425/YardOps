@@ -191,6 +191,31 @@ export default async function LeadDetailPage({
   const deedDate      = deedDateMs ? new Date(deedDateMs) : null
   const totalMktValue = toNum(attrs['TotalMktValue'])
 
+  // Strip structured intake lines from the customer-facing notes display.
+  // These lines are already surfaced in the Request Details section, so
+  // showing them again in the Notes block is redundant and confusing.
+  function stripStructuredIntakeBlock(notes: string | null): string {
+    if (!notes) return ''
+    const lines = notes.split('\n')
+    const filtered: string[] = []
+    let inBlock = false
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (trimmed.toLowerCase().startsWith('website service interests:')) {
+        inBlock = true
+        continue
+      }
+      if (inBlock) {
+        if (trimmed === '' || trimmed.startsWith('-')) continue
+        inBlock = false
+      }
+      if (/^-\s*(intake address|requested frequency):/i.test(trimmed)) continue
+      filtered.push(line)
+    }
+    return filtered.join('\n').trim()
+  }
+  const visibleNotes = stripStructuredIntakeBlock(customer.notes)
+
   return (
     <div className="page">
       <Link href="/leads" className="back-link">← Leads</Link>
@@ -201,40 +226,68 @@ export default async function LeadDetailPage({
         <span className="pill pill-lead">Lead</span>
       </div>
 
-      {/* Contact */}
-      <div className="card">
-        <div className="section-heading">Contact</div>
-        {customer.phone && (
-          <div className="card-row">
-            <span className="text-muted text-small">Phone</span>
-            <a href={`tel:${customer.phone}`} className="font-bold">{customer.phone}</a>
-          </div>
-        )}
-        {customer.email && (
-          <div className="card-row">
-            <span className="text-muted text-small">Email</span>
-            <a href={`mailto:${customer.email}`} className="font-bold">{customer.email}</a>
-          </div>
-        )}
-        {!customer.phone && !customer.email && (
-          <p className="text-muted text-small">No contact info saved.</p>
-        )}
-        {customer.notes && (
-          <div style={{ marginTop: '8px', padding: '8px', background: 'var(--color-bg-secondary)', borderRadius: '6px' }}>
-            <div className="text-small text-muted" style={{ marginBottom: '2px' }}>Notes</div>
-            <div className="text-small">{customer.notes}</div>
-          </div>
-        )}
+      {/* Contact Info */}
+      <div className="detail-section">
+        <div className="section-heading">Contact Info</div>
+        <div className="card">
+          {customer.phone && (
+            <a href={`tel:${customer.phone}`} className="contact-row">
+              📞 {customer.phone}
+            </a>
+          )}
+          {customer.email && (
+            <a href={`mailto:${customer.email}`} className="contact-row">
+              ✉ {customer.email}
+            </a>
+          )}
+          {!customer.phone && !customer.email && (
+            <p className="text-muted text-small">No contact info saved.</p>
+          )}
+          {(customer.phone || customer.email) && (
+            <>
+              <div className="divider" />
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {customer.phone && (
+                  <a href={`tel:${customer.phone}`} className="btn btn-sm btn-secondary">📞 Call</a>
+                )}
+                {customer.phone && (
+                  <a href={`sms:${customer.phone}`} className="btn btn-sm btn-secondary">💬 Text</a>
+                )}
+                {customer.email && (
+                  <a href={`mailto:${customer.email}`} className="btn btn-sm btn-secondary">✉ Email</a>
+                )}
+              </div>
+            </>
+          )}
+          {visibleNotes && (
+            <div style={{ marginTop: '8px', padding: '8px', background: 'var(--color-bg-secondary)', borderRadius: '6px' }}>
+              <div className="text-small text-muted" style={{ marginBottom: '2px' }}>Notes</div>
+              <div className="text-small">{visibleNotes}</div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {intakeServiceInterests.length > 0 && (
-        <div className="card">
-          <div className="section-heading">Website Intake Summary</div>
-          <div className="text-small text-muted" style={{ marginBottom: '6px' }}>Requested service interests</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-            {intakeServiceInterests.map((interest) => (
-              <span key={interest} className="pill pill-draft">{labelForServiceInterest(interest)}</span>
-            ))}
+      {(normalizedFrequency || intakeServiceInterests.length > 0) && (
+        <div className="detail-section">
+          <div className="section-heading">Request Details</div>
+          <div className="card">
+            {normalizedFrequency && (
+              <div className="card-row">
+                <span className="text-muted text-small">Service Frequency</span>
+                <span>{formatFrequencyLabel(normalizedFrequency)}</span>
+              </div>
+            )}
+            {intakeServiceInterests.length > 0 && (
+              <div style={{ marginTop: normalizedFrequency ? '8px' : '0' }}>
+                <div className="text-small text-muted" style={{ marginBottom: '6px' }}>Requested Services</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {intakeServiceInterests.map((interest) => (
+                    <span key={interest} className="pill pill-draft">{labelForServiceInterest(interest)}</span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -444,21 +497,23 @@ export default async function LeadDetailPage({
       )}
 
       {/* Actions */}
-      <div className="card">
+      <div className="detail-section">
         <div className="section-heading">Actions</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {properties.length === 0 ? (
-            <>
-              <p className="text-small text-muted">Add a property first to build an estimate.</p>
-              <Link href={addPropertyHref} className="btn btn-secondary btn-full">
-                + Add Property
-              </Link>
-            </>
-          ) : null}
-          <Link href={`/customers/${customer.id}`} className="btn btn-secondary btn-full">
-            Edit Lead / Contact
-          </Link>
-          <LeadActions customerId={customer.id} />
+        <div className="card">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {properties.length === 0 ? (
+              <>
+                <p className="text-small text-muted">Add a property first to build an estimate.</p>
+                <Link href={addPropertyHref} className="btn btn-secondary btn-full">
+                  + Add Property
+                </Link>
+              </>
+            ) : null}
+            <Link href={`/customers/${customer.id}`} className="btn btn-secondary btn-full">
+              Edit Lead / Contact
+            </Link>
+            <LeadActions customerId={customer.id} />
+          </div>
         </div>
       </div>
     </div>
