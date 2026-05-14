@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-13
-Current checkpoint commit: `0a165d1` (Fix quote accepted banner and mobile header)
+Current checkpoint commit: `83c452e` (Document quote acceptance cleanup)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -572,10 +572,21 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 - Mobile header layout fixed: added `flex: '1 1 0', minWidth: 0` to the text block div; added `flexShrink: 0, whiteSpace: 'nowrap'` to the Call Now button wrapper div so the button no longer clips/crushes on narrow viewports
 - No SQL/migrations.
 
+**Cron routes multi-business scoping gap — documented and deferred:**
+
+- `src/app/api/cron/morning-summary/route.ts` and `src/app/api/cron/evening-summary/route.ts` use `createAdminClient()` (RLS bypassed) and make no `business_id`-scoped queries.
+- Both routes fetch `pricing_settings` with `.select('time_zone').limit(1).single()` — grabs the first row in the table, assumes single-business.
+- `jobs` query (both routes): `.eq('scheduled_date', today)` only — no `business_id` filter.
+- `estimates` query (morning only): `.eq('visit_scheduled_date', today)` only — no `business_id` filter.
+- `notifyAllUsers()` (both routes): fetches all `push_subscriptions` rows without business scoping; notifies every subscribed user across all businesses.
+- **Current single-business behavior is acceptable.** No code change needed now.
+- **Deferred:** when multi-business support is actively being built, the routes will need to iterate per business (fetch all businesses, loop, scope each query by `business_id`, send per-business push to that business's users) or accept a scoped business context.
+- **Do not change cron route code until multi-business support is being actively built.**
+
 **Remaining items:**
 
-1. **Cron routes** (`morning-summary`, `evening-summary`) — query `jobs`/`estimates` without `business_id` filter and grab `pricing_settings` with `.limit(1)`. Safe for single-business only; needs business iteration before multi-business use. Document gap; address when multi-business needed.
-2. **`leads` RLS SELECT/DELETE policies** — QUAL redundantly includes `business_id IS NOT NULL`; harmless now that column is NOT NULL but inconsistent with other tables. Cosmetic cleanup only.
+1. **`leads` RLS SELECT/DELETE policies** — QUAL redundantly includes `business_id IS NOT NULL`; harmless now that column is NOT NULL but inconsistent with other tables. Cosmetic cleanup only.
+2. Continue checking for legacy `created_by`/`user_id` assumptions in business-owned queries.
 3. Continue checking for legacy `created_by`/`user_id` assumptions in business-owned queries.
 4. Continue replacing legacy `service_package`/package-name assumptions with itemized service booleans where appropriate.
 5. Do not remove legacy `default_service_package` yet — still referenced in `scheduleFollowUpJob` fallback chain. Full compatibility audit required before removal.

@@ -290,7 +290,7 @@ All of the following were user-tested and confirmed working as of `289b732`:
 |------|--------|-------|
 | DB password rotation | ⏸ Pending | Schedule at a safe pause point; do not interrupt active work |
 | Phase 2F — Final Multi-Business Audit | ✅ Complete | All 13 tables verified — no blockers found |
-| Phase 2G — Defense-in-Depth Cleanup | ⏸ In Progress | Task 1 ✅, Patch B ✅, Patch C ✅, portal scoping ✅, portal labels ✅, quote actions scoping ✅, quote UX ✅; next: cron routes |
+| Phase 2G — Defense-in-Depth Cleanup | ⏸ In Progress | Task 1 ✅, Patch B ✅, Patch C ✅, portal scoping ✅, portal labels ✅, quote actions scoping ✅, quote UX ✅, cron routes gap documented ✅; next: leads RLS cosmetic cleanup |
 | WicksburgLawnService phone input formatting (Patch C) | ✅ Complete | `2a7b0f8` in WicksburgLawnService — separate repo, no YardOps changes |
 | B.7a website frequency/service-interest intake | ⏸ Pending | `6c8bada` in WicksburgLawnService |
 | B.7b YardOps consumption of B.7a leads | ⏸ Pending | Verify normalization/carryover |
@@ -317,13 +317,11 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Immediate next task: Phase 2G — Cron routes multi-business scoping gap documentation**
+**Immediate next task: Phase 2G — `leads` RLS SELECT/DELETE cosmetic cleanup**
 
-**This is documentation-only. Do not change cron route code yet.**
+The `leads` table RLS SELECT and DELETE policy QUAL expressions redundantly include `business_id IS NOT NULL`. This is harmless now that `leads.business_id` is enforced `NOT NULL` at the schema level, but it is inconsistent with how other business-owned tables express their policies. This is cosmetic only — no behavior change, no risk.
 
-`api/cron/morning-summary` and `api/cron/evening-summary` query `jobs`/`estimates` without a `business_id` filter and fetch `pricing_settings` with `.limit(1)`. Current single-business behavior is acceptable. The actual implementation fix should be deferred until multi-business support is being actively built — at that point the routes will need to iterate over businesses or accept a scoped business context.
-
-Scope: Add a note to ARCHITECTURE.md §16 documenting the gap and the deferral decision. No cron route code changes.
+Scope: SQL/migration to remove the redundant `business_id IS NOT NULL` condition from the `leads` SELECT and DELETE RLS policies. No app code changes.
 
 Remaining Phase 2G items (in Architecture.md §16):
 1. ~~`DataExportSection.tsx`~~ ✅ complete
@@ -333,8 +331,8 @@ Remaining Phase 2G items (in Architecture.md §16):
 5. ~~`portal/[token]/page.tsx` service label modernization~~ ✅ complete
 6. ~~`quote/[token]/actions.ts` business_id scoping~~ ✅ complete (`5aff7d8`)
 7. ~~Quote page UX fixes~~ ✅ complete (`0a165d1`)
-8. Cron routes — document multi-business scoping gap; address when multi-business needed — **next task**
-9. `leads` RLS SELECT/DELETE — cosmetic `business_id IS NOT NULL` cleanup
+8. ~~Cron routes — document multi-business scoping gap~~ ✅ documented and deferred (see ARCHITECTURE.md §16)
+9. `leads` RLS SELECT/DELETE — cosmetic `business_id IS NOT NULL` cleanup — **next task**
 
 ---
 
