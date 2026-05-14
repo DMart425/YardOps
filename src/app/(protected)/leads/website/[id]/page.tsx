@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import { WebsiteLeadDangerZone, WebsiteLeadStatusActions } from './WebsiteLeadActions'
 import { estimateMowableAcres } from '@/lib/pricing'
 import { requireBusinessContext } from '@/lib/business/context'
-import { formatFrequencyLabel } from '@/lib/frequency'
+import { formatFrequencyLabel, parseWebsiteServiceInterests, formatServiceInterestLabel } from '@/lib/frequency'
 
 export default async function WebsiteLeadDetailPage({
   params,
@@ -24,6 +24,8 @@ export default async function WebsiteLeadDetailPage({
     .single()
 
   if (!lead) notFound()
+
+  const serviceInterests = Array.from(parseWebsiteServiceInterests(lead.notes))
 
   // Parcel lookup
   type ParcelRow = {
@@ -130,6 +132,17 @@ export default async function WebsiteLeadDetailPage({
             <span className="text-muted text-small">Requested Service</span>
             <span>{formatFrequencyLabel(lead.frequency)}</span>
           </div>
+
+          {serviceInterests.length > 0 && (
+            <div style={{ marginTop: '8px' }}>
+              <div className="text-small text-muted" style={{ marginBottom: '6px' }}>Requested Services</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {serviceInterests.map((interest) => (
+                  <span key={interest} className="pill pill-draft">{formatServiceInterestLabel(interest)}</span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {lead.notes ? (
             <div style={{ marginTop: '8px', padding: '8px', background: 'var(--color-bg-secondary)', borderRadius: '6px' }}>
