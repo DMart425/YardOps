@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { LeadActions } from './LeadActions'
 import { ApplyParcelButton } from './ApplyParcelButton'
-import { normalizeFrequency, parseWebsiteServiceInterests } from '@/lib/frequency'
+import { normalizeFrequency, parseWebsiteServiceInterests, formatFrequencyLabel } from '@/lib/frequency'
 import { requireBusinessContext } from '@/lib/business/context'
 
 const SERVICE_INTEREST_LABELS: Record<string, string> = {
@@ -255,7 +255,7 @@ export default async function LeadDetailPage({
                 </div>
                 <div className="card-row">
                   <span className="text-muted text-small">Frequency</span>
-                  <span>{item.service_frequency.replace(/_/g, ' ')}</span>
+                  <span>{formatFrequencyLabel(item.service_frequency)}</span>
                 </div>
 
                 {defaults.hasBooleanDefaults ? (
