@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-13
-Current checkpoint commit: `e85cbcc` (Clean up leads RLS policies)
+Current checkpoint commit: `3cc8a77` (Format lead property frequency)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -605,16 +605,29 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 
 **Goal:** Improve the WicksburgLawnService → YardOps lead lifecycle now that hardening is stable.
 
-**Status:** ⏸ Pending
+**Status:** ⏸ In Progress
 
-**Potential tasks:**
-1. Improve public WicksburgLawnService intake to YardOps service mapping.
-2. Make website lead service interests prefill YardOps property booleans more directly during conversion.
-3. Improve lead conversion flow: lead → customer → property → estimate.
-4. Preserve customer/parcel/address/service info across the full flow.
-5. Reduce duplicated manual entry.
-6. Ensure public intake and manual YardOps lead creation use consistent service language: Mowing, Weed Eating, Edging, Blow Off.
-7. Keep WicksburgLawnService read-only unless explicitly asked to patch it.
+**Kickoff audit findings (2026-05-13):**
+- Website lead detail page (`/leads/website/[id]`) displayed `lead.frequency` as raw stored value (e.g., `one_time`) — no friendly formatter applied
+- Lead detail property card (`/leads/[id]`) displayed `item.service_frequency` with a manual `.replace(/_/g, ' ')` instead of `formatFrequencyLabel()`
+- Service interests not shown on website lead detail page before conversion (tracked as Task 2)
+- Notes-format dependency: `buildNotesWithServiceInterests` format (WicksburgLawnService) must stay in sync with `parseWebsiteServiceInterests` parser (YardOps) — fragile if either side changes
+- Address parsing in `parseAddressParts()` is best-effort; comma-separated edge cases could mismatch
+
+**Completed tasks:**
+
+- **Task 1a — Website lead frequency display** ✅ (`0589026`): Added `formatFrequencyLabel` import to `leads/website/[id]/page.tsx`; replaced raw `lead.frequency` display with `formatFrequencyLabel(lead.frequency)`. No data changes.
+- **Task 1b — Lead detail property frequency display** ✅ (`3cc8a77`): Added `formatFrequencyLabel` to existing `@/lib/frequency` import in `leads/[id]/page.tsx`; replaced `.replace(/_/g, ' ')` with `formatFrequencyLabel(item.service_frequency)`. No data changes.
+
+**Potential tasks (remaining):**
+1. ~~Frequency display polish~~ ✅ complete (Tasks 1a, 1b)
+2. Show parsed service interests on website lead detail page before conversion (Task 2 — next)
+3. Improve public WicksburgLawnService intake to YardOps service mapping.
+4. Improve lead conversion flow: lead → customer → property → estimate.
+5. Preserve customer/parcel/address/service info across the full flow.
+6. Reduce duplicated manual entry.
+7. Ensure public intake and manual YardOps lead creation use consistent service language: Mowing, Weed Eating, Edging, Blow Off.
+8. Keep WicksburgLawnService read-only unless explicitly asked to patch it.
 
 ---
 
