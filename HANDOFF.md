@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-13
+Last updated: 2026-05-13 (e85cbcc)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-05-13
 
 ## Current Checkpoint
 
-- **Latest commit:** `0a165d1` — Fix quote accepted banner and mobile header
+- **Latest commit:** `e85cbcc` — Clean up leads RLS policies
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -216,6 +216,7 @@ Commits: `8621e2d`, `9028e84`, `3c5371a`
 
 | Hash | Description |
 |------|-------------|
+| `e85cbcc` | Clean up leads RLS policies (Phase 2G) |
 | `0a165d1` | Fix quote accepted banner and mobile header (Phase 2G) |
 | `5aff7d8` | Scope quote acceptance updates by business (Phase 2G) |
 | `c0734c4` | Document portal service labels |
@@ -281,6 +282,7 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ `acceptEstimate` customer/property updates scoped by `business_id` (defense-in-depth beyond `public_token` lookup) (`5aff7d8`)
 - ✅ Quote accepted banner uses neutral wording: "Estimate accepted. We'll be in touch soon!" (`0a165d1`)
 - ✅ Mobile quote header Call Now button no longer clips/crushes on narrow viewports (`0a165d1`)
+- ✅ `leads` RLS SELECT/DELETE policies cleaned up — redundant `business_id IS NOT NULL` removed; INSERT/UPDATE unchanged (`e85cbcc`)
 
 ---
 
@@ -290,7 +292,7 @@ All of the following were user-tested and confirmed working as of `289b732`:
 |------|--------|-------|
 | DB password rotation | ⏸ Pending | Schedule at a safe pause point; do not interrupt active work |
 | Phase 2F — Final Multi-Business Audit | ✅ Complete | All 13 tables verified — no blockers found |
-| Phase 2G — Defense-in-Depth Cleanup | ⏸ In Progress | Task 1 ✅, Patch B ✅, Patch C ✅, portal scoping ✅, portal labels ✅, quote actions scoping ✅, quote UX ✅, cron routes gap documented ✅; next: leads RLS cosmetic cleanup |
+| Phase 2G — Defense-in-Depth Cleanup | ✅ Cleanup list complete | All items complete — closeout review pending |
 | WicksburgLawnService phone input formatting (Patch C) | ✅ Complete | `2a7b0f8` in WicksburgLawnService — separate repo, no YardOps changes |
 | B.7a website frequency/service-interest intake | ⏸ Pending | `6c8bada` in WicksburgLawnService |
 | B.7b YardOps consumption of B.7a leads | ⏸ Pending | Verify normalization/carryover |
@@ -317,22 +319,22 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Immediate next task: Phase 2G — `leads` RLS SELECT/DELETE cosmetic cleanup**
+**Immediate next task: Phase 2G closeout review**
 
-The `leads` table RLS SELECT and DELETE policy QUAL expressions redundantly include `business_id IS NOT NULL`. This is harmless now that `leads.business_id` is enforced `NOT NULL` at the schema level, but it is inconsistent with how other business-owned tables express their policies. This is cosmetic only — no behavior change, no risk.
+The Phase 2G cleanup list is complete. Before moving to Phase 3, review and confirm the remaining open/deferred items in ARCHITECTURE.md §16 and decide whether to:
+- Move to Phase 3 (Public Intake and Lead Workflow Improvements), or
+- Select another specific task from the standing notes or open items.
 
-Scope: SQL/migration to remove the redundant `business_id IS NOT NULL` condition from the `leads` SELECT and DELETE RLS policies. No app code changes.
-
-Remaining Phase 2G items (in Architecture.md §16):
-1. ~~`DataExportSection.tsx`~~ ✅ complete
-2. ~~Patch B — YardOps phone formatting~~ ✅ complete
-3. ~~Patch C — WicksburgLawnService phone formatting~~ ✅ complete
-4. ~~`portal/[token]/page.tsx` business_id scoping~~ ✅ complete
-5. ~~`portal/[token]/page.tsx` service label modernization~~ ✅ complete
-6. ~~`quote/[token]/actions.ts` business_id scoping~~ ✅ complete (`5aff7d8`)
-7. ~~Quote page UX fixes~~ ✅ complete (`0a165d1`)
-8. ~~Cron routes — document multi-business scoping gap~~ ✅ documented and deferred (see ARCHITECTURE.md §16)
-9. `leads` RLS SELECT/DELETE — cosmetic `business_id IS NOT NULL` cleanup — **next task**
+Phase 2G completed items (full list):
+1. ~~`DataExportSection.tsx` business_id scoping + export content~~ ✅ (`f0edcc8`, `9b61a62`)
+2. ~~Patch B — YardOps phone formatting~~ ✅ (`de10c59`)
+3. ~~Patch C — WicksburgLawnService phone formatting~~ ✅ (`2a7b0f8`)
+4. ~~`portal/[token]/page.tsx` business_id scoping~~ ✅ (`71975dd`)
+5. ~~`portal/[token]/page.tsx` service label modernization~~ ✅ (`70fa054`)
+6. ~~`quote/[token]/actions.ts` business_id scoping~~ ✅ (`5aff7d8`)
+7. ~~Quote page UX fixes~~ ✅ (`0a165d1`)
+8. ~~Cron routes — document multi-business scoping gap~~ ✅ documented and deferred (`a97b278`)
+9. ~~`leads` RLS SELECT/DELETE cosmetic cleanup~~ ✅ (`e85cbcc`)
 
 ---
 

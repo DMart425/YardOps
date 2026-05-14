@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-13
-Current checkpoint commit: `83c452e` (Document quote acceptance cleanup)
+Current checkpoint commit: `e85cbcc` (Clean up leads RLS policies)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -583,15 +583,21 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 - **Deferred:** when multi-business support is actively being built, the routes will need to iterate per business (fetch all businesses, loop, scope each query by `business_id`, send per-business push to that business's users) or accept a scoped business context.
 - **Do not change cron route code until multi-business support is being actively built.**
 
-**Remaining items:**
+**`leads` RLS SELECT/DELETE cosmetic cleanup ✅ (`e85cbcc`):**
 
-1. **`leads` RLS SELECT/DELETE policies** — QUAL redundantly includes `business_id IS NOT NULL`; harmless now that column is NOT NULL but inconsistent with other tables. Cosmetic cleanup only.
-2. Continue checking for legacy `created_by`/`user_id` assumptions in business-owned queries.
-3. Continue checking for legacy `created_by`/`user_id` assumptions in business-owned queries.
-4. Continue replacing legacy `service_package`/package-name assumptions with itemized service booleans where appropriate.
-5. Do not remove legacy `default_service_package` yet — still referenced in `scheduleFollowUpJob` fallback chain. Full compatibility audit required before removal.
-6. Confirm `message_logs`, portal tokens, and customer-facing links continue to behave correctly after each cleanup patch.
-7. Keep each cleanup patch small and reviewable.
+- Migration: `supabase/migrations/20260513200000_phase2g_leads_rls_cosmetic.sql`
+- Dropped and recreated `leads_select_business_member` (SELECT) and `leads_delete_business_member` (DELETE) — removed the redundant `business_id IS NOT NULL AND` condition from both USING clauses
+- Both policies now use only `public.is_business_member(business_id)`
+- `leads_insert_business_member` and `leads_update_business_member` unchanged — still include `business_id IS NOT NULL AND is_business_member(business_id)`
+- No app code changes. No behavior change.
+
+**Phase 2G status: cleanup list complete. Remaining standing notes:**
+
+1. Continue checking for legacy `created_by`/`user_id` assumptions in business-owned queries.
+2. Continue replacing legacy `service_package`/package-name assumptions with itemized service booleans where appropriate.
+3. Do not remove legacy `default_service_package` yet — still referenced in `scheduleFollowUpJob` fallback chain. Full compatibility audit required before removal.
+4. Confirm `message_logs`, portal tokens, and customer-facing links continue to behave correctly after each cleanup patch.
+5. Keep each cleanup patch small and reviewable.
 
 ---
 
