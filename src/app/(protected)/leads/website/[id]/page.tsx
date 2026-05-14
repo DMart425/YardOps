@@ -27,6 +27,30 @@ export default async function WebsiteLeadDetailPage({
 
   const serviceInterests = Array.from(parseWebsiteServiceInterests(lead.notes))
 
+  // Strip the structured "Website service interests:" block from notes before display.
+  // The block is written by the intake API route and is parsed above into pills.
+  // Displaying it again in raw notes would be redundant and confusing.
+  function stripServiceInterestsBlock(notes: string | null): string {
+    if (!notes) return ''
+    const lines = notes.split('\n')
+    const filtered: string[] = []
+    let inBlock = false
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (trimmed.toLowerCase().startsWith('website service interests:')) {
+        inBlock = true
+        continue
+      }
+      if (inBlock) {
+        if (trimmed === '' || trimmed.startsWith('-')) continue
+        inBlock = false
+      }
+      filtered.push(line)
+    }
+    return filtered.join('\n').trim()
+  }
+  const visibleNotes = stripServiceInterestsBlock(lead.notes)
+
   // Parcel lookup
   type ParcelRow = {
     id: string
@@ -144,10 +168,10 @@ export default async function WebsiteLeadDetailPage({
             </div>
           )}
 
-          {lead.notes ? (
+          {visibleNotes ? (
             <div style={{ marginTop: '8px', padding: '8px', background: 'var(--color-bg-secondary)', borderRadius: '6px' }}>
               <div className="text-small text-muted" style={{ marginBottom: '2px' }}>Customer Notes</div>
-              <div className="text-small">{lead.notes}</div>
+              <div className="text-small">{visibleNotes}</div>
             </div>
           ) : (
             <div className="text-small text-muted" style={{ marginTop: '8px' }}>
