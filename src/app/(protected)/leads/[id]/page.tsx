@@ -216,6 +216,50 @@ export default async function LeadDetailPage({
   }
   const visibleNotes = stripStructuredIntakeBlock(customer.notes)
 
+  // --- Request / property match logic ---
+  // Determines whether the original website request data matches the
+  // configured property so redundant sections can be suppressed.
+  const hasIntakeData = normalizedFrequency != null || intakeServiceInterests.length > 0
+
+  // Build a compact one-line description of the original request for contextual display.
+  function buildOriginalRequestNote(freq: string | null, interests: string[]): string | null {
+    const parts: string[] = []
+    if (freq) parts.push(formatFrequencyLabel(freq))
+    if (interests.length > 0) parts.push(interests.map(labelForServiceInterest).join(', '))
+    return parts.length > 0 ? parts.join(' — ') : null
+  }
+  const originalRequestNote = buildOriginalRequestNote(normalizedFrequency, intakeServiceInterests)
+
+  // Compare original request to the single primary property.
+  // Only attempted when exactly one property exists.
+  // Each field is only compared if the intake data actually provided that field
+  // (missing intake freq/services are not treated as a mismatch).
+  let requestMatchesProperty = false
+  if (hasIntakeData && properties.length === 1) {
+    const primaryProperty = properties[0]
+    const primaryDefaults = formatDefaultServices(primaryProperty)
+
+    const frequencyMatchesOrNotProvided =
+      !normalizedFrequency || normalizedFrequency === primaryProperty.service_frequency
+
+    let servicesMatchOrNotProvided = true
+    if (intakeServiceInterests.length > 0) {
+      // Derive enabled services from property booleans using same semantics as formatDefaultServices()
+      const propertyEnabledServices = new Set<string>()
+      if (primaryProperty.default_mowing_enabled !== false)     propertyEnabledServices.add('mowing')
+      if (primaryProperty.default_weed_eating_enabled === true) propertyEnabledServices.add('weed_eating')
+      if (primaryProperty.default_edging_enabled === true)      propertyEnabledServices.add('edging')
+      if (primaryProperty.default_blow_off_enabled === true)    propertyEnabledServices.add('blow_off')
+      const intakeSet = new Set(intakeServiceInterests)
+      servicesMatchOrNotProvided =
+        primaryDefaults.hasBooleanDefaults &&
+        intakeSet.size === propertyEnabledServices.size &&
+        [...intakeSet].every(k => propertyEnabledServices.has(k))
+    }
+
+    requestMatchesProperty = frequencyMatchesOrNotProvided && servicesMatchOrNotProvided
+  }
+
   return (
     <div className="page">
       <Link href="/leads" className="back-link">← Leads</Link>
@@ -268,9 +312,10 @@ export default async function LeadDetailPage({
         </div>
       </div>
 
-      {(normalizedFrequency || intakeServiceInterests.length > 0) && (
+      {/* No property yet — show original request prominently as the only service reference */}
+      {hasIntakeData && properties.length === 0 && (
         <div className="detail-section">
-          <div className="section-heading">Request Details</div>
+          <div className="section-heading">Requested Service Setup</div>
           <div className="card">
             {normalizedFrequency && (
               <div className="card-row">
@@ -296,6 +341,12 @@ export default async function LeadDetailPage({
       {properties.length > 0 ? (
         <div className="detail-section">
           <div className="section-heading">Properties ({properties.length})</div>
+          {/* Multi-property: show original request as compact context without attempting a match */}
+          {originalRequestNote && properties.length > 1 && (
+            <div style={{ marginBottom: '8px', fontSize: '0.8125rem', color: 'var(--color-text-muted, #6b7280)' }}>
+              Original website request: {originalRequestNote}
+            </div>
+          )}
           {properties.map((item) => {
             const defaults = formatDefaultServices(item)
             return (
@@ -337,6 +388,12 @@ export default async function LeadDetailPage({
                   <div style={{ marginTop: '8px', padding: '8px', background: 'var(--color-bg-secondary)', borderRadius: '6px' }}>
                     <div className="text-small text-muted" style={{ marginBottom: '2px' }}>Internal Notes</div>
                     <div className="text-small">{item.internal_notes}</div>
+                  </div>
+                )}
+                {/* Single-property differs: show original request as compact context */}
+                {originalRequestNote && !requestMatchesProperty && properties.length === 1 && (
+                  <div style={{ marginTop: '8px', fontSize: '0.8125rem', color: 'var(--color-text-muted, #6b7280)' }}>
+                    Original website request: {originalRequestNote}
                   </div>
                 )}
                 <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
