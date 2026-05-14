@@ -4,8 +4,8 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-13
-Current checkpoint commit: `3cc8a77` (Format lead property frequency)
+Last updated: 2026-05-14
+Current checkpoint commit: `4001837` (Merge lead request and service setup display)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -100,7 +100,7 @@ src/
 │   │   └── context.ts            # requireBusinessContext() — resolves userId + businessId
 │   ├── pricing.ts                # Estimate calculation engine
 │   ├── geocode.ts                # Address geocoding helper
-│   ├── frequency.ts              # normalizeFrequency() — maps website values to canonical YardOps values
+│   ├── frequency.ts              # Frequency and service interest helpers: normalizeFrequency(), formatFrequencyLabel(), parseWebsiteServiceInterests(), formatServiceInterestLabel()
 │   └── push.ts                   # Web push helper
 ├── types/
 │   └── database.ts               # TypeScript interfaces for all DB entities (manually maintained)
@@ -583,15 +583,21 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 - **Deferred:** when multi-business support is actively being built, the routes will need to iterate per business (fetch all businesses, loop, scope each query by `business_id`, send per-business push to that business's users) or accept a scoped business context.
 - **Do not change cron route code until multi-business support is being actively built.**
 
-**`leads` RLS SELECT/DELETE cosmetic cleanup ✅ (`e85cbcc`):**
+**`leads` RLS SELECT/DELETE cosmetic cleanup ⏸ Remaining:**
 
-- Migration: `supabase/migrations/20260513200000_phase2g_leads_rls_cosmetic.sql`
-- Dropped and recreated `leads_select_business_member` (SELECT) and `leads_delete_business_member` (DELETE) — removed the redundant `business_id IS NOT NULL AND` condition from both USING clauses
-- Both policies now use only `public.is_business_member(business_id)`
-- `leads_insert_business_member` and `leads_update_business_member` unchanged — still include `business_id IS NOT NULL AND is_business_member(business_id)`
-- No app code changes. No behavior change.
+- Migration drafted: `supabase/migrations/20260513200000_phase2g_leads_rls_cosmetic.sql` (committed `e85cbcc` — file exists in repo but not yet applied and user-verified in production)
+- Proposed change: drop and recreate `leads_select_business_member` (SELECT) and `leads_delete_business_member` (DELETE) to remove the redundant `business_id IS NOT NULL AND` prefix from both USING clauses
+- Both policies would use only `public.is_business_member(business_id)` — `leads.business_id` is already `NOT NULL` at the schema level so the check is redundant
+- `leads_insert_business_member` and `leads_update_business_member` would remain unchanged — still include `business_id IS NOT NULL AND is_business_member(business_id)`
+- Cosmetic only. No behavior change. No app code changes required.
+- **Do not apply migration without explicit approval.** Confirm project ref `lewzqavgvltzwfeypvam` before any SQL execution.
 
-**Phase 2G status: cleanup list complete. Remaining standing notes:**
+**Phase 2G status: ⏸ In Progress. Remaining items:**
+
+- **Cron routes multi-business scoping:** documented and deferred — do not change cron route code until multi-business support is actively being built.
+- **`leads` RLS SELECT/DELETE cosmetic cleanup:** migration drafted, not yet applied or verified — see above.
+
+**Ongoing standing notes:**
 
 1. Continue checking for legacy `created_by`/`user_id` assumptions in business-owned queries.
 2. Continue replacing legacy `service_package`/package-name assumptions with itemized service booleans where appropriate.
@@ -618,16 +624,24 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 
 - **Task 1a — Website lead frequency display** ✅ (`0589026`): Added `formatFrequencyLabel` import to `leads/website/[id]/page.tsx`; replaced raw `lead.frequency` display with `formatFrequencyLabel(lead.frequency)`. No data changes.
 - **Task 1b — Lead detail property frequency display** ✅ (`3cc8a77`): Added `formatFrequencyLabel` to existing `@/lib/frequency` import in `leads/[id]/page.tsx`; replaced `.replace(/_/g, ' ')` with `formatFrequencyLabel(item.service_frequency)`. No data changes.
+- **Task 2a — Website lead service interests display** ✅ (`591ca1b`): Added `parseWebsiteServiceInterests` and `formatServiceInterestLabel` imports; parsed structured `"Website service interests:"` block from `lead.notes`; rendered itemized pills in Request Details card before conversion. No data changes.
+- **Task 2b — Website lead notes cleanup** ✅ (`f496246`): Added `stripServiceInterestsBlock()` local helper to strip the structured intake block from the visible Customer Notes display — prevents the structured block from appearing twice (once as pills, once as raw text). No data changes.
+- **Task 3 — Quote page frequency label** ✅ (`5f9ba2d`): Changed quote summary card header from `"{FREQ} Lawn Service"` to `"Service Frequency — {FREQ}"` — correctly labels frequency as frequency, not service type. No data changes.
+- **Task 4 — Website lead frequency label rename** ✅ (`1941585`): Changed Request Details row label from `"Requested Service"` to `"Service Frequency"` on website lead detail page — consistent with quote page wording. No data changes.
+- **Task 5 — Manual lead detail visual alignment** ✅ (`820b053`): Aligned `leads/[id]/page.tsx` with website lead detail visual style — `detail-section` wrappers throughout, section headings outside cards, Contact section renamed `"Contact Info"` with icon rows and Call/Text/Email quick-action buttons, structured intake block stripped from visible notes via `stripStructuredIntakeBlock()`, `"Request Details"` section label used for intake context. No data changes.
+- **Task 6 — Manual lead request/property display merge** ✅ (`4001837`): Added comparison logic to suppress or contextualise original website request data based on whether a property already exists. Three cases: (a) no property → show `"Requested Service Setup"` section prominently; (b) one property where request matches property setup → suppress duplicate section entirely; (c) one differing property or multiple properties → show compact `"Original website request: ..."` note near the property card. Boolean comparison mirrors `formatDefaultServices()` semantics exactly (`mowing !== false`; others `=== true`). No data changes. No SQL/migrations. WicksburgLawnService not touched.
 
 **Potential tasks (remaining):**
 1. ~~Frequency display polish~~ ✅ complete (Tasks 1a, 1b)
-2. Show parsed service interests on website lead detail page before conversion (Task 2 — next)
-3. Improve public WicksburgLawnService intake to YardOps service mapping.
-4. Improve lead conversion flow: lead → customer → property → estimate.
-5. Preserve customer/parcel/address/service info across the full flow.
-6. Reduce duplicated manual entry.
-7. Ensure public intake and manual YardOps lead creation use consistent service language: Mowing, Weed Eating, Edging, Blow Off.
-8. Keep WicksburgLawnService read-only unless explicitly asked to patch it.
+2. ~~Show service interests on website lead detail page~~ ✅ complete (Tasks 2a, 2b)
+3. ~~Quote page and lead detail copy/label fixes~~ ✅ complete (Tasks 3, 4)
+4. ~~Manual lead detail visual alignment and deduplication~~ ✅ complete (Tasks 5, 6)
+5. Improve public WicksburgLawnService intake to YardOps service mapping.
+6. Improve lead conversion flow: lead → customer → property → estimate.
+7. Preserve customer/parcel/address/service info across the full flow.
+8. Reduce duplicated manual entry.
+9. Ensure public intake and manual YardOps lead creation use consistent service language: Mowing, Weed Eating, Edging, Blow Off.
+10. Keep WicksburgLawnService read-only unless explicitly asked to patch it.
 
 ---
 

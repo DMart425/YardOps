@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-13 (3cc8a77)
+Last updated: 2026-05-14 (4001837)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-05-13 (3cc8a77)
 
 ## Current Checkpoint
 
-- **Latest commit:** `3cc8a77` — Format lead property frequency
+- **Latest commit:** `4001837` — Merge lead request and service setup display
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -216,6 +216,12 @@ Commits: `8621e2d`, `9028e84`, `3c5371a`
 
 | Hash | Description |
 |------|-------------|
+| `4001837` | Merge lead request and service setup display (Phase 3) |
+| `820b053` | Align manual lead detail layout (Phase 3) |
+| `1941585` | Rename lead frequency label — "Requested Service" → "Service Frequency" (Phase 3) |
+| `5f9ba2d` | Fix quote page summary label — "Service Frequency — Weekly" (Phase 3) |
+| `f496246` | Clean website lead notes display — strip structured intake block (Phase 3) |
+| `591ca1b` | Show website lead service interests as pills (Phase 3) |
 | `3cc8a77` | Format lead property frequency (Phase 3) |
 | `0589026` | Format website lead frequency (Phase 3) |
 | `268d814` | Document Phase 2G closeout |
@@ -285,9 +291,14 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ `acceptEstimate` customer/property updates scoped by `business_id` (defense-in-depth beyond `public_token` lookup) (`5aff7d8`)
 - ✅ Quote accepted banner uses neutral wording: "Estimate accepted. We'll be in touch soon!" (`0a165d1`)
 - ✅ Mobile quote header Call Now button no longer clips/crushes on narrow viewports (`0a165d1`)
-- ✅ `leads` RLS SELECT/DELETE policies cleaned up — redundant `business_id IS NOT NULL` removed; INSERT/UPDATE unchanged (`e85cbcc`)
 - ✅ Website lead detail page frequency now displays friendly labels via `formatFrequencyLabel()` (`0589026`)
 - ✅ Lead detail property card frequency now displays friendly labels via `formatFrequencyLabel()` (`3cc8a77`)
+- ✅ Website lead detail page shows parsed service interests as itemized pills before conversion (`591ca1b`)
+- ✅ Website lead Customer Notes no longer shows the structured `"Website service interests:"` intake block — stripped cleanly while preserving free-form notes (`f496246`)
+- ✅ Quote page summary card label changed from `"{FREQ} Lawn Service"` to `"Service Frequency — {FREQ}"` (`5f9ba2d`)
+- ✅ Website lead detail `"Requested Service"` label renamed to `"Service Frequency"` — consistent with quote page wording (`1941585`)
+- ✅ Manual lead detail page aligned with website lead detail visual style: `detail-section` wrappers, headings outside cards, `"Contact Info"` with icon rows and Call/Text/Email quick-action buttons, structured intake text stripped from visible notes (`820b053`)
+- ✅ Manual lead detail request/property display merged: no-property case shows `"Requested Service Setup"` prominently; matching property suppresses duplicate section; differing property or multi-property shows compact `"Original website request: ..."` note (`4001837`)
 
 ---
 
@@ -297,7 +308,8 @@ All of the following were user-tested and confirmed working as of `289b732`:
 |------|--------|-------|
 | DB password rotation | ⏸ Pending | Schedule at a safe pause point; do not interrupt active work |
 | Phase 2F — Final Multi-Business Audit | ✅ Complete | All 13 tables verified — no blockers found |
-| Phase 2G — Defense-in-Depth Cleanup | ✅ Cleanup list complete | All items complete — closeout review pending |
+| Phase 2G — `leads` RLS SELECT/DELETE cosmetic cleanup | ⏸ Remaining | Migration drafted (`e85cbcc`) — not yet applied or verified; cosmetic only, no behavior change |
+| Phase 2G — Cron routes multi-business scoping | ⏸ Deferred | Acceptable for single-business; address when multi-business support is being built |
 | WicksburgLawnService phone input formatting (Patch C) | ✅ Complete | `2a7b0f8` in WicksburgLawnService — separate repo, no YardOps changes |
 | B.7a website frequency/service-interest intake | ⏸ Pending | `6c8bada` in WicksburgLawnService |
 | B.7b YardOps consumption of B.7a leads | ⏸ Pending | Verify normalization/carryover |
@@ -312,8 +324,8 @@ Full roadmap lives in Architecture.md §16. Summary:
 | Phase | Goal | Status |
 |-------|------|--------|
 | 2F | Final end-to-end multi-business audit | ✅ Complete |
-| 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ⏸ Pending |
-| 3 | Public intake and lead workflow improvements | ⏸ In Progress |
+| 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ⏸ In Progress — leads RLS cosmetic cleanup remaining; cron scoping deferred |
+| 3 | Public intake and lead workflow improvements | ⏸ In Progress — UI/copy polish complete; intake/conversion flow remaining |
 | 4 | Operations UX / workflow polish | ⏸ Pending |
 | 5 | Reporting, automation, and growth features | ⏸ Pending |
 
@@ -324,23 +336,31 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Immediate next task: Phase 3 Task 2 — Show service interests on website lead detail page**
+**Immediate next task: Phase 2G — `leads` RLS SELECT/DELETE cosmetic cleanup**
 
-The website lead detail page (`/leads/website/[id]/page.tsx`) currently shows the raw `lead.notes` field without parsing the structured `"Website service interests:\n- mowing\n..."` block that `buildNotesWithServiceInterests()` writes into it. The operator cannot see service interests before conversion. After conversion, `/leads/[id]/page.tsx` already shows them as pills — this task brings the same visibility to the pre-conversion page.
+The migration file already exists at `supabase/migrations/20260513200000_phase2g_leads_rls_cosmetic.sql` (committed `e85cbcc`) but has not yet been applied to the live DB or user-verified.
 
-Scope: YardOps only. `src/app/(protected)/leads/website/[id]/page.tsx`. No SQL/migrations. No WicksburgLawnService changes.
+**This is cosmetic only.** The existing RLS is already functionally correct — `leads.business_id` is `NOT NULL` at the schema level, so the redundant `business_id IS NOT NULL AND` prefix in the SELECT and DELETE USING clauses is harmless. The cleanup removes the redundancy for consistency with other business-owned tables.
 
-Steps:
-1. Import `parseWebsiteServiceInterests` and `formatServiceInterestLabel` from `@/lib/frequency`
-2. Call `parseWebsiteServiceInterests(lead.notes)` to extract the service interest set
-3. If any interests are present, render a "Requested Services" section with pills (match the style used in `leads/[id]/page.tsx`)
-4. Keep the raw notes display intact beneath it — only add the parsed section above or beside
-5. Run `npx tsc --noEmit`
-6. Return patch report before staging
+**Pre-approval required before any SQL or migration work.** Steps:
+1. Review the migration file content and confirm it matches the agreed change.
+2. Confirm target project ref is `lewzqavgvltzwfeypvam`.
+3. Await explicit user approval before applying.
+4. Apply with `npx supabase db query --linked --file "supabase/migrations/20260513200000_phase2g_leads_rls_cosmetic.sql"`.
+5. Verify live DB policies after apply (read-only SQL).
+6. User-test before committing the migration as applied.
 
-Phase 3 completed tasks:
+Do not run SQL or apply migrations without explicit approval.
+
+Phase 3 completed tasks (all user-tested in production):
 1. ~~Frequency display — website lead detail page~~ ✅ (`0589026`)
 2. ~~Frequency display — lead detail property card~~ ✅ (`3cc8a77`)
+3. ~~Show service interests on website lead detail page~~ ✅ (`591ca1b`)
+4. ~~Clean website lead notes display~~ ✅ (`f496246`)
+5. ~~Quote page summary frequency label fix~~ ✅ (`5f9ba2d`)
+6. ~~Website lead detail frequency label rename~~ ✅ (`1941585`)
+7. ~~Manual lead detail visual alignment~~ ✅ (`820b053`)
+8. ~~Manual lead request/property display merge~~ ✅ (`4001837`)
 
 ---
 
