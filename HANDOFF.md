@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-11
+Last updated: 2026-05-13
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-05-11
 
 ## Current Checkpoint
 
-- **Latest commit:** `70fa054` — Modernize portal service labels
+- **Latest commit:** `0a165d1` — Fix quote accepted banner and mobile header
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -216,6 +216,9 @@ Commits: `8621e2d`, `9028e84`, `3c5371a`
 
 | Hash | Description |
 |------|-------------|
+| `0a165d1` | Fix quote accepted banner and mobile header (Phase 2G) |
+| `5aff7d8` | Scope quote acceptance updates by business (Phase 2G) |
+| `c0734c4` | Document portal service labels |
 | `70fa054` | Modernize portal service labels (Phase 2G) |
 | `22e1538` | Document portal scoping cleanup |
 | `71975dd` | Scope portal jobs by business (Phase 2G — portal business_id) |
@@ -275,6 +278,9 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ WicksburgLawnService public quote form phone input formats as `(xxx) xxx-xxxx` while typing (`2a7b0f8`)
 - ✅ Customer portal jobs scoped by both `customer_id` and `business_id` (`71975dd`)
 - ✅ Customer portal service labels use property booleans first (Mowing / Weed Eating / Edging / Blow Off), fall back to friendly legacy labels (`70fa054`)
+- ✅ `acceptEstimate` customer/property updates scoped by `business_id` (defense-in-depth beyond `public_token` lookup) (`5aff7d8`)
+- ✅ Quote accepted banner uses neutral wording: "Estimate accepted. We'll be in touch soon!" (`0a165d1`)
+- ✅ Mobile quote header Call Now button no longer clips/crushes on narrow viewports (`0a165d1`)
 
 ---
 
@@ -284,7 +290,7 @@ All of the following were user-tested and confirmed working as of `289b732`:
 |------|--------|-------|
 | DB password rotation | ⏸ Pending | Schedule at a safe pause point; do not interrupt active work |
 | Phase 2F — Final Multi-Business Audit | ✅ Complete | All 13 tables verified — no blockers found |
-| Phase 2G — Defense-in-Depth Cleanup | ⏸ In Progress | Task 1 ✅, Patch B ✅, Patch C ✅, portal scoping ✅, portal labels ✅; next: quote acceptEstimate business_id |
+| Phase 2G — Defense-in-Depth Cleanup | ⏸ In Progress | Task 1 ✅, Patch B ✅, Patch C ✅, portal scoping ✅, portal labels ✅, quote actions scoping ✅, quote UX ✅; next: cron routes |
 | WicksburgLawnService phone input formatting (Patch C) | ✅ Complete | `2a7b0f8` in WicksburgLawnService — separate repo, no YardOps changes |
 | B.7a website frequency/service-interest intake | ⏸ Pending | `6c8bada` in WicksburgLawnService |
 | B.7b YardOps consumption of B.7a leads | ⏸ Pending | Verify normalization/carryover |
@@ -311,28 +317,24 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Immediate next task: Phase 2G — `quote/[token]/actions.ts` business_id scoping**
+**Immediate next task: Phase 2G — Cron routes multi-business scoping gap documentation**
 
-`acceptEstimate()` in `src/app/quote/[token]/actions.ts` updates `customers` and `properties` but does not include a `business_id` filter on those updates. They are currently gated only by the `public_token` lookup on the estimate row. Adding `business_id` from the fetched estimate provides defense-in-depth.
+**This is documentation-only. Do not change cron route code yet.**
 
-Scope: YardOps only (`src/app/quote/[token]/actions.ts`). No schema changes. No migrations.
+`api/cron/morning-summary` and `api/cron/evening-summary` query `jobs`/`estimates` without a `business_id` filter and fetch `pricing_settings` with `.limit(1)`. Current single-business behavior is acceptable. The actual implementation fix should be deferred until multi-business support is being actively built — at that point the routes will need to iterate over businesses or accept a scoped business context.
 
-Steps:
-1. Inspect `src/app/quote/[token]/actions.ts` — find `acceptEstimate` and the customers/properties update calls
-2. Confirm `business_id` is already present on the fetched estimate row (or add it to the select if not)
-3. Add `.eq('business_id', businessId)` to both the `customers` update and the `properties` update
-4. Run `npx tsc --noEmit`
-5. Return a patch report before staging
+Scope: Add a note to ARCHITECTURE.md §16 documenting the gap and the deferral decision. No cron route code changes.
 
-Remaining Phase 2G items after this (in Architecture.md §16):
+Remaining Phase 2G items (in Architecture.md §16):
 1. ~~`DataExportSection.tsx`~~ ✅ complete
 2. ~~Patch B — YardOps phone formatting~~ ✅ complete
 3. ~~Patch C — WicksburgLawnService phone formatting~~ ✅ complete
 4. ~~`portal/[token]/page.tsx` business_id scoping~~ ✅ complete
 5. ~~`portal/[token]/page.tsx` service label modernization~~ ✅ complete
-6. `quote/[token]/actions.ts` — add `business_id` scoping to `acceptEstimate` — **next task**
-7. Cron routes — document multi-business scoping gap; address when multi-business needed
-8. `leads` RLS SELECT/DELETE — cosmetic `business_id IS NOT NULL` cleanup
+6. ~~`quote/[token]/actions.ts` business_id scoping~~ ✅ complete (`5aff7d8`)
+7. ~~Quote page UX fixes~~ ✅ complete (`0a165d1`)
+8. Cron routes — document multi-business scoping gap; address when multi-business needed — **next task**
+9. `leads` RLS SELECT/DELETE — cosmetic `business_id IS NOT NULL` cleanup
 
 ---
 

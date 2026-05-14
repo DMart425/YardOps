@@ -4,8 +4,8 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-11
-Current checkpoint commit: `70fa054` (Modernize portal service labels)
+Last updated: 2026-05-13
+Current checkpoint commit: `0a165d1` (Fix quote accepted banner and mobile header)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -557,23 +557,30 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 - Removed old inline `pkgLabel()` — replaced both call sites (Upcoming + Service History) with `serviceLabel()`
 - No SQL/migrations. No schema changes.
 
-**Next item — `quote/[token]/actions.ts` business_id scoping:**
+**`quote/[token]/actions.ts` business_id scoping ✅ (user-tested `5aff7d8`):**
 
-- `customers.update()` and `properties.update()` in `acceptEstimate` have no `business_id` filter
-- Currently gated only by `public_token` lookup on the estimate
-- Fix: derive `business_id` from the fetched estimate row and add to both update calls
+- Added `business_id` to the `QuoteEstimate` type and to the estimate select in `acceptEstimate`
+- Added `.eq('business_id', estimate.business_id)` to the `customers` update call
+- Added `.eq('business_id', estimate.business_id)` to the lead→active `customers` update call
+- Added `.eq('business_id', estimate.business_id)` to the `properties` update call
+- Customer/property updates are now scoped by both `id` and `business_id` (defense-in-depth beyond `public_token` lookup)
+- No SQL/migrations. No behavior change beyond scoping.
 
-**Remaining items (after Patch B):**
+**`quote/[token]/page.tsx` UX fixes ✅ (user-tested `0a165d1`):**
 
-2. **`portal/[token]/page.tsx`** — `jobs` query uses only `customer_id`, no `business_id` filter. The portal token row already has `business_id`; use it to scope the query. *(Low risk today; multi-business leak if ever multi-business)*
-3. **`quote/[token]/actions.ts`** — `customers.update()` and `properties.update()` in `acceptEstimate` have no `business_id` filter; gated by `public_token` lookup only. Fix: derive `business_id` from the fetched estimate row and add to both update calls.
-4. **Cron routes** (`morning-summary`, `evening-summary`) — query `jobs`/`estimates` without `business_id` filter and grab `pricing_settings` with `.limit(1)`. Safe for single-business only; needs business iteration before multi-business use.
-5. **`leads` RLS SELECT/DELETE policies** — QUAL redundantly includes `business_id IS NOT NULL`; harmless now that column is NOT NULL but inconsistent with other tables. Cosmetic cleanup only.
-6. Continue checking for legacy `created_by`/`user_id` assumptions in business-owned queries.
-7. Continue replacing legacy `service_package`/package-name assumptions with itemized service booleans where appropriate.
-8. Do not remove legacy `default_service_package` yet — still referenced in `scheduleFollowUpJob` fallback chain. Full compatibility audit required before removal.
-9. Confirm `message_logs`, portal tokens, and customer-facing links continue to behave correctly after each cleanup patch.
-10. Keep each cleanup patch small and reviewable.
+- Accepted banner wording changed from `"You've already accepted this estimate. We'll be in touch soon!"` to `"Estimate accepted. We'll be in touch soon!"` — neutral wording works correctly for both immediate post-accept and revisit-after-accept scenarios
+- Mobile header layout fixed: added `flex: '1 1 0', minWidth: 0` to the text block div; added `flexShrink: 0, whiteSpace: 'nowrap'` to the Call Now button wrapper div so the button no longer clips/crushes on narrow viewports
+- No SQL/migrations.
+
+**Remaining items:**
+
+1. **Cron routes** (`morning-summary`, `evening-summary`) — query `jobs`/`estimates` without `business_id` filter and grab `pricing_settings` with `.limit(1)`. Safe for single-business only; needs business iteration before multi-business use. Document gap; address when multi-business needed.
+2. **`leads` RLS SELECT/DELETE policies** — QUAL redundantly includes `business_id IS NOT NULL`; harmless now that column is NOT NULL but inconsistent with other tables. Cosmetic cleanup only.
+3. Continue checking for legacy `created_by`/`user_id` assumptions in business-owned queries.
+4. Continue replacing legacy `service_package`/package-name assumptions with itemized service booleans where appropriate.
+5. Do not remove legacy `default_service_package` yet — still referenced in `scheduleFollowUpJob` fallback chain. Full compatibility audit required before removal.
+6. Confirm `message_logs`, portal tokens, and customer-facing links continue to behave correctly after each cleanup patch.
+7. Keep each cleanup patch small and reviewable.
 
 ---
 
