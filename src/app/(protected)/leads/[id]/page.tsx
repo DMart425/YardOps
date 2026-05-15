@@ -138,7 +138,7 @@ export default async function LeadDetailPage({
     addPropertyParams.set('default_edging_enabled',      serviceInterests.has('edging')     ? 'true' : 'false')
     addPropertyParams.set('default_blow_off_enabled',    serviceInterests.has('blow_off')   ? 'true' : 'false')
   }
-  const addPropertyHref = `/properties/new?${addPropertyParams.toString()}`
+  // addPropertyHref is finalized after parcel calculation so parcelAcres/mowableAcres can be included
   const intakeServiceInterests = Array.from(serviceInterests)
 
   // Fetch any estimates already created for this lead
@@ -190,6 +190,11 @@ export default async function LeadDetailPage({
   const deedDateMs    = toNum(attrs['DeedDate'])
   const deedDate      = deedDateMs ? new Date(deedDateMs) : null
   const totalMktValue = toNum(attrs['TotalMktValue'])
+
+  // Finalize addPropertyHref now that parcel acres are computed
+  if (parcelAcres != null) addPropertyParams.set('parcel_acres', parcelAcres.toFixed(4))
+  if (mowableAcres != null) addPropertyParams.set('estimated_mowable_acres', mowableAcres.toFixed(2))
+  const addPropertyHref = `/properties/new?${addPropertyParams.toString()}`
 
   // Strip structured intake lines from the customer-facing notes display.
   // These lines are already surfaced in the Request Details section, so
