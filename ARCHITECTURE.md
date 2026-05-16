@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-16
-Current checkpoint commit: `1db4f33` (Clarify estimate property default hints)
+Current checkpoint commit: `e3a510e` (Polish job detail labels)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -639,6 +639,7 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 - **Patch 3 — Add Property county prefill** ✅ (`8966add`, user-tested): `leads/[id]/page.tsx` now derives and passes `county` to the Add Property URL when a matched parcel exists. County extraction: tries `raw_json.attributes` for `['county', 'County', 'SitusCounty', 'SITUS_COUNTY']` first; if none found and `parcel.source` is set, runs a secondary read-only query to `parcel_sources.county` via `source_key`. `source: string | null` added to `ParcelRow` type; `source` added to parcel `.select()` string. County appended as `?county=...` only when a value is found — no hardcoded fallback. `properties/new` was already fully wired for the `county` URL param — no changes to that page, `PropertyForm`, or `createProperty()`. Production test: Houston County parcels now prefill county field correctly. No SQL/migrations. All existing Add Property params preserved.
 - **normalizeFrequency cleanup** ✅ (`df491c0`): Removed duplicate/unreachable cases — the two-block structure (Block A "canonical" + Block B "legacy") collapsed into a single linear block. Dead cases removed: duplicate `weekly` check, duplicate `biweekly`/`bi-weekly` checks. All accepted inputs preserved: `weekly`, `biweekly`, `bi-weekly`, `bi weekly`, `one_time`, `one time`, `one-time`, `one-time cut`, `one time cut`, `custom`, `paused`; `unsure`/`not sure yet`/`not sure` still return null. No behavior change. Updated header comment to list all accepted inputs. Only `src/lib/frequency.ts` changed.
 - **EstimateForm hint clarity** ✅ (`1db4f33`, user-tested): `EstimateForm.tsx` now imports `formatFrequencyLabel` and uses it for the frequency-defaulted hint (shows `Bi-weekly` instead of `biweekly`). Frequency hint is suppressed when `mapPropertyFrequency()` returns null (e.g., `custom`/`paused`) to avoid contradictory display. Service defaults hint replaced with a unified IIFE: shows `"Service defaults applied from property: Mowing, Weed eating, ..."` when `propertyBooleanDefaults()` is non-null (modern properties); falls back to `"Service defaults applied from legacy package: ..."` only when actually using the legacy package path. No pricing, submission, or default behavior changed.
+- **Job detail label polish** ✅ (`e3a510e`, user-tested): `jobs/[id]/page.tsx` now uses a local `SERVICE_LABELS` map for `🌿 Package` display — `mow_only → 'Mow Only'`, `mow_trim_blow → 'Mow, Trim & Blow'`, `trim_cleanup → 'Trim & Cleanup'`, `full_service → 'Full Service'`; unknown codes fall back to title-case, null falls back to `'Standard Mow'`. Added `JOB_TYPE_LABELS` map for `🔄 Type` display — `one_time → 'One-time'`, `recurring → 'Recurring'`. Production tested: Mow Only, Full Service, Mow Trim & Blow, One-time, Recurring, itemized Service Scope all confirmed. No job data, estimate conversion, invoice, payment, or status behavior changed.
 
 **Potential tasks (remaining):**
 1. ~~Frequency display polish~~ ✅ complete (Tasks 1a, 1b)
@@ -651,12 +652,13 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 8. ~~Add Property county prefill from matched parcel~~ ✅ complete (Patch 3, `8966add`)
 9. ~~normalizeFrequency duplicate/unreachable case cleanup~~ ✅ complete (`df491c0`)
 10. ~~EstimateForm hint clarity — frequency label and service defaults~~ ✅ complete (`1db4f33`)
-11. Improve public WicksburgLawnService intake to YardOps service mapping.
-12. Improve lead conversion flow: lead → customer → property → estimate.
-13. Preserve customer/parcel/address/service info across the full flow.
-14. Reduce duplicated manual entry.
-15. Ensure public intake and manual YardOps lead creation use consistent service language: Mowing, Weed Eating, Edging, Blow Off.
-16. Keep WicksburgLawnService read-only unless explicitly asked to patch it.
+11. ~~Job detail service package and job type label polish~~ ✅ complete (`e3a510e`)
+12. Improve public WicksburgLawnService intake to YardOps service mapping.
+13. Improve lead conversion flow: lead → customer → property → estimate.
+14. Preserve customer/parcel/address/service info across the full flow.
+15. Reduce duplicated manual entry.
+16. Ensure public intake and manual YardOps lead creation use consistent service language: Mowing, Weed Eating, Edging, Blow Off.
+17. Keep WicksburgLawnService read-only unless explicitly asked to patch it.
 
 ---
 
