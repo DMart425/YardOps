@@ -160,13 +160,14 @@ export default async function LeadDetailPage({
     lat: number | null
     lon: number | null
     raw_json: { attributes?: Record<string, unknown> } | null
+    source: string | null
   }
   let parcel: ParcelRow | null = null
   if (property?.service_address) {
     const searchTerm = property.service_address.split(',')[0].trim()
     const { data: parcelMatch } = await supabase
       .from('parcels')
-      .select('id, situs_address, lot_sqft, owner_name, land_use, lat, lon, raw_json')
+      .select('id, situs_address, lot_sqft, owner_name, land_use, lat, lon, raw_json, source')
       .ilike('situs_address', `%${searchTerm}%`)
       .limit(1)
       .single()
@@ -191,11 +192,31 @@ export default async function LeadDetailPage({
   const deedDate      = deedDateMs ? new Date(deedDateMs) : null
   const totalMktValue = toNum(attrs['TotalMktValue'])
 
-  // Finalize addPropertyHref now that parcel acres are computed
+  // County extraction: try raw_json attrs first, then fall back to parcel_sources table
+  let parcelCounty: string | null = null
+  if (parcel) {
+    const rawAttrs = (parcel.raw_json?.attributes ?? {}) as Record<string, unknown>
+    const fromAttrs = ['county', 'County', 'SitusCounty', 'SITUS_COUNTY']
+      .map(k => rawAttrs[k])
+      .find(v => typeof v === 'string' && (v as string).trim())
+    parcelCounty = fromAttrs ? (fromAttrs as string).trim() : null
+
+    if (!parcelCounty && parcel.source) {
+      const { data: sourceRow } = await supabase
+        .from('parcel_sources')
+        .select('county')
+        .eq('source_key', parcel.source)
+        .maybeSingle()
+      parcelCounty = sourceRow?.county ?? null
+    }
+  }
+
+  // Finalize addPropertyHref now that parcel acres and county are computed
   if (parcelAcres != null) addPropertyParams.set('parcel_acres', parcelAcres.toFixed(4))
   if (mowableAcres != null) addPropertyParams.set('estimated_mowable_acres', mowableAcres.toFixed(2))
   if (parcel?.id) addPropertyParams.set('parcel_id', parcel.id)
   if (parcel?.id) addPropertyParams.set('lot_size_source', 'parcel')
+  if (parcelCounty) addPropertyParams.set('county', parcelCounty)
   const addPropertyHref = `/properties/new?${addPropertyParams.toString()}`
 
   // Strip structured intake lines from the customer-facing notes display.
