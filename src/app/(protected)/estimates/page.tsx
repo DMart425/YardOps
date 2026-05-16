@@ -24,6 +24,7 @@ type EstimateListRow = {
 const STATUS_FILTERS = [
   ['all',       'All'],
   ['open',      'Open'],
+  ['approved',  'Approved'],
   ['draft',     'Draft'],
   ['converted', 'Converted'],
   ['declined',  'Declined'],

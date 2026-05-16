@@ -137,6 +137,19 @@ export default async function EstimateDetailPage({
         </div>
       )}
 
+      {/* Approved — needs scheduling */}
+      {estimate.status === 'approved' && (
+        <div className="card" style={{ marginBottom: '1rem', borderLeft: '3px solid var(--color-primary)', background: 'rgba(16,185,129,0.07)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '1.25rem' }}>✅</span>
+            <div>
+              <div className="font-bold">Customer approved — ready to schedule</div>
+              <div className="text-small text-muted">Use Convert to Job below to create a scheduled job for this estimate.</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Estimate summary */}
       <div className="card" style={{ marginBottom: '1rem' }}>
         <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Estimate Summary</div>

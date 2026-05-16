@@ -379,9 +379,19 @@ export async function convertToJob(
     .eq('business_id', businessId)
     .eq('status', 'lead')
 
+  // Best-effort: clear any unreviewed approval notification so Today page
+  // does not show a stale "approved" alert after conversion.
+  await supabase
+    .from('app_notifications')
+    .update({ is_reviewed: true, reviewed_at: new Date().toISOString() })
+    .eq('estimate_id', estimateId)
+    .eq('is_reviewed', false)
+    .eq('notification_type', 'estimate_approved')
+
   revalidatePath('/estimates')
   revalidatePath('/jobs')
   revalidatePath('/leads')
+  revalidatePath('/today')
   redirect(`/jobs/${job.id}`)
 }
 
