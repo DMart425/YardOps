@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-15 (0e724ea)
+Last updated: 2026-05-16 (01b1d11)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-05-15 (0e724ea)
 
 ## Current Checkpoint
 
-- **Latest commit:** `0e724ea` — Prefill property acreage from matched parcel
+- **Latest commit:** `01b1d11` — Skip zero parcel acreage values
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -216,6 +216,10 @@ Commits: `8621e2d`, `9028e84`, `3c5371a`
 
 | Hash | Description |
 |------|-------------|
+| `01b1d11` | Skip zero parcel acreage values (Phase 3 — Parcel Lookup fix 2) |
+| `fddb06a` | Fix parcel lookup lot size fallback (Phase 3 — Parcel Lookup fix 1) |
+| `4c18726` | Carry parcel id into new property flow (Phase 3 Patch 2) |
+| `a1007ab` | Document acreage prefill patch (Phase 3 docs) |
 | `0e724ea` | Prefill property acreage from matched parcel (Phase 3 Patch 1) |
 | `5467b7b` | Document leads RLS cleanup completion (Phase 2G docs) |
 | `dd80d6e` | Document lead UI polish and remaining RLS cleanup (Phase 2G docs) |
@@ -303,6 +307,9 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ Manual lead detail page aligned with website lead detail visual style: `detail-section` wrappers, headings outside cards, `"Contact Info"` with icon rows and Call/Text/Email quick-action buttons, structured intake text stripped from visible notes (`820b053`)
 - ✅ Manual lead detail request/property display merged: no-property case shows `"Requested Service Setup"` prominently; matching property suppresses duplicate section; differing property or multi-property shows compact `"Original website request: ..."` note (`4001837`)
 - ✅ Add Property link from manual lead detail now prefills `parcel_acres` and `estimated_mowable_acres` when parcel data exists — values were already computed for the parcel card; `addPropertyHref` construction moved to after parcel calculation block so both values are in scope; `properties/new` already accepted both params (`0e724ea`)
+- ✅ Add Property link now also carries `parcel_id` and `lot_size_source=parcel` when a matched parcel exists — `properties/new` updated to accept both params and pass to `PropertyForm` defaultValues; `PropertyForm`/`createProperty()` were already wired; after property save, `ApplyParcelButton` shows `✓ Parcel data already applied` on first render (`4c18726`)
+- ✅ Parcel Lookup dropdown now falls back to `lot_sqft` when raw_json acreage field is `0` — fixed nullish coalescing that never bypassed zero (`fddb06a`)
+- ✅ Parcel Lookup now skips zero raw acreage values so later fields like `DeededAcres` can be used — `pickFirstPositiveNumber()` added; 500 BILLINGS TRL (`CALC_ACRES=0`, `DeededAcres=0.42`) now shows acreage; 500 REDBUD CIR (all-zero source record) correctly remains "No usable lot size data" (`01b1d11`)
 - ✅ `leads` RLS SELECT/DELETE cosmetic cleanup applied and verified — `leads_select_business_member` and `leads_delete_business_member` USING clauses now use `is_business_member(business_id)` only; INSERT/UPDATE policies unchanged; applied via SQL Editor on `lewzqavgvltzwfeypvam` (CLI unavailable due to role permission error)
 
 ---
@@ -330,7 +337,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 |-------|------|--------|
 | 2F | Final end-to-end multi-business audit | ✅ Complete |
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
-| 3 | Public intake and lead workflow improvements | ⏸ In Progress — UI/copy polish complete; Patch 1 (acreage prefill) complete; next patch TBD |
+| 3 | Public intake and lead workflow improvements | ⏸ In Progress — UI/copy polish complete; Patch 1 (acreage prefill), Patch 2 (parcel_id carryover), Parcel Lookup fixes complete; next patch TBD |
 | 4 | Operations UX / workflow polish | ⏸ Pending |
 | 5 | Reporting, automation, and growth features | ⏸ Pending |
 
@@ -343,7 +350,7 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 **Phase 3 — Decide next lead conversion flow patch**
 
-Phase 2G active cleanup is complete (cron scoping deferred). Phase 3 UI/copy polish is complete. Phase 3 Patch 1 (Add Property acreage prefill) is complete and user-tested.
+Phase 2G active cleanup is complete (cron scoping deferred). Phase 3 UI/copy polish complete. Phase 3 Patch 1 (acreage prefill), Patch 2 (parcel_id carryover), and Parcel Lookup lot-size fixes are all complete and user-tested.
 
 **Phase 3 completed tasks (all user-tested in production):**
 1. ~~Frequency display — website lead detail page~~ ✅ (`0589026`)
@@ -355,11 +362,14 @@ Phase 2G active cleanup is complete (cron scoping deferred). Phase 3 UI/copy pol
 7. ~~Manual lead detail visual alignment~~ ✅ (`820b053`)
 8. ~~Manual lead request/property display merge~~ ✅ (`4001837`)
 9. ~~Add Property acreage prefill from matched parcel~~ ✅ (`0e724ea`)
+10. ~~Add Property parcel_id carryover~~ ✅ (`4c18726`)
+11. ~~Parcel Lookup lot-size fallback fix~~ ✅ (`fddb06a`)
+12. ~~Parcel Lookup zero acreage skip~~ ✅ (`01b1d11`)
 
 **Suggested next patch candidates (decide before starting):**
-1. Audit/implement `parcel_id` carryover into Add Property flow — `leads/[id]/page.tsx` could pass `parcel_id` as a URL param; `properties/new` already accepts `parcel_id` but the lead page does not currently set it.
-2. Audit county prefill/manual-entry gap — parcel data often has county; verify it is being passed or note the gap.
-3. Clean duplicate unreachable cases in `normalizeFrequency()` (`src/lib/frequency.ts`) — cosmetic dead code, no behavior effect.
+1. Audit county prefill/manual-entry gap — parcel data often has county; verify it is being passed through the lead → Add Property URL or note the gap.
+2. Clean duplicate unreachable cases in `normalizeFrequency()` (`src/lib/frequency.ts`) — cosmetic dead code, no behavior effect.
+3. Continue lead conversion friction audit — identify any remaining steps where the operator must manually re-enter data already captured.
 
 Do not run SQL or apply migrations without approval. Do not modify WicksburgLawnService unless explicitly approved.
 

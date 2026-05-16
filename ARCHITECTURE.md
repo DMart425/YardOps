@@ -4,8 +4,8 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-15
-Current checkpoint commit: `0e724ea` (Prefill property acreage from matched parcel)
+Last updated: 2026-05-16
+Current checkpoint commit: `01b1d11` (Skip zero parcel acreage values)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -633,6 +633,9 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 - **Task 5 — Manual lead detail visual alignment** ✅ (`820b053`): Aligned `leads/[id]/page.tsx` with website lead detail visual style — `detail-section` wrappers throughout, section headings outside cards, Contact section renamed `"Contact Info"` with icon rows and Call/Text/Email quick-action buttons, structured intake block stripped from visible notes via `stripStructuredIntakeBlock()`, `"Request Details"` section label used for intake context. No data changes.
 - **Task 6 — Manual lead request/property display merge** ✅ (`4001837`): Added comparison logic to suppress or contextualise original website request data based on whether a property already exists. Three cases: (a) no property → show `"Requested Service Setup"` section prominently; (b) one property where request matches property setup → suppress duplicate section entirely; (c) one differing property or multiple properties → show compact `"Original website request: ..."` note near the property card. Boolean comparison mirrors `formatDefaultServices()` semantics exactly (`mowing !== false`; others `=== true`). No data changes. No SQL/migrations. WicksburgLawnService not touched.
 - **Patch 1 — Add Property acreage prefill** ✅ (`0e724ea`, user-tested): `leads/[id]/page.tsx` now appends `parcel_acres` and `estimated_mowable_acres` to the `addPropertyHref` URL when parcel data exists. `parcelAcres` and `mowableAcres` were already computed for the parcel card display; two `addPropertyParams.set()` calls and the `const addPropertyHref` declaration were moved to after the parcel calculation block so the values are in scope. `properties/new` already accepted both params — no changes to the property form or `createProperty()` action required. No SQL/migrations. WicksburgLawnService not touched. All existing Add Property params preserved.
+- **Patch 2 — Add Property parcel_id carryover** ✅ (`4c18726`, user-tested): `leads/[id]/page.tsx` now also appends `parcel_id` and `lot_size_source=parcel` to `addPropertyHref` when a matched parcel exists. `properties/new` updated to accept and destructure both params and pass them into `PropertyForm` `defaultValues`. `PropertyForm` already read `defaultValues.parcel_id` and emitted it as a hidden input; `createProperty()` already inserted it — no changes needed to either. After property save, `ApplyParcelButton` shows `✓ Parcel data already applied` on first render. `ApplyParcelButton` remains unchanged for existing/manual correction cases. No SQL/migrations. WicksburgLawnService not touched.
+- **Parcel Lookup lot-size fallback fix** ✅ (`fddb06a`, user-tested): Fixed `computeParcel()` in `ParcelLookup.tsx` — changed `const parcelAcresBase = rawParcelAcres ?? sqftParcelAcres` to `(rawParcelAcres != null && rawParcelAcres > 0) ? rawParcelAcres : sqftParcelAcres`. Nullish coalescing did not bypass `0`, so parcels with `CALC_ACRES = 0` in raw_json never fell back to `lot_sqft`. Now they do. No SQL/migrations.
+- **Parcel Lookup zero acreage skip** ✅ (`01b1d11`, user-tested): Added `pickFirstPositiveNumber()` helper alongside existing `pickFirstNumber()`. Replaced `pickFirstNumber` with `pickFirstPositiveNumber` for the `rawParcelAcres` calculation only — skips zero values so later fields like `DeededAcres` can be reached. `timberAcres` continues to use `pickFirstNumber` (zero timber is valid). Example: 500 BILLINGS TRL (`CALC_ACRES=0`, `DeededAcres=0.42`) now shows `0.42 ac total`. Parcels with all-zero acreage (e.g., 500 REDBUD CIR) correctly remain "No usable lot size data". No SQL/migrations.
 
 **Potential tasks (remaining):**
 1. ~~Frequency display polish~~ ✅ complete (Tasks 1a, 1b)
@@ -640,12 +643,14 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 3. ~~Quote page and lead detail copy/label fixes~~ ✅ complete (Tasks 3, 4)
 4. ~~Manual lead detail visual alignment and deduplication~~ ✅ complete (Tasks 5, 6)
 5. ~~Add Property acreage prefill from matched parcel~~ ✅ complete (Patch 1)
-6. Improve public WicksburgLawnService intake to YardOps service mapping.
-7. Improve lead conversion flow: lead → customer → property → estimate.
-8. Preserve customer/parcel/address/service info across the full flow.
-9. Reduce duplicated manual entry.
-10. Ensure public intake and manual YardOps lead creation use consistent service language: Mowing, Weed Eating, Edging, Blow Off.
-11. Keep WicksburgLawnService read-only unless explicitly asked to patch it.
+6. ~~Add Property parcel_id carryover~~ ✅ complete (Patch 2)
+7. ~~Parcel Lookup lot-size fallback and zero-skip fixes~~ ✅ complete (`fddb06a`, `01b1d11`)
+8. Improve public WicksburgLawnService intake to YardOps service mapping.
+9. Improve lead conversion flow: lead → customer → property → estimate.
+10. Preserve customer/parcel/address/service info across the full flow.
+11. Reduce duplicated manual entry.
+12. Ensure public intake and manual YardOps lead creation use consistent service language: Mowing, Weed Eating, Edging, Blow Off.
+13. Keep WicksburgLawnService read-only unless explicitly asked to patch it.
 
 ---
 
