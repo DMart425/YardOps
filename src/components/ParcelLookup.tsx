@@ -54,6 +54,14 @@ function pickFirstNumber(values: unknown[]): number | null {
   return null
 }
 
+function pickFirstPositiveNumber(values: unknown[]): number | null {
+  for (const value of values) {
+    const n = parseFloat(String(value))
+    if (!Number.isNaN(n) && n > 0) return n
+  }
+  return null
+}
+
 function parseParcelLocation(parcel: ParcelResult) {
   const rawJson = parcel.raw_json
   const attrs = rawJson?.attributes as Record<string, unknown> | undefined
@@ -122,7 +130,7 @@ function computeParcel(p: ParcelResult): ImportedParcel | null {
   const attrs = p.raw_json?.attributes ?? {}
   const root = p.raw_json as Record<string, unknown> | null
 
-  const rawParcelAcres = pickFirstNumber([
+  const rawParcelAcres = pickFirstPositiveNumber([
     attrs['CALC_ACRES'],
     attrs['CalcAcres'],
     attrs['calc_acres'],
