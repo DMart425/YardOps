@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-16
-Current checkpoint commit: `1c19d44` (Ignore orphaned estimate notifications)
+Current checkpoint commit: `cb05cdd` (Polish Today service labels)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -645,6 +645,8 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 - **Approved estimate operator workflow** ✅ (`f305373`, user-tested): Three file changes: (1) `estimates/page.tsx` — `STATUS_FILTERS` extended with `['approved', 'Approved']` tab between Open and Draft; (2) `estimates/[id]/page.tsx` — approved-state banner added when `estimate.status === 'approved'`, prompting operator to convert to job; (3) `estimates/actions.ts` `convertToJob()` — best-effort `app_notifications` UPDATE to mark unreviewed approval notifications as reviewed immediately on conversion, plus `revalidatePath('/today')` added. No SQL/migrations.
 - **Estimates default to Open + converted notification filtering** ✅ (`e7407c9`, user-tested): `estimates/page.tsx` default filter changed from `'all'` to `'open'` so the list opens on actionable estimates. `(protected)/layout.tsx` and `today/page.tsx` notification queries updated with `estimates!estimate_id(status)` embedded join and a JS filter to exclude converted-estimate notifications from badge count and Today card. **SQL cleanup run manually in Supabase SQL Editor against `lewzqavgvltzwfeypvam`:** (a) all unreviewed `estimate_approved` notifications whose linked estimate has `status = 'converted'` were marked reviewed; (b) all unreviewed `estimate_approved` notifications with `estimate_id = null` (Dustin Martin — estimate deleted, FK set to null via `ON DELETE SET NULL`) were marked reviewed.
 - **Orphaned estimate notification guard** ✅ (`1c19d44`, user-tested): Added `.not('estimate_id', 'is', null)` to both `(protected)/layout.tsx` and `today/page.tsx` approval notification queries. Permanent guard — deleted-estimate orphaned notifications (where `estimate_id = null` due to `ON DELETE SET NULL`) never drive the badge count or Today card. Root cause: Supabase `ON DELETE SET NULL` on `app_notifications.estimate_id` — deleting an estimate nullifies the FK, leaving the notification row orphaned. SQL cleanup removed existing orphaned rows; this guard prevents any future orphans from surfacing.
+- **Post-estimate workflow audit** ✅: Full read-only audit of the accepted-estimate → job → completion → payment → follow-up flow. Findings: (1) Today page still used `(job.service_package ?? job.job_type)!.replace(/_/g, ' ')` in two card locations and one SMS body — `job_type` fallback could show `"one time"` / `"recurring"` as service label; (2) Invoice PDF has redundant + raw service description (deferred); (3) SMS invoice body used raw replace; (4) `scheduleFollowUpJob` shows for all completed jobs regardless of `job_type`; (5) ARCHITECTURE.md `auto_schedule_next` note was inaccurate — follow-up is always manual. No schema or behavior issues found.
+- **Today service label polish** ✅ (`cb05cdd`, user-tested): Added `SERVICE_LABELS` map and `servicePackageLabel()` helper to `today/page.tsx` (matching the pattern in `jobs/page.tsx` and `jobs/[id]/page.tsx`). Replaced `(job.service_package ?? job.job_type)!.replace(/_/g, ' ')` in Today's Jobs and Tomorrow's Jobs card sections — no `job_type` fallback, friendly labels used (`"Mow, Trim & Blow"` not `"mow trim blow"`). Also fixed the Tomorrow reminder SMS `pkg` variable (same file). Fixed `buildInvoiceSms()` in `JobActions.tsx` — added `SMS_SERVICE_LABELS` map; completion invoice SMS now shows `"Service: Mow, Trim & Blow"`. `DownloadInvoiceButton.tsx` intentionally not touched — PDF invoice description cleanup is a possible follow-on. No scheduling, payment, or status behavior changed. No SQL/migrations.
 
 **Potential tasks (remaining):**
 1. ~~Frequency display polish~~ ✅ complete (Tasks 1a, 1b)
@@ -661,12 +663,15 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 12. ~~Approved estimate operator workflow — Approved tab, approved-state banner, convertToJob notification clear + /today revalidate~~ ✅ complete (`f305373`)
 13. ~~Estimates default to Open; converted-estimate notification filtering; stale notification SQL cleanup~~ ✅ complete (`e7407c9`)
 14. ~~Orphaned estimate notification guard — null estimate_id filter in layout and Today notification queries~~ ✅ complete (`1c19d44`)
-15. Improve public WicksburgLawnService intake to YardOps service mapping.
-16. Improve lead conversion flow: lead → customer → property → estimate.
-17. Preserve customer/parcel/address/service info across the full flow.
-18. Reduce duplicated manual entry.
-19. Ensure public intake and manual YardOps lead creation use consistent service language: Mowing, Weed Eating, Edging, Blow Off.
-20. Keep WicksburgLawnService read-only unless explicitly asked to patch it.
+15. ~~Post-estimate workflow audit — scheduling, completion, payment, follow-up flow~~ ✅ complete (read-only audit)
+16. ~~Today page service labels — SERVICE_LABELS map, no job_type fallback, friendly labels in cards and SMS bodies~~ ✅ complete (`cb05cdd`)
+17. Improve public WicksburgLawnService intake to YardOps service mapping.
+18. Improve lead conversion flow: lead → customer → property → estimate.
+19. Preserve customer/parcel/address/service info across the full flow.
+20. Reduce duplicated manual entry.
+21. Ensure public intake and manual YardOps lead creation use consistent service language: Mowing, Weed Eating, Edging, Blow Off.
+22. Review PDF invoice service description — remove redundant raw service package parenthetical.
+23. Keep WicksburgLawnService read-only unless explicitly asked to patch it.
 
 ---
 
@@ -744,7 +749,7 @@ Every future handoff to a new chat MUST include:
 
 These must not break during any refactor:
 
-- **Recurring auto-schedule:** `completeJob()` checks `property.auto_schedule_next`, `service_frequency`, `scheduled_date`. All must remain present and non-null.
+- **Follow-up scheduling:** Follow-up visits are always manually created via `scheduleFollowUpJob()` — `completeJob()` does NOT auto-schedule. The `ScheduleFollowUpCard` component appears after completion and suggests a date based on `property.service_frequency` (+7 days weekly / +14 days biweekly). `property.auto_schedule_next` and `property.service_frequency` must remain present for future auto-schedule implementation.
 - **Recurrence chain:** `recurrence_source` and `next_job_created_id` must not be removed or reset.
 - **`started_at` → `actual_minutes`:** `markInProgress()` sets `started_at`; `completeJob()` computes `actual_minutes`. Must stay coupled.
 - **Reschedule log:** `reschedule_count` and `reschedule_log` are append-only.

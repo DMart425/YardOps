@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-16 (1c19d44)
+Last updated: 2026-05-16 (cb05cdd)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-05-16 (1c19d44)
 
 ## Current Checkpoint
 
-- **Latest commit:** `1c19d44` — Ignore orphaned estimate notifications
+- **Latest commit:** `cb05cdd` — Polish Today service labels
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -224,6 +224,23 @@ No migrations. No schema changes. All three commits user-tested in production: b
 
 ---
 
+### Post-Estimate Workflow Audit + Today Service Label Polish ✅
+
+**Audit findings (read-only, no changes):**
+- `today/page.tsx` used `(job.service_package ?? job.job_type)!.replace(/_/g, ' ')` in Today's Jobs and Tomorrow's Jobs card sections — could show `"one time"` / `"recurring"` as a service label, and showed `"mow trim blow"` instead of `"Mow, Trim & Blow"`.
+- `buildInvoiceSms()` in `JobActions.tsx` used raw `.replace(/_/g, ' ')` — completion SMS sent to customer showed `"Service: mow trim blow"`.
+- `DownloadInvoiceButton.tsx` has a redundant + raw service description in the PDF line item — deferred as a follow-on.
+- `scheduleFollowUpJob()` is always manual (no auto-scheduling in `completeJob()`); ARCHITECTURE.md `auto_schedule_next` note was inaccurate — corrected in docs.
+- All job actions are correctly scoped by `business_id` — no concerns.
+
+**`cb05cdd` — Polish Today service labels (user-tested):**
+- `today/page.tsx` — added `SERVICE_LABELS` map and `servicePackageLabel()` helper (matching `jobs/page.tsx` / `jobs/[id]/page.tsx` pattern); replaced both `(job.service_package ?? job.job_type)!.replace(/_/g, ' ')` usages (Today's Jobs cards, Tomorrow's Jobs cards) — no `job_type` fallback; also fixed the Tomorrow section `pkg` variable used in reminder SMS body.
+- `src/components/JobActions.tsx` — added `SMS_SERVICE_LABELS` map in `buildInvoiceSms()`; completion invoice SMS now shows `"Service: Mow, Trim & Blow"` instead of `"Service: mow trim blow"`.
+- `DownloadInvoiceButton.tsx` intentionally not touched — PDF description cleanup is a possible follow-on.
+- No scheduling, payment, or status behavior changed. No SQL/migrations.
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -243,6 +260,8 @@ No migrations. No schema changes. All three commits user-tested in production: b
 
 | Hash | Description |
 |------|-------------|
+| `cb05cdd` | Polish Today service labels (Phase 3) |
+| `1a10969` | Document approved estimate workflow cleanup (Phase 3 docs) |
 | `1c19d44` | Ignore orphaned estimate notifications (Phase 3) |
 | `e7407c9` | Hide converted estimate notifications (Phase 3) |
 | `f305373` | Surface approved estimates for scheduling (Phase 3) |
@@ -360,6 +379,9 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ Today page approval notification cards no longer appear for converted estimates (`e7407c9`)
 - ✅ Stale approval notifications cleaned up in Supabase SQL Editor (`lewzqavgvltzwfeypvam`): converted-estimate notifications marked reviewed; orphaned null-estimate notifications (Dustin Martin — estimate deleted) marked reviewed (`e7407c9` — SQL)
 - ✅ Orphaned estimate notification guard added — `.not('estimate_id', 'is', null)` in both `layout.tsx` and `today/page.tsx` notification queries; deleted-estimate orphaned notifications (estimate_id = null via ON DELETE SET NULL) never drive badge or Today card; user-tested (`1c19d44`)
+- ✅ Today page job cards now show friendly service labels (`"Mow, Trim & Blow"` not `"mow trim blow"`); no `job_type` fallback (`"one time"` / `"recurring"` never shown as service label); user-tested (`cb05cdd`)
+- ✅ Tomorrow's Jobs cards use same friendly labels; Tomorrow reminder SMS body also uses friendly label (`cb05cdd`)
+- ✅ Completion invoice SMS (`buildInvoiceSms`) now shows `"Service: Mow, Trim & Blow"` instead of `"Service: mow trim blow"` (`cb05cdd`)
 
 ---
 
@@ -386,7 +408,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 |-------|------|--------|
 | 2F | Final end-to-end multi-business audit | ✅ Complete |
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
-| 3 | Public intake and lead workflow improvements | ⏸ In Progress — UI/copy polish complete; Patches 1–3 (acreage, parcel_id, county prefill), Parcel Lookup fixes, frequency cleanup, EstimateForm hint clarity, job detail label polish, approved-estimate operator workflow (f305373/e7407c9/1c19d44) complete; next patch TBD |
+| 3 | Public intake and lead workflow improvements | ⏸ In Progress — UI/copy polish complete; Patches 1–3, Parcel Lookup fixes, frequency cleanup, EstimateForm hint clarity, job detail label polish, approved-estimate operator workflow, post-estimate audit, Today service label polish (cb05cdd) complete; next patch TBD |
 | 4 | Operations UX / workflow polish | ⏸ Pending |
 | 5 | Reporting, automation, and growth features | ⏸ Pending |
 
@@ -397,9 +419,9 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Phase 3 — Decide next lead/workflow patch**
+**Phase 3 — Decide next workflow polish patch**
 
-Phase 2G active cleanup is complete (cron scoping deferred). Phase 3 UI/copy polish complete. Patches 1–3 (acreage prefill, parcel_id carryover, county prefill), Parcel Lookup fixes, `normalizeFrequency` cleanup, EstimateForm hint clarity, job detail label polish, and approved-estimate operator workflow (Approved tab, approved-state banner, notification lifecycle) are all complete and user-tested.
+Phase 2G active cleanup is complete (cron scoping deferred). Phase 3 UI/copy polish, Patches 1–3, Parcel Lookup fixes, frequency cleanup, EstimateForm hint clarity, job detail label polish, approved-estimate operator workflow, post-estimate workflow audit, and Today service label polish are all complete and user-tested.
 
 **Phase 3 completed tasks (all user-tested in production):**
 1. ~~Frequency display — website lead detail page~~ ✅ (`0589026`)
@@ -421,11 +443,13 @@ Phase 2G active cleanup is complete (cron scoping deferred). Phase 3 UI/copy pol
 17. ~~Approved estimate operator workflow — Approved tab, approved-state banner, convertToJob notification clear~~ ✅ (`f305373`)
 18. ~~Estimates default to Open; converted-estimate notification filtering; stale notification SQL cleanup~~ ✅ (`e7407c9`)
 19. ~~Orphaned estimate notification guard — null estimate_id filter in layout and Today notification queries~~ ✅ (`1c19d44`)
+20. ~~Post-estimate workflow audit — scheduling, completion, payment, follow-up flow~~ ✅ (read-only audit)
+21. ~~Today service label polish — SERVICE_LABELS map, no job_type fallback, friendly labels in cards and SMS bodies~~ ✅ (`cb05cdd`)
 
 **Suggested next patch candidates (decide before starting):**
-1. Review public WicksburgLawnService intake to YardOps service mapping — ensure service interest labels stay in sync between repos.
-2. Continue post-estimate workflow audit — scheduling, follow-up, payment/closeout.
-3. Review estimate/job notification lifecycle rules — when notifications should auto-clear vs. remain actionable.
+1. Review PDF invoice service description cleanup — remove/replace redundant raw service package parenthetical in `DownloadInvoiceButton.tsx`.
+2. Review public WicksburgLawnService intake to YardOps service mapping — ensure service interest labels stay in sync between repos.
+3. Continue post-estimate workflow audit — follow-up scheduling and payment/closeout UX.
 
 Do not run SQL or apply migrations without approval. Do not modify WicksburgLawnService unless explicitly approved.
 
