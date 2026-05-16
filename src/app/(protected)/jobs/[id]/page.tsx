@@ -24,6 +24,18 @@ type JobDetail = Job & {
   }
 }
 
+const SERVICE_LABELS: Record<string, string> = {
+  mow_only:      'Mow Only',
+  mow_trim_blow: 'Mow, Trim & Blow',
+  trim_cleanup:  'Trim & Cleanup',
+  full_service:  'Full Service',
+}
+
+const JOB_TYPE_LABELS: Record<string, string> = {
+  one_time:  'One-time',
+  recurring: 'Recurring',
+}
+
 export default async function JobDetailPage({
   params,
 }: {
@@ -90,7 +102,7 @@ export default async function JobDetailPage({
   ].filter(Boolean) as string[]
 
   const pkgLabel = job.service_package
-    ? job.service_package.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
+    ? (SERVICE_LABELS[job.service_package] ?? job.service_package.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()))
     : 'Standard Mow'
 
   return (
@@ -146,7 +158,7 @@ export default async function JobDetailPage({
           </div>
           <div className="card-row">
             <span className="text-small text-muted">🔄 Type</span>
-            <span className="text-small">{job.job_type}</span>
+            <span className="text-small">{JOB_TYPE_LABELS[job.job_type ?? ''] ?? job.job_type}</span>
           </div>
           {job.price != null && (job.status === 'completed' || Number(job.amount_paid ?? 0) > 0 || job.payment_status === 'paid' || job.payment_status === 'partial') && (
             <div className="card-row">
