@@ -135,7 +135,7 @@ function computeParcel(p: ParcelResult): ImportedParcel | null {
     root?.deeded_acres,
   ])
   const sqftParcelAcres = p.lot_sqft ? p.lot_sqft / 43560 : null
-  const parcelAcresBase = rawParcelAcres ?? sqftParcelAcres
+  const parcelAcresBase = (rawParcelAcres != null && rawParcelAcres > 0) ? rawParcelAcres : sqftParcelAcres
   const parcelAcres = (parcelAcresBase != null && parcelAcresBase > 0)
     ? Math.round(parcelAcresBase * 100) / 100
     : null
