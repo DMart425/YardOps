@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-16
-Current checkpoint commit: `01b1d11` (Skip zero parcel acreage values)
+Current checkpoint commit: `8966add` (Prefill county from matched parcel source)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -636,6 +636,7 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 - **Patch 2 — Add Property parcel_id carryover** ✅ (`4c18726`, user-tested): `leads/[id]/page.tsx` now also appends `parcel_id` and `lot_size_source=parcel` to `addPropertyHref` when a matched parcel exists. `properties/new` updated to accept and destructure both params and pass them into `PropertyForm` `defaultValues`. `PropertyForm` already read `defaultValues.parcel_id` and emitted it as a hidden input; `createProperty()` already inserted it — no changes needed to either. After property save, `ApplyParcelButton` shows `✓ Parcel data already applied` on first render. `ApplyParcelButton` remains unchanged for existing/manual correction cases. No SQL/migrations. WicksburgLawnService not touched.
 - **Parcel Lookup lot-size fallback fix** ✅ (`fddb06a`, user-tested): Fixed `computeParcel()` in `ParcelLookup.tsx` — changed `const parcelAcresBase = rawParcelAcres ?? sqftParcelAcres` to `(rawParcelAcres != null && rawParcelAcres > 0) ? rawParcelAcres : sqftParcelAcres`. Nullish coalescing did not bypass `0`, so parcels with `CALC_ACRES = 0` in raw_json never fell back to `lot_sqft`. Now they do. No SQL/migrations.
 - **Parcel Lookup zero acreage skip** ✅ (`01b1d11`, user-tested): Added `pickFirstPositiveNumber()` helper alongside existing `pickFirstNumber()`. Replaced `pickFirstNumber` with `pickFirstPositiveNumber` for the `rawParcelAcres` calculation only — skips zero values so later fields like `DeededAcres` can be reached. `timberAcres` continues to use `pickFirstNumber` (zero timber is valid). Example: 500 BILLINGS TRL (`CALC_ACRES=0`, `DeededAcres=0.42`) now shows `0.42 ac total`. Parcels with all-zero acreage (e.g., 500 REDBUD CIR) correctly remain "No usable lot size data". No SQL/migrations.
+- **Patch 3 — Add Property county prefill** ✅ (`8966add`, user-tested): `leads/[id]/page.tsx` now derives and passes `county` to the Add Property URL when a matched parcel exists. County extraction: tries `raw_json.attributes` for `['county', 'County', 'SitusCounty', 'SITUS_COUNTY']` first; if none found and `parcel.source` is set, runs a secondary read-only query to `parcel_sources.county` via `source_key`. `source: string | null` added to `ParcelRow` type; `source` added to parcel `.select()` string. County appended as `?county=...` only when a value is found — no hardcoded fallback. `properties/new` was already fully wired for the `county` URL param — no changes to that page, `PropertyForm`, or `createProperty()`. Production test: Houston County parcels now prefill county field correctly. No SQL/migrations. All existing Add Property params preserved.
 
 **Potential tasks (remaining):**
 1. ~~Frequency display polish~~ ✅ complete (Tasks 1a, 1b)
@@ -645,12 +646,13 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 5. ~~Add Property acreage prefill from matched parcel~~ ✅ complete (Patch 1)
 6. ~~Add Property parcel_id carryover~~ ✅ complete (Patch 2)
 7. ~~Parcel Lookup lot-size fallback and zero-skip fixes~~ ✅ complete (`fddb06a`, `01b1d11`)
-8. Improve public WicksburgLawnService intake to YardOps service mapping.
-9. Improve lead conversion flow: lead → customer → property → estimate.
-10. Preserve customer/parcel/address/service info across the full flow.
-11. Reduce duplicated manual entry.
-12. Ensure public intake and manual YardOps lead creation use consistent service language: Mowing, Weed Eating, Edging, Blow Off.
-13. Keep WicksburgLawnService read-only unless explicitly asked to patch it.
+8. ~~Add Property county prefill from matched parcel~~ ✅ complete (Patch 3, `8966add`)
+9. Improve public WicksburgLawnService intake to YardOps service mapping.
+10. Improve lead conversion flow: lead → customer → property → estimate.
+11. Preserve customer/parcel/address/service info across the full flow.
+12. Reduce duplicated manual entry.
+13. Ensure public intake and manual YardOps lead creation use consistent service language: Mowing, Weed Eating, Edging, Blow Off.
+14. Keep WicksburgLawnService read-only unless explicitly asked to patch it.
 
 ---
 
