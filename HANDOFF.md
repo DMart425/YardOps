@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-16 (8966add)
+Last updated: 2026-05-16 (1db4f33)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-05-16 (8966add)
 
 ## Current Checkpoint
 
-- **Latest commit:** `8966add` — Prefill county from matched parcel source
+- **Latest commit:** `1db4f33` — Clarify estimate property default hints
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -216,6 +216,9 @@ Commits: `8621e2d`, `9028e84`, `3c5371a`
 
 | Hash | Description |
 |------|-------------|
+| `1db4f33` | Clarify estimate property default hints (Phase 3) |
+| `df491c0` | Clean frequency normalization cases (Phase 3) |
+| `8b88357` | Document county prefill completion (Phase 3 docs) |
 | `8966add` | Prefill county from matched parcel source (Phase 3 Patch 3) |
 | `71e9d70` | Document parcel carryover and lookup fixes (Phase 3 docs) |
 | `01b1d11` | Skip zero parcel acreage values (Phase 3 — Parcel Lookup fix 2) |
@@ -313,6 +316,8 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ Parcel Lookup dropdown now falls back to `lot_sqft` when raw_json acreage field is `0` — fixed nullish coalescing that never bypassed zero (`fddb06a`)
 - ✅ Parcel Lookup now skips zero raw acreage values so later fields like `DeededAcres` can be used — `pickFirstPositiveNumber()` added; 500 BILLINGS TRL (`CALC_ACRES=0`, `DeededAcres=0.42`) now shows acreage; 500 REDBUD CIR (all-zero source record) correctly remains "No usable lot size data" (`01b1d11`)
 - ✅ Add Property link from manual lead detail now prefills `county` when a matched parcel exists — extraction tries `raw_json.attributes` county fields first; falls back to `parcel_sources.county` via `parcel.source`; no hardcoded county; `properties/new` was already wired for the `county` URL param; production test confirmed Houston County prefills correctly (`8966add`)
+- ✅ `normalizeFrequency()` duplicate/unreachable cases removed — two-block structure collapsed into one; all accepted inputs preserved (`weekly`, `biweekly`, `bi-weekly`, `bi weekly`, `one_time`, `one time`, `one-time`, `one-time cut`, `one time cut`, `custom`, `paused`); unsure variants still return null; no behavior change (`df491c0`)
+- ✅ EstimateForm property default hints clarified — frequency hint now uses `formatFrequencyLabel()` (shows `Bi-weekly` not `biweekly`); frequency hint suppressed for unmapped frequencies (`custom`/`paused`); service defaults hint unified — shows enabled services from property booleans for modern properties, falls back to legacy package label only when actually using package path; no pricing or submission behavior changed; user-tested (`1db4f33`)
 - ✅ `leads` RLS SELECT/DELETE cosmetic cleanup applied and verified — `leads_select_business_member` and `leads_delete_business_member` USING clauses now use `is_business_member(business_id)` only; INSERT/UPDATE policies unchanged; applied via SQL Editor on `lewzqavgvltzwfeypvam` (CLI unavailable due to role permission error)
 
 ---
@@ -340,7 +345,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 |-------|------|--------|
 | 2F | Final end-to-end multi-business audit | ✅ Complete |
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
-| 3 | Public intake and lead workflow improvements | ⏸ In Progress — UI/copy polish complete; Patch 1 (acreage prefill), Patch 2 (parcel_id carryover), Parcel Lookup fixes, Patch 3 (county prefill) complete; next patch TBD |
+| 3 | Public intake and lead workflow improvements | ⏸ In Progress — UI/copy polish complete; Patches 1–3 (acreage, parcel_id, county prefill), Parcel Lookup fixes, frequency cleanup, EstimateForm hint clarity complete; next patch TBD |
 | 4 | Operations UX / workflow polish | ⏸ Pending |
 | 5 | Reporting, automation, and growth features | ⏸ Pending |
 
@@ -353,7 +358,7 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 **Phase 3 — Decide next lead conversion flow patch**
 
-Phase 2G active cleanup is complete (cron scoping deferred). Phase 3 UI/copy polish complete. Phase 3 Patch 1 (acreage prefill), Patch 2 (parcel_id carryover), Parcel Lookup lot-size fixes, and Patch 3 (county prefill) are all complete and user-tested.
+Phase 2G active cleanup is complete (cron scoping deferred). Phase 3 UI/copy polish complete. Patches 1–3 (acreage prefill, parcel_id carryover, county prefill), Parcel Lookup fixes, `normalizeFrequency` cleanup, and EstimateForm hint clarity are all complete and user-tested.
 
 **Phase 3 completed tasks (all user-tested in production):**
 1. ~~Frequency display — website lead detail page~~ ✅ (`0589026`)
@@ -369,11 +374,13 @@ Phase 2G active cleanup is complete (cron scoping deferred). Phase 3 UI/copy pol
 11. ~~Parcel Lookup lot-size fallback fix~~ ✅ (`fddb06a`)
 12. ~~Parcel Lookup zero acreage skip~~ ✅ (`01b1d11`)
 13. ~~Add Property county prefill from matched parcel~~ ✅ (`8966add`)
+14. ~~normalizeFrequency duplicate/unreachable case cleanup~~ ✅ (`df491c0`)
+15. ~~EstimateForm hint clarity — frequency label and service defaults~~ ✅ (`1db4f33`)
 
 **Suggested next patch candidates (decide before starting):**
-1. Clean duplicate unreachable cases in `normalizeFrequency()` (`src/lib/frequency.ts`) — cosmetic dead code, no behavior effect.
-2. Continue lead conversion friction audit — identify any remaining steps where the operator must manually re-enter data already captured.
-3. Review public WicksburgLawnService intake to YardOps service mapping — ensure service interest labels stay in sync between repos.
+1. Continue lead conversion friction audit — focus on post-estimate operator steps such as job scheduling, follow-up flow, and payment/closeout.
+2. Review public WicksburgLawnService intake to YardOps service mapping — ensure service interest labels stay in sync between repos.
+3. Audit estimate-to-job flow — confirm accepted estimates become jobs cleanly with services, frequency, property, and customer context preserved.
 
 Do not run SQL or apply migrations without approval. Do not modify WicksburgLawnService unless explicitly approved.
 
