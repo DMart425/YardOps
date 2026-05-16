@@ -10,6 +10,18 @@ function dateOnlyToUtcMs(dateStr: string) {
   return Date.UTC(y, m - 1, d)
 }
 
+const SERVICE_LABELS: Record<string, string> = {
+  mow_only:      'Mow Only',
+  mow_trim_blow: 'Mow, Trim & Blow',
+  trim_cleanup:  'Trim & Cleanup',
+  full_service:  'Full Service',
+}
+
+function servicePackageLabel(value: string | null | undefined): string {
+  if (!value) return 'Service'
+  return SERVICE_LABELS[value] ?? value.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
+}
+
 export default async function TodayPage() {
   const supabase = await createClient()
   const { userId, businessId } = await requireBusinessContext()
@@ -359,7 +371,7 @@ export default async function TodayPage() {
                       <div className="card-meta">👤 {customer?.first_name} {customer?.last_name}</div>
                       <div className="card-meta">📍 {property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
                       {job.scheduled_time_window && <div className="card-meta">🗓 {job.scheduled_time_window}</div>}
-                      {(job.service_package ?? job.job_type) && <div className="card-meta">🌿 {(job.service_package ?? job.job_type)!.replace(/_/g, ' ')}</div>}
+                      {job.service_package && <div className="card-meta">🌿 {servicePackageLabel(job.service_package)}</div>}
                       {job.price != null && <div className="card-meta">💵 ${Number(job.price).toFixed(0)}</div>}
                       {fc && (
                         <div className="card-meta" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -543,7 +555,7 @@ export default async function TodayPage() {
           {tomorrowJobs!.map((job) => {
             const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null; phone: string | null } | null
             const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
-            const pkg = job.service_package ? job.service_package.replace(/_/g, ' ') : 'Lawn service'
+            const pkg = servicePackageLabel(job.service_package)
             const smsBody = `Hi ${customer?.first_name ?? 'there'}, just a reminder that we have you scheduled for ${pkg} tomorrow. See you then! — ${tomorrowStr}`
             return (
               <div key={job.id} className="card">
@@ -554,7 +566,7 @@ export default async function TodayPage() {
                       <div className="card-meta">👤 {customer?.first_name} {customer?.last_name}</div>
                       <div className="card-meta">📍 {property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
                       <div className="card-meta">🗓 {formatDateOnly(tomorrowStr, { weekday: 'short', month: 'short', day: 'numeric' })}{job.scheduled_time_window ? ` · ${job.scheduled_time_window}` : ''}</div>
-                      {(job.service_package ?? job.job_type) && <div className="card-meta">🌿 {(job.service_package ?? job.job_type)!.replace(/_/g, ' ')}</div>}
+                      {job.service_package && <div className="card-meta">🌿 {servicePackageLabel(job.service_package)}</div>}
                       {job.price != null && <div className="card-meta">💵 ${Number(job.price).toFixed(0)}</div>}
                     </div>
                   </div>

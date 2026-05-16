@@ -386,6 +386,13 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
   )
 }
 
+const SMS_SERVICE_LABELS: Record<string, string> = {
+  mow_only:      'Mow Only',
+  mow_trim_blow: 'Mow, Trim & Blow',
+  trim_cleanup:  'Trim & Cleanup',
+  full_service:  'Full Service',
+}
+
 function buildInvoiceSms(
   firstName: string | null | undefined,
   job: Job,
@@ -397,7 +404,9 @@ function buildInvoiceSms(
     '',
   ]
   if (job.service_package) {
-    lines.push(`Service: ${job.service_package.replace(/_/g, ' ')}`)
+    const svcLabel = SMS_SERVICE_LABELS[job.service_package]
+      ?? job.service_package.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
+    lines.push(`Service: ${svcLabel}`)
   }
   if (job.completed_at) {
     const d = new Date(job.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
