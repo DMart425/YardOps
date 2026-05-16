@@ -4,8 +4,8 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-14
-Current checkpoint commit: `4001837` (Merge lead request and service setup display)
+Last updated: 2026-05-15
+Current checkpoint commit: `0e724ea` (Prefill property acreage from matched parcel)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -632,18 +632,20 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 - **Task 4 — Website lead frequency label rename** ✅ (`1941585`): Changed Request Details row label from `"Requested Service"` to `"Service Frequency"` on website lead detail page — consistent with quote page wording. No data changes.
 - **Task 5 — Manual lead detail visual alignment** ✅ (`820b053`): Aligned `leads/[id]/page.tsx` with website lead detail visual style — `detail-section` wrappers throughout, section headings outside cards, Contact section renamed `"Contact Info"` with icon rows and Call/Text/Email quick-action buttons, structured intake block stripped from visible notes via `stripStructuredIntakeBlock()`, `"Request Details"` section label used for intake context. No data changes.
 - **Task 6 — Manual lead request/property display merge** ✅ (`4001837`): Added comparison logic to suppress or contextualise original website request data based on whether a property already exists. Three cases: (a) no property → show `"Requested Service Setup"` section prominently; (b) one property where request matches property setup → suppress duplicate section entirely; (c) one differing property or multiple properties → show compact `"Original website request: ..."` note near the property card. Boolean comparison mirrors `formatDefaultServices()` semantics exactly (`mowing !== false`; others `=== true`). No data changes. No SQL/migrations. WicksburgLawnService not touched.
+- **Patch 1 — Add Property acreage prefill** ✅ (`0e724ea`, user-tested): `leads/[id]/page.tsx` now appends `parcel_acres` and `estimated_mowable_acres` to the `addPropertyHref` URL when parcel data exists. `parcelAcres` and `mowableAcres` were already computed for the parcel card display; two `addPropertyParams.set()` calls and the `const addPropertyHref` declaration were moved to after the parcel calculation block so the values are in scope. `properties/new` already accepted both params — no changes to the property form or `createProperty()` action required. No SQL/migrations. WicksburgLawnService not touched. All existing Add Property params preserved.
 
 **Potential tasks (remaining):**
 1. ~~Frequency display polish~~ ✅ complete (Tasks 1a, 1b)
 2. ~~Show service interests on website lead detail page~~ ✅ complete (Tasks 2a, 2b)
 3. ~~Quote page and lead detail copy/label fixes~~ ✅ complete (Tasks 3, 4)
 4. ~~Manual lead detail visual alignment and deduplication~~ ✅ complete (Tasks 5, 6)
-5. Improve public WicksburgLawnService intake to YardOps service mapping.
-6. Improve lead conversion flow: lead → customer → property → estimate.
-7. Preserve customer/parcel/address/service info across the full flow.
-8. Reduce duplicated manual entry.
-9. Ensure public intake and manual YardOps lead creation use consistent service language: Mowing, Weed Eating, Edging, Blow Off.
-10. Keep WicksburgLawnService read-only unless explicitly asked to patch it.
+5. ~~Add Property acreage prefill from matched parcel~~ ✅ complete (Patch 1)
+6. Improve public WicksburgLawnService intake to YardOps service mapping.
+7. Improve lead conversion flow: lead → customer → property → estimate.
+8. Preserve customer/parcel/address/service info across the full flow.
+9. Reduce duplicated manual entry.
+10. Ensure public intake and manual YardOps lead creation use consistent service language: Mowing, Weed Eating, Edging, Blow Off.
+11. Keep WicksburgLawnService read-only unless explicitly asked to patch it.
 
 ---
 

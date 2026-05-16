@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-14 (4001837)
+Last updated: 2026-05-15 (0e724ea)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-05-14 (4001837)
 
 ## Current Checkpoint
 
-- **Latest commit:** `4001837` — Merge lead request and service setup display
+- **Latest commit:** `0e724ea` — Prefill property acreage from matched parcel
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -216,6 +216,9 @@ Commits: `8621e2d`, `9028e84`, `3c5371a`
 
 | Hash | Description |
 |------|-------------|
+| `0e724ea` | Prefill property acreage from matched parcel (Phase 3 Patch 1) |
+| `5467b7b` | Document leads RLS cleanup completion (Phase 2G docs) |
+| `dd80d6e` | Document lead UI polish and remaining RLS cleanup (Phase 2G docs) |
 | `4001837` | Merge lead request and service setup display (Phase 3) |
 | `820b053` | Align manual lead detail layout (Phase 3) |
 | `1941585` | Rename lead frequency label — "Requested Service" → "Service Frequency" (Phase 3) |
@@ -299,6 +302,7 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ Website lead detail `"Requested Service"` label renamed to `"Service Frequency"` — consistent with quote page wording (`1941585`)
 - ✅ Manual lead detail page aligned with website lead detail visual style: `detail-section` wrappers, headings outside cards, `"Contact Info"` with icon rows and Call/Text/Email quick-action buttons, structured intake text stripped from visible notes (`820b053`)
 - ✅ Manual lead detail request/property display merged: no-property case shows `"Requested Service Setup"` prominently; matching property suppresses duplicate section; differing property or multi-property shows compact `"Original website request: ..."` note (`4001837`)
+- ✅ Add Property link from manual lead detail now prefills `parcel_acres` and `estimated_mowable_acres` when parcel data exists — values were already computed for the parcel card; `addPropertyHref` construction moved to after parcel calculation block so both values are in scope; `properties/new` already accepted both params (`0e724ea`)
 - ✅ `leads` RLS SELECT/DELETE cosmetic cleanup applied and verified — `leads_select_business_member` and `leads_delete_business_member` USING clauses now use `is_business_member(business_id)` only; INSERT/UPDATE policies unchanged; applied via SQL Editor on `lewzqavgvltzwfeypvam` (CLI unavailable due to role permission error)
 
 ---
@@ -326,7 +330,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 |-------|------|--------|
 | 2F | Final end-to-end multi-business audit | ✅ Complete |
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
-| 3 | Public intake and lead workflow improvements | ⏸ In Progress — UI/copy polish complete; intake/conversion flow remaining |
+| 3 | Public intake and lead workflow improvements | ⏸ In Progress — UI/copy polish complete; Patch 1 (acreage prefill) complete; next patch TBD |
 | 4 | Operations UX / workflow polish | ⏸ Pending |
 | 5 | Reporting, automation, and growth features | ⏸ Pending |
 
@@ -337,25 +341,11 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Immediate next task: Phase 3 — Lead conversion flow improvements**
+**Phase 3 — Decide next lead conversion flow patch**
 
-Phase 2G active cleanup is complete (cron scoping deferred). Phase 3 UI/copy polish is complete. The remaining Phase 3 work is the functional lead lifecycle.
+Phase 2G active cleanup is complete (cron scoping deferred). Phase 3 UI/copy polish is complete. Phase 3 Patch 1 (Add Property acreage prefill) is complete and user-tested.
 
-**Goal:** Reduce manual re-entry and friction in the website lead → customer → property → estimate flow.
-
-Key areas:
-1. Audit `convertWebsiteLead()` server action — confirm what data is preserved vs. lost on conversion (phone, email, address, frequency, service interests)
-2. Audit the Add Property prefill link — confirm all intake fields (address, frequency, service booleans) carry through correctly from the lead detail page
-3. Identify any steps where the operator must manually re-enter data that was already captured in the intake form
-4. Ensure intake (WicksburgLawnService) and manual YardOps lead creation use consistent service language (Mowing, Weed Eating / Trimming, Edging, Blow Off Hard Surfaces)
-
-Scope: YardOps only. No SQL/migrations unless a schema gap is found. Do not modify WicksburgLawnService unless explicitly approved.
-
-Starting point: read `src/app/(protected)/leads/actions.ts` (specifically `convertWebsiteLead`) and `src/app/(protected)/leads/[id]/page.tsx` (specifically `addPropertyHref` construction).
-
-**Do not run SQL or apply migrations without approval.**
-
-Phase 3 completed tasks (all user-tested in production):
+**Phase 3 completed tasks (all user-tested in production):**
 1. ~~Frequency display — website lead detail page~~ ✅ (`0589026`)
 2. ~~Frequency display — lead detail property card~~ ✅ (`3cc8a77`)
 3. ~~Show service interests on website lead detail page~~ ✅ (`591ca1b`)
@@ -364,28 +354,14 @@ Phase 3 completed tasks (all user-tested in production):
 6. ~~Website lead detail frequency label rename~~ ✅ (`1941585`)
 7. ~~Manual lead detail visual alignment~~ ✅ (`820b053`)
 8. ~~Manual lead request/property display merge~~ ✅ (`4001837`)
+9. ~~Add Property acreage prefill from matched parcel~~ ✅ (`0e724ea`)
 
-**Phase 2G — active cleanup complete. Cron scoping deferred until multi-business support is actively built.**
+**Suggested next patch candidates (decide before starting):**
+1. Audit/implement `parcel_id` carryover into Add Property flow — `leads/[id]/page.tsx` could pass `parcel_id` as a URL param; `properties/new` already accepts `parcel_id` but the lead page does not currently set it.
+2. Audit county prefill/manual-entry gap — parcel data often has county; verify it is being passed or note the gap.
+3. Clean duplicate unreachable cases in `normalizeFrequency()` (`src/lib/frequency.ts`) — cosmetic dead code, no behavior effect.
 
-(Previous next task `Phase 2G — leads RLS SELECT/DELETE cosmetic cleanup` is now complete.)
-1. Review the migration file content and confirm it matches the agreed change.
-2. Confirm target project ref is `lewzqavgvltzwfeypvam`.
-3. Await explicit user approval before applying.
-4. Apply with `npx supabase db query --linked --file "supabase/migrations/20260513200000_phase2g_leads_rls_cosmetic.sql"`.
-5. Verify live DB policies after apply (read-only SQL).
-6. User-test before committing the migration as applied.
-
-Do not run SQL or apply migrations without explicit approval.
-
-Phase 3 completed tasks (all user-tested in production):
-1. ~~Frequency display — website lead detail page~~ ✅ (`0589026`)
-2. ~~Frequency display — lead detail property card~~ ✅ (`3cc8a77`)
-3. ~~Show service interests on website lead detail page~~ ✅ (`591ca1b`)
-4. ~~Clean website lead notes display~~ ✅ (`f496246`)
-5. ~~Quote page summary frequency label fix~~ ✅ (`5f9ba2d`)
-6. ~~Website lead detail frequency label rename~~ ✅ (`1941585`)
-7. ~~Manual lead detail visual alignment~~ ✅ (`820b053`)
-8. ~~Manual lead request/property display merge~~ ✅ (`4001837`)
+Do not run SQL or apply migrations without approval. Do not modify WicksburgLawnService unless explicitly approved.
 
 ---
 
