@@ -108,6 +108,9 @@ export async function completeJob(
     actualMinutes = Math.max(1, Math.round(elapsedMs / 60000))
   }
 
+  const paymentStatus = (formData.get('payment_status') as string) || 'unpaid'
+  const finalPrice    = price && !isNaN(price) ? price : existing.price
+
   const { error } = await supabase
     .from('jobs')
     .update({
@@ -115,9 +118,10 @@ export async function completeJob(
       completed_at:     new Date().toISOString(),
       actual_minutes:   actualMinutes,
       completion_notes: (formData.get('completion_notes') as string)?.trim() || null,
-      payment_status:   (formData.get('payment_status') as string) || 'unpaid',
+      payment_status:   paymentStatus,
       payment_method:   (formData.get('payment_method') as string) || null,
-      price:            price && !isNaN(price) ? price : existing.price,
+      price:            finalPrice,
+      amount_paid:      paymentStatus === 'paid' ? finalPrice : null,
     })
     .eq('id', id)
     .eq('business_id', businessId)

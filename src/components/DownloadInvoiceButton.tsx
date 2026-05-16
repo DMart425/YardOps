@@ -96,18 +96,18 @@ export function DownloadInvoiceButton({ data }: { data: InvoiceData }) {
     doc.line(margin, y, pageWidth - margin, y)
     y += 16
     doc.setFont('helvetica', 'bold')
-    doc.text('Total:', pageWidth - margin - 80, y)
+    doc.text('Total:', pageWidth - margin - 120, y)
     doc.text(`$${data.price.toFixed(2)}`, pageWidth - margin, y, { align: 'right' })
     y += 16
     doc.setFont('helvetica', 'normal')
-    doc.text('Paid:', pageWidth - margin - 80, y)
+    doc.text('Paid:', pageWidth - margin - 120, y)
     doc.text(`$${data.amountPaid.toFixed(2)}`, pageWidth - margin, y, { align: 'right' })
     y += 16
 
     const balance = data.price - data.amountPaid
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(12)
-    doc.text('Balance Due:', pageWidth - margin - 80, y)
+    doc.text('Balance Due:', pageWidth - margin - 120, y)
     doc.text(`$${balance.toFixed(2)}`, pageWidth - margin, y, { align: 'right' })
     doc.setFontSize(10)
     y += 24
