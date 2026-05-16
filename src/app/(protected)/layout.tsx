@@ -9,12 +9,21 @@ export default async function ProtectedLayout({ children }: { children: React.Re
 
   if (!user) redirect('/login')
 
-  const { count: estimateNotificationCount } = await supabase
+  // Fetch unreviewed estimate approval notifications with linked estimate status so we
+  // can exclude notifications whose estimate has already been converted to a job.
+  // Notifications with no linked estimate (estimate_id null) are still counted.
+  const { data: pendingNotifRows } = await supabase
     .from('app_notifications')
-    .select('id', { count: 'exact', head: true })
+    .select('id, estimates!estimate_id(status)')
     .eq('user_id', user.id)
     .eq('notification_type', 'estimate_approved')
     .eq('is_reviewed', false)
+
+  const estimateNotificationCount = (pendingNotifRows ?? []).filter(n => {
+    const estRaw = (n as unknown as { estimates?: { status: string } | { status: string }[] | null }).estimates
+    const est = Array.isArray(estRaw) ? estRaw[0] : estRaw
+    return est?.status !== 'converted'
+  }).length
 
   return (
     <div className="app-shell">

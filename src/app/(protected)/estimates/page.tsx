@@ -42,7 +42,7 @@ export default async function EstimatesPage({
 }: {
   searchParams: Promise<{ filter?: string; page?: string }>
 }) {
-  const { filter = 'all', page: rawPage } = await searchParams
+  const { filter = 'open', page: rawPage } = await searchParams
   const page = parsePage(rawPage)
   const from = (page - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1

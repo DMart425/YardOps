@@ -43,7 +43,7 @@ export default async function TodayPage() {
   ] = await Promise.all([
     supabase
       .from('app_notifications')
-      .select('id, user_id, notification_type, title, body, link_path, estimate_id, is_reviewed, reviewed_at, created_at')
+      .select('id, user_id, notification_type, title, body, link_path, estimate_id, is_reviewed, reviewed_at, created_at, estimates!estimate_id(status)')
       .eq('user_id', userId)
       .eq('notification_type', 'estimate_approved')
       .eq('is_reviewed', false)
@@ -147,7 +147,13 @@ export default async function TodayPage() {
     supabase.from('customers').select('id', { count: 'exact', head: true }).eq('business_id', businessId).eq('status', 'lead'),
   ])
 
-  const approvalNotifications = approvalNotificationsResult.data
+  // Exclude notifications whose linked estimate has already been converted to a job.
+  // Notifications with no linked estimate (estimate_id null) are kept — shown as-is.
+  const approvalNotifications = (approvalNotificationsResult.data ?? []).filter(n => {
+    const estRaw = (n as unknown as { estimates?: { status: string } | { status: string }[] | null }).estimates
+    const est = Array.isArray(estRaw) ? estRaw[0] : estRaw
+    return est?.status !== 'converted'
+  })
   const todayJobs = todayJobsResult.data
   const completedTodayJobs = completedTodayJobsResult.data
   const overdueJobs = overdueJobsResult.data
