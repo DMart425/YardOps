@@ -8,7 +8,7 @@ import { calculateEstimate, DEFAULT_SETTINGS, formatMinutes, acrestoMowMinutes, 
 import type { EstimateInputs } from '@/lib/pricing'
 import ParcelLookup from '@/components/ParcelLookup'
 import type { ImportedParcel } from '@/components/ParcelLookup'
-import { parseWebsiteServiceInterests } from '@/lib/frequency'
+import { parseWebsiteServiceInterests, formatFrequencyLabel } from '@/lib/frequency'
 import { addDays } from '@/lib/date'
 import { formatPhoneInput } from '@/lib/format'
 
@@ -624,16 +624,36 @@ export function EstimateForm({
               ~{Number(acres).toFixed(2)} mowable acres — mow time set to {acrestoMowMinutes(acres)} min
             </p>
           )}
-          {selectedProp?.service_frequency && (
+          {selectedProp?.service_frequency && mapPropertyFrequency(selectedProp.service_frequency) && (
             <p className="form-hint">
-              Frequency defaulted from property: {selectedProp.service_frequency.replace(/_/g, ' ')}
+              Frequency defaulted from property: {formatFrequencyLabel(selectedProp.service_frequency)}
             </p>
           )}
-          {selectedProp?.default_service_package && (
-            <p className="form-hint">
-              Service defaults applied from property package: {selectedProp.default_service_package.replace(/_/g, ' ')}
-            </p>
-          )}
+          {(() => {
+            if (!selectedProp) return null
+            const boolDefaults = propertyBooleanDefaults(selectedProp)
+            if (boolDefaults !== null) {
+              const enabled = [
+                selectedProp.default_mowing_enabled !== false && 'Mowing',
+                selectedProp.default_weed_eating_enabled === true && 'Weed eating',
+                selectedProp.default_edging_enabled === true && 'Edging',
+                selectedProp.default_blow_off_enabled === true && 'Blow off',
+              ].filter(Boolean)
+              return (
+                <p className="form-hint">
+                  Service defaults applied from property: {enabled.length > 0 ? enabled.join(', ') : 'None'}
+                </p>
+              )
+            }
+            if (selectedProp.default_service_package) {
+              return (
+                <p className="form-hint">
+                  Service defaults applied from legacy package: {selectedProp.default_service_package.replace(/_/g, ' ')}
+                </p>
+              )
+            }
+            return null
+          })()}
         </div>
       )}
 
