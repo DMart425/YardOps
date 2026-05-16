@@ -87,9 +87,7 @@ export function DownloadInvoiceButton({ data }: { data: InvoiceData }) {
     y += 16
 
     doc.setFont('helvetica', 'normal')
-    const desc = data.servicePackage
-      ? `${data.jobTitle} (${data.servicePackage.replace(/_/g, ' ')})`
-      : data.jobTitle
+    const desc = data.jobTitle
     doc.text(desc, margin, y)
     doc.text(`$${data.price.toFixed(2)}`, pageWidth - margin, y, { align: 'right' })
     y += 24
