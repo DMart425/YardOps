@@ -47,6 +47,7 @@ export default async function TodayPage() {
       .eq('user_id', userId)
       .eq('notification_type', 'estimate_approved')
       .eq('is_reviewed', false)
+      .not('estimate_id', 'is', null)
       .order('created_at', { ascending: false })
       .limit(10),
     // Fetch today's jobs with customer and property info

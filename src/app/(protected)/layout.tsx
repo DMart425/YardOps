@@ -18,6 +18,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     .eq('user_id', user.id)
     .eq('notification_type', 'estimate_approved')
     .eq('is_reviewed', false)
+    .not('estimate_id', 'is', null)
 
   const estimateNotificationCount = (pendingNotifRows ?? []).filter(n => {
     const estRaw = (n as unknown as { estimates?: { status: string } | { status: string }[] | null }).estimates
