@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-16 (e3a510e)
+Last updated: 2026-05-16 (1c19d44)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-05-16 (e3a510e)
 
 ## Current Checkpoint
 
-- **Latest commit:** `e3a510e` — Polish job detail labels
+- **Latest commit:** `1c19d44` — Ignore orphaned estimate notifications
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -197,6 +197,33 @@ Commits: `8621e2d`, `9028e84`, `3c5371a`
 
 ---
 
+### Approved Estimate Operator Workflow ✅
+
+**Problem:** Three gaps in the accepted-estimate flow: (1) no Approved filter tab on `/estimates`; (2) no visible banner on the estimate detail page indicating the customer had approved and it was ready to convert; (3) approval notifications not cleared on convert, leaving stale "approved" badges/cards on Today page. Additionally, `/estimates` defaulted to All instead of Open.
+
+**Fixes applied — three commits:**
+
+**`f305373` — Surface approved estimates for scheduling:**
+- `estimates/page.tsx` — `STATUS_FILTERS` extended with `['approved', 'Approved']` tab (between Open and Draft).
+- `estimates/[id]/page.tsx` — approved-state banner added when `estimate.status === 'approved'`: green-tinted card with ✅ icon, "Customer approved — ready to schedule", and prompt to use Convert to Job.
+- `estimates/actions.ts` `convertToJob()` — best-effort `app_notifications` UPDATE marks all unreviewed approval notifications for the estimate as reviewed immediately on conversion; `revalidatePath('/today')` added.
+
+**`e7407c9` — Hide converted estimate notifications:**
+- `estimates/page.tsx` — default filter changed from `'all'` to `'open'`.
+- `(protected)/layout.tsx` and `today/page.tsx` — notification queries updated with `estimates!estimate_id(status)` embedded join + JS filter to exclude converted-estimate notifications from badge count and Today card.
+- **SQL cleanup (manual, Supabase SQL Editor, `lewzqavgvltzwfeypvam`):**
+  - Marked all unreviewed `estimate_approved` notifications whose linked estimate has `status = 'converted'` as reviewed (Cedric Thomas case).
+  - Marked all unreviewed `estimate_approved` notifications with `estimate_id = null` as reviewed (Dustin Martin case — estimate was deleted, FK set to null via `ON DELETE SET NULL`).
+
+**`1c19d44` — Ignore orphaned estimate notifications:**
+- Added `.not('estimate_id', 'is', null)` to both `(protected)/layout.tsx` and `today/page.tsx` approval notification queries.
+- Permanent guard: orphaned notifications (where `estimate_id = null` because the estimate was deleted) never drive the badge or Today card again.
+- Root cause: `app_notifications.estimate_id` uses `ON DELETE SET NULL` — deleting an estimate nullifies the FK without removing the notification row.
+
+No migrations. No schema changes. All three commits user-tested in production: badge gone, Today clean, Open default confirmed.
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -216,6 +243,10 @@ Commits: `8621e2d`, `9028e84`, `3c5371a`
 
 | Hash | Description |
 |------|-------------|
+| `1c19d44` | Ignore orphaned estimate notifications (Phase 3) |
+| `e7407c9` | Hide converted estimate notifications (Phase 3) |
+| `f305373` | Surface approved estimates for scheduling (Phase 3) |
+| `61c5ff6` | Document job detail label polish (Phase 3 docs) |
 | `e3a510e` | Polish job detail labels (Phase 3) |
 | `1db4f33` | Clarify estimate property default hints (Phase 3) |
 | `df491c0` | Clean frequency normalization cases (Phase 3) |
@@ -321,6 +352,14 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ EstimateForm property default hints clarified — frequency hint now uses `formatFrequencyLabel()` (shows `Bi-weekly` not `biweekly`); frequency hint suppressed for unmapped frequencies (`custom`/`paused`); service defaults hint unified — shows enabled services from property booleans for modern properties, falls back to legacy package label only when actually using package path; no pricing or submission behavior changed; user-tested (`1db4f33`)
 - ✅ `leads` RLS SELECT/DELETE cosmetic cleanup applied and verified — `leads_select_business_member` and `leads_delete_business_member` USING clauses now use `is_business_member(business_id)` only; INSERT/UPDATE policies unchanged; applied via SQL Editor on `lewzqavgvltzwfeypvam` (CLI unavailable due to role permission error)
 - ✅ Job detail page service package and job type labels polished — `SERVICE_LABELS` map added locally (matching `jobs/page.tsx`); `pkgLabel` now uses map with title-case fallback instead of raw replace; `job_type` now shows friendly labels (`One-time`, `Recurring`) via `JOB_TYPE_LABELS` instead of raw enum value; no pricing or data behavior changed; user-tested (`e3a510e`)
+- ✅ `/estimates` page now has an Approved filter tab (between Open and Draft) — operator can quickly find estimates awaiting conversion (`f305373`)
+- ✅ Approved estimate detail page shows a green-tinted banner ("Customer approved — ready to schedule") prompting operator to convert to job (`f305373`)
+- ✅ `convertToJob()` auto-clears unreviewed approval notifications on conversion — Today page no longer shows stale "approved" card after a job is created (`f305373`)
+- ✅ `/estimates` defaults to Open filter instead of All — list opens on actionable estimates (`e7407c9`)
+- ✅ Estimates badge in nav no longer counts notifications whose linked estimate was converted — embedded join + JS filter excludes converted-estimate notifications (`e7407c9`)
+- ✅ Today page approval notification cards no longer appear for converted estimates (`e7407c9`)
+- ✅ Stale approval notifications cleaned up in Supabase SQL Editor (`lewzqavgvltzwfeypvam`): converted-estimate notifications marked reviewed; orphaned null-estimate notifications (Dustin Martin — estimate deleted) marked reviewed (`e7407c9` — SQL)
+- ✅ Orphaned estimate notification guard added — `.not('estimate_id', 'is', null)` in both `layout.tsx` and `today/page.tsx` notification queries; deleted-estimate orphaned notifications (estimate_id = null via ON DELETE SET NULL) never drive badge or Today card; user-tested (`1c19d44`)
 
 ---
 
@@ -347,7 +386,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 |-------|------|--------|
 | 2F | Final end-to-end multi-business audit | ✅ Complete |
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
-| 3 | Public intake and lead workflow improvements | ⏸ In Progress — UI/copy polish complete; Patches 1–3 (acreage, parcel_id, county prefill), Parcel Lookup fixes, frequency cleanup, EstimateForm hint clarity, job detail label polish complete; next patch TBD |
+| 3 | Public intake and lead workflow improvements | ⏸ In Progress — UI/copy polish complete; Patches 1–3 (acreage, parcel_id, county prefill), Parcel Lookup fixes, frequency cleanup, EstimateForm hint clarity, job detail label polish, approved-estimate operator workflow (f305373/e7407c9/1c19d44) complete; next patch TBD |
 | 4 | Operations UX / workflow polish | ⏸ Pending |
 | 5 | Reporting, automation, and growth features | ⏸ Pending |
 
@@ -358,9 +397,9 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Phase 3 — Decide next lead conversion flow patch**
+**Phase 3 — Decide next lead/workflow patch**
 
-Phase 2G active cleanup is complete (cron scoping deferred). Phase 3 UI/copy polish complete. Patches 1–3 (acreage prefill, parcel_id carryover, county prefill), Parcel Lookup fixes, `normalizeFrequency` cleanup, EstimateForm hint clarity, and job detail label polish are all complete and user-tested.
+Phase 2G active cleanup is complete (cron scoping deferred). Phase 3 UI/copy polish complete. Patches 1–3 (acreage prefill, parcel_id carryover, county prefill), Parcel Lookup fixes, `normalizeFrequency` cleanup, EstimateForm hint clarity, job detail label polish, and approved-estimate operator workflow (Approved tab, approved-state banner, notification lifecycle) are all complete and user-tested.
 
 **Phase 3 completed tasks (all user-tested in production):**
 1. ~~Frequency display — website lead detail page~~ ✅ (`0589026`)
@@ -379,11 +418,14 @@ Phase 2G active cleanup is complete (cron scoping deferred). Phase 3 UI/copy pol
 14. ~~normalizeFrequency duplicate/unreachable case cleanup~~ ✅ (`df491c0`)
 15. ~~EstimateForm hint clarity — frequency label and service defaults~~ ✅ (`1db4f33`)
 16. ~~Job detail service package and job type label polish~~ ✅ (`e3a510e`)
+17. ~~Approved estimate operator workflow — Approved tab, approved-state banner, convertToJob notification clear~~ ✅ (`f305373`)
+18. ~~Estimates default to Open; converted-estimate notification filtering; stale notification SQL cleanup~~ ✅ (`e7407c9`)
+19. ~~Orphaned estimate notification guard — null estimate_id filter in layout and Today notification queries~~ ✅ (`1c19d44`)
 
 **Suggested next patch candidates (decide before starting):**
-1. Continue lead conversion friction audit — focus on post-estimate operator steps such as job scheduling, follow-up flow, and payment/closeout.
-2. Review public WicksburgLawnService intake to YardOps service mapping — ensure service interest labels stay in sync between repos.
-3. Audit accepted-estimate/operator workflow — determine whether approved estimates need a clearer "schedule/convert to job" prompt.
+1. Review public WicksburgLawnService intake to YardOps service mapping — ensure service interest labels stay in sync between repos.
+2. Continue post-estimate workflow audit — scheduling, follow-up, payment/closeout.
+3. Review estimate/job notification lifecycle rules — when notifications should auto-clear vs. remain actionable.
 
 Do not run SQL or apply migrations without approval. Do not modify WicksburgLawnService unless explicitly approved.
 

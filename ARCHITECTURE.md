@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-16
-Current checkpoint commit: `e3a510e` (Polish job detail labels)
+Current checkpoint commit: `1c19d44` (Ignore orphaned estimate notifications)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -317,8 +317,10 @@ Business-owned tables use `public.is_business_member(business_id)` in all SELECT
 
 ### `app_notifications`
 - `id`, `user_id`, `notification_type` (`'estimate_approved'`)
-- `title`, `body`, `link_path`, `estimate_id` (nullable)
+- `title`, `body`, `link_path`, `estimate_id` (nullable FK → estimates, **ON DELETE SET NULL**)
 - `is_reviewed`, `reviewed_at`, `created_at`
+
+**Note:** `estimate_id` uses `ON DELETE SET NULL` — deleting an estimate orphans any linked notification (sets `estimate_id = null`). All queries that count or display approval notifications must include `.not('estimate_id', 'is', null)` to exclude orphaned rows. The `convertToJob()` action auto-clears unreviewed approval notifications when an estimate is converted so they never surface as stale.
 
 ---
 
@@ -640,6 +642,9 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 - **normalizeFrequency cleanup** ✅ (`df491c0`): Removed duplicate/unreachable cases — the two-block structure (Block A "canonical" + Block B "legacy") collapsed into a single linear block. Dead cases removed: duplicate `weekly` check, duplicate `biweekly`/`bi-weekly` checks. All accepted inputs preserved: `weekly`, `biweekly`, `bi-weekly`, `bi weekly`, `one_time`, `one time`, `one-time`, `one-time cut`, `one time cut`, `custom`, `paused`; `unsure`/`not sure yet`/`not sure` still return null. No behavior change. Updated header comment to list all accepted inputs. Only `src/lib/frequency.ts` changed.
 - **EstimateForm hint clarity** ✅ (`1db4f33`, user-tested): `EstimateForm.tsx` now imports `formatFrequencyLabel` and uses it for the frequency-defaulted hint (shows `Bi-weekly` instead of `biweekly`). Frequency hint is suppressed when `mapPropertyFrequency()` returns null (e.g., `custom`/`paused`) to avoid contradictory display. Service defaults hint replaced with a unified IIFE: shows `"Service defaults applied from property: Mowing, Weed eating, ..."` when `propertyBooleanDefaults()` is non-null (modern properties); falls back to `"Service defaults applied from legacy package: ..."` only when actually using the legacy package path. No pricing, submission, or default behavior changed.
 - **Job detail label polish** ✅ (`e3a510e`, user-tested): `jobs/[id]/page.tsx` now uses a local `SERVICE_LABELS` map for `🌿 Package` display — `mow_only → 'Mow Only'`, `mow_trim_blow → 'Mow, Trim & Blow'`, `trim_cleanup → 'Trim & Cleanup'`, `full_service → 'Full Service'`; unknown codes fall back to title-case, null falls back to `'Standard Mow'`. Added `JOB_TYPE_LABELS` map for `🔄 Type` display — `one_time → 'One-time'`, `recurring → 'Recurring'`. Production tested: Mow Only, Full Service, Mow Trim & Blow, One-time, Recurring, itemized Service Scope all confirmed. No job data, estimate conversion, invoice, payment, or status behavior changed.
+- **Approved estimate operator workflow** ✅ (`f305373`, user-tested): Three file changes: (1) `estimates/page.tsx` — `STATUS_FILTERS` extended with `['approved', 'Approved']` tab between Open and Draft; (2) `estimates/[id]/page.tsx` — approved-state banner added when `estimate.status === 'approved'`, prompting operator to convert to job; (3) `estimates/actions.ts` `convertToJob()` — best-effort `app_notifications` UPDATE to mark unreviewed approval notifications as reviewed immediately on conversion, plus `revalidatePath('/today')` added. No SQL/migrations.
+- **Estimates default to Open + converted notification filtering** ✅ (`e7407c9`, user-tested): `estimates/page.tsx` default filter changed from `'all'` to `'open'` so the list opens on actionable estimates. `(protected)/layout.tsx` and `today/page.tsx` notification queries updated with `estimates!estimate_id(status)` embedded join and a JS filter to exclude converted-estimate notifications from badge count and Today card. **SQL cleanup run manually in Supabase SQL Editor against `lewzqavgvltzwfeypvam`:** (a) all unreviewed `estimate_approved` notifications whose linked estimate has `status = 'converted'` were marked reviewed; (b) all unreviewed `estimate_approved` notifications with `estimate_id = null` (Dustin Martin — estimate deleted, FK set to null via `ON DELETE SET NULL`) were marked reviewed.
+- **Orphaned estimate notification guard** ✅ (`1c19d44`, user-tested): Added `.not('estimate_id', 'is', null)` to both `(protected)/layout.tsx` and `today/page.tsx` approval notification queries. Permanent guard — deleted-estimate orphaned notifications (where `estimate_id = null` due to `ON DELETE SET NULL`) never drive the badge count or Today card. Root cause: Supabase `ON DELETE SET NULL` on `app_notifications.estimate_id` — deleting an estimate nullifies the FK, leaving the notification row orphaned. SQL cleanup removed existing orphaned rows; this guard prevents any future orphans from surfacing.
 
 **Potential tasks (remaining):**
 1. ~~Frequency display polish~~ ✅ complete (Tasks 1a, 1b)
@@ -653,12 +658,15 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 9. ~~normalizeFrequency duplicate/unreachable case cleanup~~ ✅ complete (`df491c0`)
 10. ~~EstimateForm hint clarity — frequency label and service defaults~~ ✅ complete (`1db4f33`)
 11. ~~Job detail service package and job type label polish~~ ✅ complete (`e3a510e`)
-12. Improve public WicksburgLawnService intake to YardOps service mapping.
-13. Improve lead conversion flow: lead → customer → property → estimate.
-14. Preserve customer/parcel/address/service info across the full flow.
-15. Reduce duplicated manual entry.
-16. Ensure public intake and manual YardOps lead creation use consistent service language: Mowing, Weed Eating, Edging, Blow Off.
-17. Keep WicksburgLawnService read-only unless explicitly asked to patch it.
+12. ~~Approved estimate operator workflow — Approved tab, approved-state banner, convertToJob notification clear + /today revalidate~~ ✅ complete (`f305373`)
+13. ~~Estimates default to Open; converted-estimate notification filtering; stale notification SQL cleanup~~ ✅ complete (`e7407c9`)
+14. ~~Orphaned estimate notification guard — null estimate_id filter in layout and Today notification queries~~ ✅ complete (`1c19d44`)
+15. Improve public WicksburgLawnService intake to YardOps service mapping.
+16. Improve lead conversion flow: lead → customer → property → estimate.
+17. Preserve customer/parcel/address/service info across the full flow.
+18. Reduce duplicated manual entry.
+19. Ensure public intake and manual YardOps lead creation use consistent service language: Mowing, Weed Eating, Edging, Blow Off.
+20. Keep WicksburgLawnService read-only unless explicitly asked to patch it.
 
 ---
 
