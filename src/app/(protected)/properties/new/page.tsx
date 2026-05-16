@@ -43,6 +43,8 @@ export default async function NewPropertyPage({
     default_service_package?: string
     parcel_acres?: string
     estimated_mowable_acres?: string
+    parcel_id?: string
+    lot_size_source?: string
     default_mowing_enabled?: string
     default_weed_eating_enabled?: string
     default_edging_enabled?: string
@@ -61,6 +63,8 @@ export default async function NewPropertyPage({
     default_service_package,
     parcel_acres,
     estimated_mowable_acres,
+    parcel_id,
+    lot_size_source,
     default_mowing_enabled,
     default_weed_eating_enabled,
     default_edging_enabled,
@@ -117,6 +121,8 @@ export default async function NewPropertyPage({
     default_blow_off_enabled:    parseBoolParam(default_blow_off_enabled)    ?? null,
     parcel_acres: parseOptionalNumber(parcel_acres),
     estimated_mowable_acres: parseOptionalNumber(estimated_mowable_acres),
+    parcel_id: parcel_id ?? undefined,
+    lot_size_source: lot_size_source ?? undefined,
   }
 
   return (

@@ -194,6 +194,8 @@ export default async function LeadDetailPage({
   // Finalize addPropertyHref now that parcel acres are computed
   if (parcelAcres != null) addPropertyParams.set('parcel_acres', parcelAcres.toFixed(4))
   if (mowableAcres != null) addPropertyParams.set('estimated_mowable_acres', mowableAcres.toFixed(2))
+  if (parcel?.id) addPropertyParams.set('parcel_id', parcel.id)
+  if (parcel?.id) addPropertyParams.set('lot_size_source', 'parcel')
   const addPropertyHref = `/properties/new?${addPropertyParams.toString()}`
 
   // Strip structured intake lines from the customer-facing notes display.
