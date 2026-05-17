@@ -29,6 +29,9 @@ export function ScheduleFollowUpCard({
         : '')
     : ''
 
+  const todayLocal = new Intl.DateTimeFormat('en-CA').format(new Date())
+  const suggestedIsPast = suggestedDate !== '' && suggestedDate < todayLocal
+
   return (
     <div className="card" style={{ marginBottom: '1rem' }}>
       <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Schedule Follow-up Visit</div>
@@ -72,6 +75,12 @@ export function ScheduleFollowUpCard({
               placeholder="e.g. 9am-11am"
               required
             />
+          </div>
+        )}
+
+        {suggestedIsPast && (
+          <div className="warning-banner">
+            ⚠ Suggested date is in the past. Change it before scheduling.
           </div>
         )}
 
