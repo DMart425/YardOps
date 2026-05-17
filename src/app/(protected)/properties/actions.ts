@@ -55,6 +55,8 @@ export async function createProperty(
   if (typeof county !== 'string') return county
   const postalCode = str(formData, 'postal_code')
   const returnTo = safeReturnPath(str(formData, 'return_to'))
+  const serviceFrequency = (formData.get('service_frequency') as string)?.trim()
+  if (!serviceFrequency) return { error: 'Frequency is required.' }
 
   // Geocode the address (best-effort, non-blocking on failure)
   const geo = await geocodeAddress({ address, city, state, postalCode })
@@ -80,7 +82,7 @@ export async function createProperty(
     default_edging_enabled:       formData.get('default_edging_enabled')       === 'on',
     default_blow_off_enabled:     formData.get('default_blow_off_enabled')     === 'on',
     default_price: num(formData, 'default_price'),
-    service_frequency: (formData.get('service_frequency') as string) || 'one_time',
+    service_frequency: serviceFrequency,
     preferred_service_day: str(formData, 'preferred_service_day'),
     auto_schedule_next: false,
     gate_code: str(formData, 'gate_code'),
@@ -124,6 +126,8 @@ export async function updateProperty(
   if (typeof county !== 'string') return county
   const postalCode = str(formData, 'postal_code')
   const returnTo = safeReturnPath(str(formData, 'return_to'))
+  const serviceFrequency = (formData.get('service_frequency') as string)?.trim()
+  if (!serviceFrequency) return { error: 'Frequency is required.' }
 
   // If property has no lat/lon yet, geocode it now
   const { data: existing } = await supabase
@@ -158,7 +162,7 @@ export async function updateProperty(
       default_edging_enabled:       formData.get('default_edging_enabled')       === 'on',
       default_blow_off_enabled:     formData.get('default_blow_off_enabled')     === 'on',
       default_price: num(formData, 'default_price'),
-      service_frequency: (formData.get('service_frequency') as string) || 'one_time',
+      service_frequency: serviceFrequency,
       preferred_service_day: str(formData, 'preferred_service_day'),
       // auto_schedule_next intentionally omitted — field removed from UI; existing DB value preserved
       gate_code: str(formData, 'gate_code'),

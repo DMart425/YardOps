@@ -259,8 +259,9 @@ export function PropertyForm({
             id="service_frequency"
             name="service_frequency"
             className="form-select"
-            defaultValue={defaultValues?.service_frequency ?? 'one_time'}
+            defaultValue={defaultValues?.service_frequency ?? ''}
           >
+            <option value="" disabled>— Select frequency —</option>
             <option value="weekly">Weekly</option>
             <option value="biweekly">Bi-weekly</option>
             <option value="one_time">One-time</option>
