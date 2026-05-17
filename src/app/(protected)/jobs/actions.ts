@@ -185,6 +185,7 @@ export async function scheduleFollowUpJob(
       payment_status:        'unpaid',
       status:                'scheduled',
       recurrence_source:     id,
+      internal_notes:        existing.internal_notes ?? null,
     })
     .select('id')
     .single()
