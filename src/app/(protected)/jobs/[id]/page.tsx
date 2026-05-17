@@ -343,7 +343,7 @@ export default async function JobDetailPage({
         <div style={{ marginTop: '1rem' }}>
           <DownloadInvoiceButton
             data={{
-              businessName:   profile?.business_name ?? 'Wicksburg Lawn Service',
+              businessName:   profile?.business_name ?? 'Lawn Service',
               businessPhone:  profile?.business_phone ?? null,
               businessEmail:  profile?.business_email ?? null,
               customerName,
