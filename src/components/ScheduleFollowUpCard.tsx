@@ -10,10 +10,12 @@ export function ScheduleFollowUpCard({
   jobId,
   scheduledDate,
   serviceFrequency,
+  jobType,
 }: {
   jobId: string
   scheduledDate: string | null
   serviceFrequency: string | null
+  jobType?: string | null
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(
     scheduleFollowUpJob.bind(null, jobId),
@@ -39,6 +41,12 @@ export function ScheduleFollowUpCard({
       {state.error && <div className="alert alert-error">{state.error}</div>}
 
       <form action={action} className="form">
+        {jobType === 'one_time' && (
+          <p className="form-hint">
+            This was a one-time job. The follow-up will be scheduled as a recurring visit.
+          </p>
+        )}
+
         <div className="form-row">
           <div className="form-field">
             <label className="form-label">Next Visit Date *</label>

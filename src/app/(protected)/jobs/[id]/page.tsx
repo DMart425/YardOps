@@ -276,6 +276,7 @@ export default async function JobDetailPage({
           jobId={job.id}
           scheduledDate={job.scheduled_date}
           serviceFrequency={property.service_frequency}
+          jobType={job.job_type}
         />
       )}
 
