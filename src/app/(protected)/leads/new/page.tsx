@@ -262,7 +262,7 @@ export default function NewLeadPage() {
               </label>
               <label className="checkbox-label">
                 <input type="checkbox" name="svc_blow_off" value="true" />
-                Blow Off Hard Surfaces
+                Blow off walkways / driveway / patio
               </label>
             </div>
           </div>

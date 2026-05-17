@@ -10,7 +10,7 @@ const SERVICE_INTEREST_LABELS: Record<string, string> = {
   mowing: 'Lawn mowing',
   weed_eating: 'Weed eating / trimming',
   edging: 'Edging',
-  blow_off: 'Blow off hard surfaces',
+  blow_off: 'Blow off walkways / driveway / patio',
 }
 
 function labelForServiceInterest(value: string): string {
@@ -47,7 +47,7 @@ function formatDefaultServices(property: {
       { label: 'Mowing', enabled: property.default_mowing_enabled !== false },
       { label: 'Weed eating / trimming', enabled: property.default_weed_eating_enabled === true },
       { label: 'Edging', enabled: property.default_edging_enabled === true },
-      { label: 'Blow off hard surfaces', enabled: property.default_blow_off_enabled === true },
+      { label: 'Blow off walkways / driveway / patio', enabled: property.default_blow_off_enabled === true },
     ],
   }
 }

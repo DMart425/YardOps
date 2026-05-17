@@ -82,7 +82,7 @@ export async function createLead(
     svcMowing     && 'Mowing',
     svcWeedEating && 'Weed eating / trimming',
     svcEdging     && 'Edging',
-    svcBlowOff    && 'Blow off hard surfaces',
+    svcBlowOff    && 'Blow off walkways / driveway / patio',
   ].filter(Boolean).join(', ')
 
   const intakeAddress = [serviceAddress, city, state, postalCode].filter(Boolean).join(', ')

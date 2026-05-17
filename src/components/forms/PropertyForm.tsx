@@ -328,7 +328,7 @@ export function PropertyForm({
             checked={svcBlowOff}
             onChange={e => setSvcBlowOff(e.target.checked)}
           />
-          <label htmlFor="default_blow_off_enabled">Blow off hard surfaces</label>
+          <label htmlFor="default_blow_off_enabled">Blow off walkways / driveway / patio</label>
         </div>
       </div>
 
