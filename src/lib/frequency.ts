@@ -48,7 +48,7 @@ export function formatServiceInterestLabel(value: string): string {
     mowing: 'Lawn mowing',
     weed_eating: 'Weed eating / trimming',
     edging: 'Edging',
-    blow_off: 'Blow off hard surfaces',
+    blow_off: 'Blow off walkways / driveway / patio',
   }
   return labels[value] ?? value.replace(/_/g, ' ')
 }
