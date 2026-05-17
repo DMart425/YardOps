@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-16 (cb05cdd)
+Last updated: 2026-05-16 (ec48565)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-05-16 (cb05cdd)
 
 ## Current Checkpoint
 
-- **Latest commit:** `cb05cdd` — Polish Today service labels
+- **Latest commit:** `ec48565` — Use business name for invoice header
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -241,6 +241,30 @@ No migrations. No schema changes. All three commits user-tested in production: b
 
 ---
 
+### Invoice and Payment Fixes ✅
+
+**`46fc17b` — PDF invoice service description cleanup (user-tested):**
+- `DownloadInvoiceButton.tsx` — replaced multi-line `const desc` ternary (produced `"Lawn Service - Mow, Trim & Blow (mow trim blow)"`) with `const desc = data.jobTitle`. Estimate-converted job titles are already fully descriptive. No layout, payment, or banner behavior changed.
+
+**`dd19b02` — Persist paid-at-completion amount + PDF totals alignment (user-tested):**
+- `jobs/actions.ts` `completeJob()` — resolves `paymentStatus` and `finalPrice` before the DB update; now writes `amount_paid: paymentStatus === 'paid' ? finalPrice : null`. Previously, completing a job as "Paid now" set `payment_status = 'paid'` but left `amount_paid = null`, causing the PDF invoice to show a contradictory PAID banner while displaying $0 paid and full balance due. `markPaid()` and `markPartial()` unchanged.
+- `DownloadInvoiceButton.tsx` — "Total:", "Paid:", and "Balance Due:" label x-positions moved from `pageWidth - margin - 80` to `pageWidth - margin - 120` to prevent "Balance Due:" (12pt bold) from overlapping the value column. PDF PAID banner condition (`paymentStatus === 'paid' || balance <= 0`) unchanged.
+
+**One-time paid job data repair (SQL only, `lewzqavgvltzwfeypvam`):**
+- After `dd19b02`, audited all Wicksburg jobs with `payment_status = 'paid' AND COALESCE(amount_paid, 0) = 0`. After targeted cleanup, query returned no rows. No remaining Wicksburg paid jobs have missing `amount_paid`. The `dd19b02` fix is forward-only for new completions.
+
+**`2342041` — Neutral invoice business name fallback:**
+- `jobs/[id]/page.tsx` — `businessName` prop changed from `profile?.business_name ?? 'Wicksburg Lawn Service'` to `profile?.business_name ?? 'Lawn Service'`. Removes hardcoded tenant name. SaaS-safe.
+
+**`ec48565` — Invoice business name from business context (user-tested):**
+- `jobs/[id]/page.tsx` — added `supabase.from('businesses').select('name').eq('id', businessId).single()` using the already-resolved `businessId` from `requireBusinessContext()`; updated `businessName` prop to `business?.name ?? profile?.business_name ?? 'Lawn Service'`.
+- Invoice PDF header now uses `businesses.name` as primary source, falls back to `profiles.business_name`, then to neutral `'Lawn Service'`.
+- `businessPhone` and `businessEmail` remain profile-sourced — no business-level contact columns exist yet.
+- **Future SaaS direction:** business identity, contact fields, and payment branding should eventually move to a business-scoped settings/profile source. Do not re-hardcode tenant names as fallbacks.
+- `DownloadInvoiceButton.tsx` not touched.
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -260,8 +284,13 @@ No migrations. No schema changes. All three commits user-tested in production: b
 
 | Hash | Description |
 |------|-------------|
-| `cb05cdd` | Polish Today service labels (Phase 3) |
+| `ec48565` | Use business name for invoice header (Phase 3) |
+| `2342041` | Use neutral invoice business fallback (Phase 3) |
+| `dd19b02` | Persist paid completion amount (Phase 3) |
+| `46fc17b` | Clean PDF invoice service description (Phase 3) |
+| `74500ed` | Document Today service label polish (Phase 3 docs) |
 | `1a10969` | Document approved estimate workflow cleanup (Phase 3 docs) |
+| `cb05cdd` | Polish Today service labels (Phase 3) |
 | `1c19d44` | Ignore orphaned estimate notifications (Phase 3) |
 | `e7407c9` | Hide converted estimate notifications (Phase 3) |
 | `f305373` | Surface approved estimates for scheduling (Phase 3) |
@@ -382,6 +411,11 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ Today page job cards now show friendly service labels (`"Mow, Trim & Blow"` not `"mow trim blow"`); no `job_type` fallback (`"one time"` / `"recurring"` never shown as service label); user-tested (`cb05cdd`)
 - ✅ Tomorrow's Jobs cards use same friendly labels; Tomorrow reminder SMS body also uses friendly label (`cb05cdd`)
 - ✅ Completion invoice SMS (`buildInvoiceSms`) now shows `"Service: Mow, Trim & Blow"` instead of `"Service: mow trim blow"` (`cb05cdd`)
+- ✅ PDF invoice service description uses `job.title` directly — no more redundant `"(mow trim blow)"` parenthetical (`46fc17b`)
+- ✅ Completing a job as "Paid now" now persists `amount_paid = finalPrice` in the DB — invoice no longer shows contradictory PAID banner with $0 paid and full balance due (`dd19b02`)
+- ✅ PDF invoice "Balance Due:" label no longer overlaps the value column — label column width increased from 80pt to 120pt (`dd19b02`)
+- ✅ All Wicksburg paid jobs confirmed to have correct `amount_paid` — post-`dd19b02` data repair verified, query for `payment_status = 'paid' AND COALESCE(amount_paid, 0) = 0` returns zero rows
+- ✅ Invoice PDF business name now uses `businesses.name` first, falls back to `profiles.business_name`, then neutral `"Lawn Service"` — no hardcoded tenant names (`ec48565`)
 
 ---
 
@@ -408,7 +442,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 |-------|------|--------|
 | 2F | Final end-to-end multi-business audit | ✅ Complete |
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
-| 3 | Public intake and lead workflow improvements | ⏸ In Progress — UI/copy polish complete; Patches 1–3, Parcel Lookup fixes, frequency cleanup, EstimateForm hint clarity, job detail label polish, approved-estimate operator workflow, post-estimate audit, Today service label polish (cb05cdd) complete; next patch TBD |
+| 3 | Public intake and lead workflow improvements | ⏸ In Progress — UI/copy polish complete; Patches 1–3, Parcel Lookup fixes, frequency cleanup, EstimateForm hint clarity, job detail label polish, approved-estimate operator workflow, post-estimate audit, Today service labels, invoice/payment fixes (ec48565) complete; next patch TBD |
 | 4 | Operations UX / workflow polish | ⏸ Pending |
 | 5 | Reporting, automation, and growth features | ⏸ Pending |
 
@@ -445,11 +479,15 @@ Phase 2G active cleanup is complete (cron scoping deferred). Phase 3 UI/copy pol
 19. ~~Orphaned estimate notification guard — null estimate_id filter in layout and Today notification queries~~ ✅ (`1c19d44`)
 20. ~~Post-estimate workflow audit — scheduling, completion, payment, follow-up flow~~ ✅ (read-only audit)
 21. ~~Today service label polish — SERVICE_LABELS map, no job_type fallback, friendly labels in cards and SMS bodies~~ ✅ (`cb05cdd`)
+22. ~~PDF invoice service description cleanup — `const desc = data.jobTitle`~~ ✅ (`46fc17b`)
+23. ~~Persist paid-at-completion `amount_paid`; fix PDF totals label overlap~~ ✅ (`dd19b02`)
+24. ~~SaaS-safe invoice business name fallback~~ ✅ (`2342041`)
+25. ~~Invoice business name from `businesses.name`~~ ✅ (`ec48565`)
 
 **Suggested next patch candidates (decide before starting):**
-1. Review PDF invoice service description cleanup — remove/replace redundant raw service package parenthetical in `DownloadInvoiceButton.tsx`.
-2. Review public WicksburgLawnService intake to YardOps service mapping — ensure service interest labels stay in sync between repos.
-3. Continue post-estimate workflow audit — follow-up scheduling and payment/closeout UX.
+1. Review public WicksburgLawnService intake to YardOps service mapping — ensure service interest labels stay in sync between repos.
+2. Continue post-estimate workflow audit — follow-up scheduling UX.
+3. Business-scoped contact/payment fields — `businesses` table currently has only `name`; phone, email, Venmo handle are still profile-sourced.
 
 Do not run SQL or apply migrations without approval. Do not modify WicksburgLawnService unless explicitly approved.
 
@@ -473,11 +511,12 @@ Do not run SQL or apply migrations without approval. Do not modify WicksburgLawn
 
 These must not break during any refactor:
 
-- **Recurring auto-schedule:** `completeJob()` checks `property.auto_schedule_next`, `service_frequency`, `scheduled_date`. All must remain present.
+- **Follow-up scheduling:** Follow-up visits are always manually created via `scheduleFollowUpJob()` — `completeJob()` does NOT auto-schedule. The `ScheduleFollowUpCard` component appears after completion and suggests a date based on `property.service_frequency`. `property.auto_schedule_next` and `property.service_frequency` must remain present for future auto-schedule implementation.
 - **Recurrence chain:** `recurrence_source` (parent) and `next_job_created_id` (child) must not be removed or reset.
 - **`started_at` → `actual_minutes`:** `markInProgress()` sets `started_at`; `completeJob()` computes `actual_minutes`. These must stay coupled.
 - **Reschedule log:** `reschedule_count` and `reschedule_log` are append-only.
 - **Today page date assumptions:** `scheduled_date` as `YYYY-MM-DD`; `completed_at` as full ISO timestamp.
 - **Estimate visit fields:** `visit_scheduled_date` and `visit_scheduled_time` appear on Today page.
 - **`payment_status` enum:** `unpaid`, `partial`, `paid`, `not_billable` — renaming any value is a breaking change.
+- **`amount_paid` on completion:** `completeJob()` sets `amount_paid = finalPrice` when `payment_status = 'paid'`; sets `null` for `unpaid` and `not_billable`. `markPaid()` and `markPartial()` manage `amount_paid` independently. These must stay coupled — the invoice PDF relies on `amount_paid` being correct for its PAID banner and balance display.
 - **FK cascades:** `job_photos`, `job_visits`, `expenses` all use `job_id` as FK.
