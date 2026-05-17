@@ -93,6 +93,25 @@ export default async function JobDetailPage({
     .eq('business_id', businessId)
     .order('purchased_at', { ascending: false })
 
+  // Fetch follow-up job summary if one has been linked
+  let nextJobSummary: {
+    scheduled_date: string | null
+    scheduled_time_window: string | null
+    status: string
+    price: number | null
+  } | null = null
+
+  if (job.next_job_created_id) {
+    const { data: nextJobData } = await supabase
+      .from('jobs')
+      .select('scheduled_date, scheduled_time_window, status, price')
+      .eq('id', job.next_job_created_id)
+      .eq('business_id', businessId)
+      .maybeSingle()
+
+    nextJobSummary = nextJobData ?? null
+  }
+
   const customer = job.customers
   const property = job.properties
 
@@ -283,9 +302,37 @@ export default async function JobDetailPage({
       {job.status === 'completed' && job.next_job_created_id && (
         <div className="card" style={{ marginBottom: '1rem' }}>
           <div className="section-heading" style={{ marginBottom: '0.5rem' }}>Follow-up Visit</div>
-          <p className="text-small text-muted" style={{ marginBottom: '0.75rem' }}>
-            A follow-up visit has been scheduled for this completed job.
-          </p>
+
+          {nextJobSummary ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '0.75rem' }}>
+              <div className="card-row">
+                <span className="text-small text-muted">📅 Date</span>
+                <span className="text-small">
+                  {nextJobSummary.scheduled_date
+                    ? formatDateOnly(nextJobSummary.scheduled_date, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+                    : 'No date set'}
+                  {nextJobSummary.scheduled_time_window ? ` · ${nextJobSummary.scheduled_time_window}` : ''}
+                </span>
+              </div>
+              <div className="card-row">
+                <span className="text-small text-muted">Status</span>
+                <span className={`pill pill-${nextJobSummary.status}`}>
+                  {nextJobSummary.status.replace(/_/g, ' ')}
+                </span>
+              </div>
+              {nextJobSummary.price != null && (
+                <div className="card-row">
+                  <span className="text-small text-muted">💰 Price</span>
+                  <span className="text-small">${Number(nextJobSummary.price).toFixed(0)}</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-small text-muted" style={{ marginBottom: '0.75rem' }}>
+              A follow-up visit has been scheduled for this completed job.
+            </p>
+          )}
+
           <Link href={`/jobs/${job.next_job_created_id}`} className="btn btn-sm btn-secondary">
             Open Follow-up Job
           </Link>
