@@ -65,6 +65,12 @@ export default async function JobDetailPage({
     .eq('id', userId)
     .single()
 
+  const { data: business } = await supabase
+    .from('businesses')
+    .select('name')
+    .eq('id', businessId)
+    .single()
+
   const { data: settings } = await supabase
     .from('pricing_settings')
     .select('venmo_handle, time_zone')
@@ -343,7 +349,7 @@ export default async function JobDetailPage({
         <div style={{ marginTop: '1rem' }}>
           <DownloadInvoiceButton
             data={{
-              businessName:   profile?.business_name ?? 'Lawn Service',
+              businessName:   business?.name ?? profile?.business_name ?? 'Lawn Service',
               businessPhone:  profile?.business_phone ?? null,
               businessEmail:  profile?.business_email ?? null,
               customerName,
