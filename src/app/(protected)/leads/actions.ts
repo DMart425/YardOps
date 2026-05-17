@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import type { FormState } from '@/types/database'
 import { geocodeAddress } from '@/lib/geocode'
-import { normalizeFrequency } from '@/lib/frequency'
+import { formatFrequencyLabel } from '@/lib/frequency'
 import { requireBusinessContext } from '@/lib/business/context'
 
 function str(fd: FormData, key: string) {
@@ -215,14 +215,13 @@ export async function convertWebsiteLead(
   const firstName = parts[0] ?? 'Unknown'
   const lastName = parts.length > 1 ? parts.slice(1).join(' ') : null
 
-  // Normalize frequency before writing to notes
-  const normalizedFrequency = normalizeFrequency(claimedLead.frequency ?? null)
-
   const notes = buildLeadIntakeNotes({
     existingNotes: claimedLead.notes ?? null,
     sourceLabel: 'Website lead',
     intakeAddress: claimedLead.address ?? null,
-    requestedFrequency: normalizedFrequency,
+    requestedFrequency: claimedLead.frequency
+      ? formatFrequencyLabel(claimedLead.frequency)
+      : null,
   })
 
   const { data: customer, error: custError } = await supabase

@@ -38,7 +38,7 @@ export function formatFrequencyLabel(value: string | null | undefined): string {
   if (lower === 'one_time') return 'One-time'
   if (lower === 'custom') return 'Custom'
   if (lower === 'paused') return 'Paused'
-  if (lower === 'unsure') return 'Unsure'
+  if (lower === 'unsure') return 'Not sure yet'
   return value.replace(/_/g, ' ')
 }
 
