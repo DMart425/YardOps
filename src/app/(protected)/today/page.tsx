@@ -22,6 +22,11 @@ function servicePackageLabel(value: string | null | undefined): string {
   return SERVICE_LABELS[value] ?? value.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
 }
 
+function statusLabel(value: string | null | undefined): string {
+  if (!value) return ''
+  return value.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+}
+
 function deriveServiceLabel(
   pkg: string | null | undefined,
   prop: {
@@ -409,7 +414,7 @@ export default async function TodayPage() {
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <span className={`pill pill-${job.status}`}>{job.status.replace(/_/g, ' ')}</span>
+                    <span className={`pill pill-${job.status}`}>{statusLabel(job.status)}</span>
                   </div>
                 </div>
 
@@ -524,7 +529,7 @@ export default async function TodayPage() {
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       {job.price != null && <div style={{ fontWeight: 700 }}>${Number(job.price).toFixed(0)}</div>}
-                      <span className={`pill pill-${job.payment_status}`}>{job.payment_status.replace(/_/g, ' ')}</span>
+                      <span className={`pill pill-${job.payment_status}`}>{statusLabel(job.payment_status)}</span>
                       {balance > 0 && <div className="text-small" style={{ color: 'var(--color-unpaid)', marginTop: '4px' }}>${balance.toFixed(0)} owed</div>}
                     </div>
                   </div>
@@ -559,7 +564,7 @@ export default async function TodayPage() {
                       </div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
-                      <span className={`pill pill-${job.status}`}>{job.status.replace(/_/g, ' ')}</span>
+                      <span className={`pill pill-${job.status}`}>{statusLabel(job.status)}</span>
                       <span className="pill pill-overdue">{daysLate}d late</span>
                     </div>
                   </div>
@@ -646,7 +651,7 @@ export default async function TodayPage() {
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <span className={`pill pill-${job.payment_status}`}>{job.payment_status.replace(/_/g, ' ')}</span>
+                    <span className={`pill pill-${job.payment_status}`}>{statusLabel(job.payment_status)}</span>
                   </div>
                 </div>
                 <div className="card-actions">
