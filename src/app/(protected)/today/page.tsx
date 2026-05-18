@@ -22,6 +22,24 @@ function servicePackageLabel(value: string | null | undefined): string {
   return SERVICE_LABELS[value] ?? value.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
 }
 
+function deriveServiceLabel(
+  pkg: string | null | undefined,
+  prop: {
+    default_mowing_enabled?: boolean | null
+    default_weed_eating_enabled?: boolean | null
+    default_edging_enabled?: boolean | null
+    default_blow_off_enabled?: boolean | null
+  } | null
+): string {
+  if (pkg) return servicePackageLabel(pkg)
+  const parts: string[] = []
+  if (prop?.default_mowing_enabled)      parts.push('Mowing')
+  if (prop?.default_weed_eating_enabled) parts.push('Weed Eating')
+  if (prop?.default_edging_enabled)      parts.push('Edging')
+  if (prop?.default_blow_off_enabled)    parts.push('Blow Off')
+  return parts.length > 0 ? parts.join(', ') : 'Lawn Service'
+}
+
 export default async function TodayPage() {
   const supabase = await createClient()
   const { userId, businessId } = await requireBusinessContext()
@@ -68,7 +86,7 @@ export default async function TodayPage() {
       .select(`
         id, title, service_package, job_type, price, payment_status, status, scheduled_date, scheduled_time_window,
         customers ( first_name, last_name, phone ),
-        properties ( service_address, city, pet_warning, gate_code, access_notes, obstacle_notes, latitude, longitude )
+        properties ( service_address, city, pet_warning, gate_code, access_notes, obstacle_notes, latitude, longitude, default_mowing_enabled, default_weed_eating_enabled, default_edging_enabled, default_blow_off_enabled )
       `)
       .eq('business_id', businessId)
       .eq('scheduled_date', today)
@@ -118,7 +136,7 @@ export default async function TodayPage() {
       .select(`
         id, title, service_package, job_type, price, scheduled_date, scheduled_time_window,
         customers ( first_name, last_name, phone ),
-        properties ( service_address, city )
+        properties ( service_address, city, default_mowing_enabled, default_weed_eating_enabled, default_edging_enabled, default_blow_off_enabled )
       `)
       .eq('business_id', businessId)
       .eq('scheduled_date', tomorrowStr)
@@ -355,7 +373,7 @@ export default async function TodayPage() {
         ) : (
           todayJobs.map((job) => {
             const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null; phone: string | null } | null
-            const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null; pet_warning: string | null; gate_code: string | null; access_notes: string | null; obstacle_notes: string | null; latitude: number | null; longitude: number | null } | null
+            const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null; pet_warning: string | null; gate_code: string | null; access_notes: string | null; obstacle_notes: string | null; latitude: number | null; longitude: number | null; default_mowing_enabled: boolean | null; default_weed_eating_enabled: boolean | null; default_edging_enabled: boolean | null; default_blow_off_enabled: boolean | null } | null
             const warnings = [property?.pet_warning, property?.gate_code ? `Gate: ${property.gate_code}` : null, property?.access_notes, property?.obstacle_notes].filter(Boolean)
             const fc = property?.latitude != null && property.longitude != null
               ? weatherMap.get(coordKey(property.latitude, property.longitude))
@@ -371,7 +389,7 @@ export default async function TodayPage() {
                       <div className="card-meta">👤 {customer?.first_name} {customer?.last_name}</div>
                       <div className="card-meta">📍 {property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
                       {job.scheduled_time_window && <div className="card-meta">🗓 {job.scheduled_time_window}</div>}
-                      {job.service_package && <div className="card-meta">🌿 {servicePackageLabel(job.service_package)}</div>}
+                      <div className="card-meta">🌿 {deriveServiceLabel(job.service_package, property)}</div>
                       {job.price != null && <div className="card-meta">💵 ${Number(job.price).toFixed(0)}</div>}
                       {fc && (
                         <div className="card-meta" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -554,9 +572,9 @@ export default async function TodayPage() {
           <div className="section-heading">Tomorrow ({tomorrowJobs!.length})</div>
           {tomorrowJobs!.map((job) => {
             const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null; phone: string | null } | null
-            const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
-            const pkg = servicePackageLabel(job.service_package)
-            const smsBody = `Hi ${customer?.first_name ?? 'there'}, just a reminder that we have you scheduled for ${pkg} tomorrow. See you then! — ${tomorrowStr}`
+            const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null; default_mowing_enabled: boolean | null; default_weed_eating_enabled: boolean | null; default_edging_enabled: boolean | null; default_blow_off_enabled: boolean | null } | null
+            const svcLabel = deriveServiceLabel(job.service_package, property)
+            const smsBody = `Hi ${customer?.first_name ?? 'there'}, just a reminder that we have you scheduled for ${svcLabel} tomorrow. See you then! — ${tomorrowStr}`
             return (
               <div key={job.id} className="card">
                 <div className="card-row">
@@ -566,7 +584,7 @@ export default async function TodayPage() {
                       <div className="card-meta">👤 {customer?.first_name} {customer?.last_name}</div>
                       <div className="card-meta">📍 {property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
                       <div className="card-meta">🗓 {formatDateOnly(tomorrowStr, { weekday: 'short', month: 'short', day: 'numeric' })}{job.scheduled_time_window ? ` · ${job.scheduled_time_window}` : ''}</div>
-                      {job.service_package && <div className="card-meta">🌿 {servicePackageLabel(job.service_package)}</div>}
+                      <div className="card-meta">🌿 {svcLabel}</div>
                       {job.price != null && <div className="card-meta">💵 ${Number(job.price).toFixed(0)}</div>}
                     </div>
                   </div>
