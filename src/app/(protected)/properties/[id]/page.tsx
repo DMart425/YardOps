@@ -5,6 +5,7 @@ import type { Property } from '@/types/database'
 import { ApplyParcelButton } from '@/app/(protected)/leads/[id]/ApplyParcelButton'
 import { formatDateOnly, formatTimestampDate, getLocalDateStr, resolveTimeZone } from '@/lib/date'
 import { estimateMowableAcres } from '@/lib/pricing'
+import { formatFrequencyLabel } from '@/lib/frequency'
 import { requireBusinessContext } from '@/lib/business/context'
 import { PropertyDangerZone } from './PropertyDangerZone'
 import { PropertyAssignmentSection } from './PropertyAssignmentSection'
@@ -219,24 +220,24 @@ export default async function PropertyDetailPage({
         <div className="divider" />
         <div className="card-row">
           <span className="text-small text-muted">Frequency</span>
-          <span className={`pill pill-${p.service_frequency}`}>{p.service_frequency?.replace('_', ' ')}</span>
+          <span className={`pill pill-${p.service_frequency}`}>{formatFrequencyLabel(p.service_frequency)}</span>
         </div>
         {(p.default_mowing_enabled != null || p.default_weed_eating_enabled != null || p.default_edging_enabled != null || p.default_blow_off_enabled != null) ? (
           <div className="card-row" style={{ marginTop: '8px' }}>
             <span className="text-small text-muted">Default services</span>
             <span className="text-small">
               {[
-                p.default_mowing_enabled !== false ? 'Mowing' : null,
-                p.default_weed_eating_enabled ? 'Weed eating' : null,
+                p.default_mowing_enabled ? 'Mowing' : null,
+                p.default_weed_eating_enabled ? 'Weed Eating' : null,
                 p.default_edging_enabled ? 'Edging' : null,
-                p.default_blow_off_enabled ? 'Blow off' : null,
+                p.default_blow_off_enabled ? 'Blow Off' : null,
               ].filter(Boolean).join(', ') || 'None'}
             </span>
           </div>
         ) : p.default_service_package ? (
           <div className="card-row" style={{ marginTop: '8px' }}>
             <span className="text-small text-muted">Package</span>
-            <span className="text-small">{p.default_service_package.replace(/_/g, ' ')}</span>
+            <span className="text-small">{p.default_service_package.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
           </div>
         ) : null}
         {p.default_price != null && (

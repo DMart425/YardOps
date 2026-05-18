@@ -209,7 +209,7 @@ export default async function CustomerDetailPage({
           activeProperties.map((p) => {
             const frequency = p.service_frequency ? formatFrequencyLabel(p.service_frequency) : null
             const preferredDay = p.preferred_service_day
-              ? p.preferred_service_day.replace(/_/g, ' ')
+              ? p.preferred_service_day.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
               : 'No preferred day'
 
             let serviceOptions: string | null = null
@@ -221,13 +221,13 @@ export default async function CustomerDetailPage({
             if (hasBooleans) {
               const services: string[] = []
               if (p.default_mowing_enabled) services.push('Mowing')
-              if (p.default_weed_eating_enabled) services.push('Weed eating')
+              if (p.default_weed_eating_enabled) services.push('Weed Eating')
               if (p.default_edging_enabled) services.push('Edging')
-              if (p.default_blow_off_enabled) services.push('Blow off')
+              if (p.default_blow_off_enabled) services.push('Blow Off')
               serviceOptions = services.length > 0 ? services.join(', ') : null
             }
             if (!serviceOptions && p.default_service_package) {
-              serviceOptions = p.default_service_package.replace(/_/g, ' ')
+              serviceOptions = p.default_service_package.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
             }
             const defaultPrice = p.default_price != null ? `$${p.default_price}` : null
 
@@ -272,13 +272,13 @@ export default async function CustomerDetailPage({
               if (hasBooleans) {
                 const services: string[] = []
                 if (p.default_mowing_enabled) services.push('Mowing')
-                if (p.default_weed_eating_enabled) services.push('Weed eating')
+                if (p.default_weed_eating_enabled) services.push('Weed Eating')
                 if (p.default_edging_enabled) services.push('Edging')
-                if (p.default_blow_off_enabled) services.push('Blow off')
+                if (p.default_blow_off_enabled) services.push('Blow Off')
                 serviceOptions = services.length > 0 ? services.join(', ') : null
               }
               if (!serviceOptions && p.default_service_package) {
-                serviceOptions = p.default_service_package.replace(/_/g, ' ')
+                serviceOptions = p.default_service_package.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
               }
               const defaultPrice = p.default_price != null ? `$${p.default_price}` : null
 
