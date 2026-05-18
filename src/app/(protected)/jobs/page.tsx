@@ -88,11 +88,12 @@ const FILTERS_SCHEDULED = [
 ] as const
 
 const FILTERS_COMPLETED = [
-  ['today',  'Today'],
-  ['week',   'This Week'],
-  ['month',  'This Month'],
-  ['ytd',    'YTD'],
-  ['unpaid', 'Unpaid'],
+  ['today',             'Today'],
+  ['week',              'This Week'],
+  ['month',             'This Month'],
+  ['ytd',               'YTD'],
+  ['unpaid',            'Unpaid'],
+  ['cancelled_skipped', 'Cancelled / Skipped'],
 ] as const
 
 function dayOfWeek(dateStr: string) {
@@ -150,25 +151,33 @@ export default async function JobsPage({
     .eq('business_id', businessId)
 
   if (view === 'completed') {
-    query = query.eq('status', 'completed').order('completed_at', { ascending: false })
-    switch (filter) {
-      case 'today':
-        query = query.gte('completed_at', `${today}T00:00:00`).lt('completed_at', `${tomorrowStr}T00:00:00`)
-        break
-      case 'week':
-        query = query.gte('completed_at', `${weekStartStr}T00:00:00`).lt('completed_at', `${nextWeekStartStr}T00:00:00`)
-        break
-      case 'month':
-        query = query.gte('completed_at', `${monthStartStr}T00:00:00`).lt('completed_at', `${tomorrowStr}T00:00:00`)
-        break
-      case 'ytd':
-        query = query.gte('completed_at', `${yearStartStr}T00:00:00`).lt('completed_at', `${tomorrowStr}T00:00:00`)
-        break
-      case 'unpaid':
-        query = query.in('payment_status', ['unpaid', 'partial'])
-        break
-      default:
-        query = query.gte('completed_at', `${today}T00:00:00`).lt('completed_at', `${tomorrowStr}T00:00:00`)
+    if (filter === 'cancelled_skipped') {
+      // Separate path: cancelled/skipped have no completed_at, so order by updated_at.
+      // Status filter is applied here only — never combined with eq('status','completed').
+      query = query
+        .in('status', ['cancelled', 'skipped'])
+        .order('updated_at', { ascending: false })
+    } else {
+      query = query.eq('status', 'completed').order('completed_at', { ascending: false })
+      switch (filter) {
+        case 'today':
+          query = query.gte('completed_at', `${today}T00:00:00`).lt('completed_at', `${tomorrowStr}T00:00:00`)
+          break
+        case 'week':
+          query = query.gte('completed_at', `${weekStartStr}T00:00:00`).lt('completed_at', `${nextWeekStartStr}T00:00:00`)
+          break
+        case 'month':
+          query = query.gte('completed_at', `${monthStartStr}T00:00:00`).lt('completed_at', `${tomorrowStr}T00:00:00`)
+          break
+        case 'ytd':
+          query = query.gte('completed_at', `${yearStartStr}T00:00:00`).lt('completed_at', `${tomorrowStr}T00:00:00`)
+          break
+        case 'unpaid':
+          query = query.in('payment_status', ['unpaid', 'partial'])
+          break
+        default:
+          query = query.gte('completed_at', `${today}T00:00:00`).lt('completed_at', `${tomorrowStr}T00:00:00`)
+      }
     }
     query = query.range(completedFrom, completedTo)
   } else {
