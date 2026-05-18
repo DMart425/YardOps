@@ -321,6 +321,17 @@ export default async function JobsPage({
         )
       ) : view === 'scheduled' && filter === 'week' ? (
         <div>
+          {/* Week total revenue summary */}
+          {(() => {
+            const weekTotal = jobRows.reduce((s, j) => s + (j.price != null ? Number(j.price) : 0), 0)
+            const anyPriced = jobRows.some(j => j.price != null)
+            if (!anyPriced) return null
+            return (
+              <div style={{ marginBottom: '1rem', color: 'var(--text-muted, #888)', fontSize: '0.85rem' }}>
+                This week: <strong style={{ color: 'var(--text, inherit)' }}>${weekTotal.toFixed(0)}</strong> scheduled
+              </div>
+            )
+          })()}
           {/* Blackout days with no jobs (otherwise they'd be invisible) */}
           {blackoutDates
             .filter(d => d >= today && d <= weekEndStr && !groupedByDay.has(d))
