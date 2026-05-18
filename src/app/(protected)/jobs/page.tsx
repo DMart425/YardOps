@@ -114,7 +114,7 @@ function parsePage(raw: string | undefined): number {
 export default async function JobsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string; view?: string; page?: string }>
+  searchParams: Promise<{ filter?: string; view?: string; page?: string; customer_id?: string; property_id?: string }>
 }) {
   const sp = await searchParams
   const view: 'scheduled' | 'completed' = sp.view === 'completed' ? 'completed' : 'scheduled'
@@ -124,6 +124,24 @@ export default async function JobsPage({
   const page = view === 'completed' ? parsePage(sp.page) : 1
   const completedFrom = (page - 1) * COMPLETED_PAGE_SIZE
   const completedTo = completedFrom + COMPLETED_PAGE_SIZE - 1
+
+  // Optional customer/property scoping via query params.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const customerId = UUID_RE.test(sp.customer_id ?? '') ? (sp.customer_id as string) : null
+  const propertyId = UUID_RE.test(sp.property_id ?? '') ? (sp.property_id as string) : null
+
+  // Builds a /jobs URL, always preserving active customer/property filter context.
+  const jobsHref = (params: Record<string, string | null | undefined>): string => {
+    const qs = new URLSearchParams()
+    for (const [k, v] of Object.entries(params)) {
+      if (v != null && v !== '') qs.set(k, v)
+    }
+    if (customerId) qs.set('customer_id', customerId)
+    if (propertyId) qs.set('property_id', propertyId)
+    const s = qs.toString()
+    return s ? `/jobs?${s}` : '/jobs'
+  }
+
   const supabase = await createClient()
   const { userId, businessId } = await requireBusinessContext()
 
@@ -149,6 +167,9 @@ export default async function JobsPage({
     .from('jobs')
     .select('id, title, status, payment_status, price, amount_paid, scheduled_date, completed_at, scheduled_time_window, service_package, job_type, customers(first_name, last_name), properties(service_address, city, latitude, longitude, default_mowing_enabled, default_weed_eating_enabled, default_edging_enabled, default_blow_off_enabled)')
     .eq('business_id', businessId)
+
+  if (customerId) query = query.eq('customer_id', customerId)
+  if (propertyId) query = query.eq('property_id', propertyId)
 
   if (view === 'completed') {
     if (filter === 'cancelled_skipped') {
@@ -201,7 +222,7 @@ export default async function JobsPage({
   const jobRows = (jobs ?? []) as JobListRow[]
   const hasPrevCompletedPage = view === 'completed' && page > 1
   const hasNextCompletedPage = view === 'completed' && jobRows.length === COMPLETED_PAGE_SIZE
-  const completedPageOneHref = `/jobs?view=completed&filter=${filter}&page=1`
+  const completedPageOneHref = jobsHref({ view: 'completed', filter, page: '1' })
   const completedStart = completedFrom + 1
   const completedEnd = completedFrom + jobRows.length
   const completedHasRows = jobRows.length > 0
@@ -290,10 +311,10 @@ export default async function JobsPage({
       </div>
 
       <div className="filter-tabs" style={{ marginBottom: '8px' }}>
-        <Link href="/jobs?view=scheduled&filter=upcoming" className={`filter-tab${view === 'scheduled' ? ' active' : ''}`}>
+        <Link href={jobsHref({ view: 'scheduled', filter: 'upcoming' })} className={`filter-tab${view === 'scheduled' ? ' active' : ''}`}>
           Scheduled
         </Link>
-        <Link href="/jobs?view=completed&filter=week&page=1" className={`filter-tab${view === 'completed' ? ' active' : ''}`}>
+        <Link href={jobsHref({ view: 'completed', filter: 'week', page: '1' })} className={`filter-tab${view === 'completed' ? ' active' : ''}`}>
           Completed
         </Link>
       </div>
@@ -302,13 +323,21 @@ export default async function JobsPage({
         {availableFilters.map(([key, label]) => (
           <Link
             key={key}
-            href={view === 'completed' ? `/jobs?view=completed&filter=${key}&page=1` : `/jobs?view=scheduled&filter=${key}`}
+            href={view === 'completed' ? jobsHref({ view: 'completed', filter: key, page: '1' }) : jobsHref({ view: 'scheduled', filter: key })}
             className={`filter-tab${filter === key ? ' active' : ''}`}
           >
             {label}{key === 'unpaid' && overdueCount ? <span style={{ marginLeft: 4, background: '#dc2626', color: '#fff', borderRadius: '999px', padding: '1px 6px', fontSize: '0.65rem', fontWeight: 700, verticalAlign: 'middle' }}>{overdueCount}</span> : null}{key === 'overdue' && overdueScheduledCount ? <span style={{ marginLeft: 4, background: '#dc2626', color: '#fff', borderRadius: '999px', padding: '1px 6px', fontSize: '0.65rem', fontWeight: 700, verticalAlign: 'middle' }}>{overdueScheduledCount}</span> : null}
           </Link>
         ))}
       </div>
+
+      {(customerId || propertyId) && (
+        <div style={{ marginBottom: '0.75rem', fontSize: '0.85rem', color: 'var(--text-muted, #888)' }}>
+          {customerId && propertyId ? 'Filtered by customer and property' : customerId ? 'Filtered by customer' : 'Filtered by property'}
+          {' · '}
+          <Link href="/jobs" style={{ color: 'var(--color-primary)' }}>Clear</Link>
+        </div>
+      )}
 
       {filter === 'unpaid' && overdueCount != null && overdueCount > 0 && (
         <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
@@ -477,7 +506,7 @@ export default async function JobsPage({
             <div className="card-row" style={{ marginTop: '12px' }}>
               <div>
                 {hasPrevCompletedPage ? (
-                  <Link href={`/jobs?view=completed&filter=${filter}&page=${page - 1}`} className="btn btn-sm btn-secondary">
+                  <Link href={jobsHref({ view: 'completed', filter, page: String(page - 1) })} className="btn btn-sm btn-secondary">
                     Previous
                   </Link>
                 ) : null}
@@ -489,7 +518,7 @@ export default async function JobsPage({
               </div>
               <div>
                 {hasNextCompletedPage ? (
-                  <Link href={`/jobs?view=completed&filter=${filter}&page=${page + 1}`} className="btn btn-sm btn-secondary">
+                  <Link href={jobsHref({ view: 'completed', filter, page: String(page + 1) })} className="btn btn-sm btn-secondary">
                     Next
                   </Link>
                 ) : null}
