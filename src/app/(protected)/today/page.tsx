@@ -335,10 +335,10 @@ export default async function TodayPage() {
 
       {/* Stats */}
       <div className="stat-grid" style={{ marginBottom: '1.5rem' }}>
-        <div className="stat-card">
+        <Link href="/jobs?view=scheduled&filter=today" className="stat-card" style={{ textDecoration: 'none' }}>
           <div className="stat-value">{todayJobs?.length ?? 0}</div>
           <div className="stat-label">Jobs today</div>
-        </div>
+        </Link>
         <div className="stat-card">
           <div className="stat-value">${todayTotal.toFixed(0)}</div>
           <div className="stat-label">Expected today</div>
@@ -349,19 +349,19 @@ export default async function TodayPage() {
           </div>
           <div className="stat-label">New leads</div>
         </Link>
-        <a href="#overdue-section" className="stat-card" style={{ textDecoration: 'none' }}>
+        <Link href="/jobs?view=scheduled&filter=overdue" className="stat-card" style={{ textDecoration: 'none' }}>
           <div className="stat-value" style={{ color: overdueJobs?.length ? 'var(--color-overdue)' : undefined }}>
             {overdueDisplayCount}
           </div>
           <div className="stat-label">Overdue</div>
-        </a>
-        <a href="#completed-today" className="stat-card" style={{ textDecoration: 'none' }}>
+        </Link>
+        <Link href="/jobs?view=completed&filter=today&page=1" className="stat-card" style={{ textDecoration: 'none' }}>
           <div className="stat-value" style={{ color: (completedTodayJobs?.length ?? 0) > 0 ? 'var(--color-primary)' : undefined }}>
             {completedTodayJobs?.length ?? 0}
           </div>
           <div className="stat-label">Completed today</div>
-        </a>
-        <Link href="/jobs?filter=unpaid" className="stat-card" style={{ textDecoration: 'none' }}>
+        </Link>
+        <Link href="/jobs?view=completed&filter=unpaid&page=1" className="stat-card" style={{ textDecoration: 'none' }}>
           <div className="stat-value" style={{ color: unpaidTotal > 0 ? 'var(--color-unpaid)' : undefined }}>
             ${unpaidTotal.toFixed(0)}
           </div>

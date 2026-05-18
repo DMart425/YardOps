@@ -171,7 +171,7 @@ export default async function PropertyDetailPage({
           <span className={`pill pill-${p.status}`}>{p.status}</span>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <Link href={`/jobs?property_id=${p.id}`} className="btn btn-header btn-sm btn-secondary">
+          <Link href={`/jobs?property_id=${p.id}`} className="btn btn-header btn-sm">
             Jobs
           </Link>
           <Link
