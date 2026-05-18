@@ -191,7 +191,7 @@ export default async function PropertyDetailPage({
           </div>
           <div className="stat-card">
             <div className="stat-value">${propRevenue.toFixed(0)}</div>
-            <div className="stat-label">Total revenue</div>
+            <div className="stat-label">Total billed</div>
           </div>
           {propUnpaid > 0 && (
             <Link href={`/jobs?view=completed&filter=unpaid&property_id=${p.id}`} className="stat-card" style={{ color: 'inherit', textDecoration: 'none' }}>

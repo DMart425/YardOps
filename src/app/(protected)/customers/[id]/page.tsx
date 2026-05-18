@@ -159,7 +159,7 @@ export default async function CustomerDetailPage({
         </div>
         <div className="stat-card">
           <div className="stat-value">${totalRevenue.toFixed(0)}</div>
-          <div className="stat-label">Total revenue</div>
+          <div className="stat-label">Total billed</div>
         </div>
         {totalUnpaid > 0 && (
           <Link href={`/jobs?view=completed&filter=unpaid&customer_id=${id}`} className="stat-card" style={{ color: 'inherit', textDecoration: 'none' }}>
