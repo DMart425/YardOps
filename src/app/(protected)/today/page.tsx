@@ -644,7 +644,7 @@ export default async function TodayPage() {
                       Send Reminder
                     </a>
                   )}
-                  <Link href={`/jobs/${job.id}`} className="btn btn-sm btn-primary">Mark Paid</Link>
+                  <Link href={`/jobs/${job.id}`} className="btn btn-sm btn-primary">View &amp; Pay</Link>
                 </div>
               </div>
             )
