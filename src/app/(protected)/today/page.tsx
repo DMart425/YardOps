@@ -334,18 +334,18 @@ export default async function TodayPage() {
           <div className="stat-value">${todayTotal.toFixed(0)}</div>
           <div className="stat-label">Expected today</div>
         </div>
-        <div className="stat-card">
+        <Link href="/leads" className="stat-card" style={{ textDecoration: 'none' }}>
           <div className="stat-value" style={{ color: (newLeadsCount > 0) ? 'var(--color-lead)' : undefined }}>
             {newLeadsCount}
           </div>
           <div className="stat-label">New leads</div>
-        </div>
-        <div className="stat-card">
+        </Link>
+        <a href="#overdue-section" className="stat-card" style={{ textDecoration: 'none' }}>
           <div className="stat-value" style={{ color: overdueJobs?.length ? 'var(--color-overdue)' : undefined }}>
             {overdueJobs?.length ?? 0}
           </div>
           <div className="stat-label">Overdue</div>
-        </div>
+        </a>
         <a href="#completed-today" className="stat-card" style={{ textDecoration: 'none' }}>
           <div className="stat-value" style={{ color: (completedTodayJobs?.length ?? 0) > 0 ? 'var(--color-primary)' : undefined }}>
             {completedTodayJobs?.length ?? 0}
@@ -533,7 +533,7 @@ export default async function TodayPage() {
 
       {/* Overdue */}
       {(overdueJobs?.length ?? 0) > 0 && (
-        <div className="detail-section">
+        <div className="detail-section" id="overdue-section">
           <div className="section-heading" style={{ color: 'var(--color-overdue)' }}>
             Overdue ({overdueJobs!.length})
           </div>
