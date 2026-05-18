@@ -574,7 +574,7 @@ export default async function TodayPage() {
             const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null; phone: string | null } | null
             const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null; default_mowing_enabled: boolean | null; default_weed_eating_enabled: boolean | null; default_edging_enabled: boolean | null; default_blow_off_enabled: boolean | null } | null
             const svcLabel = deriveServiceLabel(job.service_package, property)
-            const smsBody = `Hi ${customer?.first_name ?? 'there'}, just a reminder that we have you scheduled for ${svcLabel} tomorrow. See you then! — ${tomorrowStr}`
+            const smsBody = `Hi ${customer?.first_name ?? 'there'}, just a reminder that we have you scheduled for ${svcLabel} tomorrow. See you then! — ${formatDateOnly(tomorrowStr, { weekday: 'long', month: 'long', day: 'numeric' })}`
             return (
               <div key={job.id} className="card">
                 <div className="card-row">
@@ -590,6 +590,16 @@ export default async function TodayPage() {
                   </div>
                 </div>
                 <div className="card-actions">
+                  {property?.service_address && (
+                    <a
+                      href={`https://maps.google.com/?q=${encodeURIComponent([property.service_address, property.city].filter(Boolean).join(', '))}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-sm btn-secondary"
+                    >
+                      Open Maps
+                    </a>
+                  )}
                   {customer?.phone && (
                     <a
                       href={`sms:${customer.phone}?&body=${encodeURIComponent(smsBody)}`}
