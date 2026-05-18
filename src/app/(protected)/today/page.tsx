@@ -260,6 +260,10 @@ export default async function TodayPage() {
 
   const newLeadsCount = (websiteLeadsCount ?? 0) + (manualLeadsCount ?? 0)
 
+  // Show '10+' when query limit is hit so operator knows the list may be truncated
+  const overdueDisplayCount = overdueJobs?.length === 10 ? '10+' : String(overdueJobs?.length ?? 0)
+  const unpaidDisplayCount  = unpaidJobs?.length  === 10 ? '10+' : String(unpaidJobs?.length  ?? 0)
+
   return (
     <div className="page">
       {/* Header */}
@@ -342,7 +346,7 @@ export default async function TodayPage() {
         </Link>
         <a href="#overdue-section" className="stat-card" style={{ textDecoration: 'none' }}>
           <div className="stat-value" style={{ color: overdueJobs?.length ? 'var(--color-overdue)' : undefined }}>
-            {overdueJobs?.length ?? 0}
+            {overdueDisplayCount}
           </div>
           <div className="stat-label">Overdue</div>
         </a>
@@ -535,7 +539,7 @@ export default async function TodayPage() {
       {(overdueJobs?.length ?? 0) > 0 && (
         <div className="detail-section" id="overdue-section">
           <div className="section-heading" style={{ color: 'var(--color-overdue)' }}>
-            Overdue ({overdueJobs!.length})
+            Overdue ({overdueDisplayCount})
           </div>
           {overdueJobs!.map((job) => {
             const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null } | null
@@ -625,7 +629,7 @@ export default async function TodayPage() {
       {(unpaidJobs?.length ?? 0) > 0 && (
         <div className="detail-section">
           <div className="section-heading" style={{ color: 'var(--color-unpaid)' }}>
-            Unpaid ({unpaidJobs!.length}) — ${unpaidTotal.toFixed(0)} owed
+            Unpaid ({unpaidDisplayCount}) — ${unpaidTotal.toFixed(0)} owed
           </div>
           {unpaidJobs!.map((job) => {
             const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null; phone: string | null } | null
