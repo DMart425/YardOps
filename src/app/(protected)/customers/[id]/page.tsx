@@ -145,7 +145,7 @@ export default async function CustomerDetailPage({
               View this customer&apos;s recent jobs without loading full history on the customer detail page.
             </p>
           </div>
-          <Link href={`/jobs`} className="btn btn-sm btn-secondary">
+          <Link href={`/jobs?customer_id=${id}`} className="btn btn-sm btn-secondary">
             View all jobs
           </Link>
         </div>
@@ -162,7 +162,7 @@ export default async function CustomerDetailPage({
           <div className="stat-label">Total revenue</div>
         </div>
         {totalUnpaid > 0 && (
-          <Link href="/jobs?view=completed&filter=unpaid" className="stat-card" style={{ color: 'inherit', textDecoration: 'none' }}>
+          <Link href={`/jobs?view=completed&filter=unpaid&customer_id=${id}`} className="stat-card" style={{ color: 'inherit', textDecoration: 'none' }}>
             <div className="stat-value" style={{ color: 'var(--color-unpaid)' }}>${totalUnpaid.toFixed(0)}</div>
             <div className="stat-label">Unpaid</div>
           </Link>

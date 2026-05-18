@@ -170,12 +170,17 @@ export default async function PropertyDetailPage({
           <h1 className="page-title">{p.property_name ?? p.service_address}</h1>
           <span className={`pill pill-${p.status}`}>{p.status}</span>
         </div>
-        <Link
-          href={`/jobs/new?customer_id=${p.customer_id}&property_id=${p.id}`}
-          className="btn btn-header btn-sm"
-        >
-          + New Job
-        </Link>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <Link href={`/jobs?property_id=${p.id}`} className="btn btn-header btn-sm btn-secondary">
+            Jobs
+          </Link>
+          <Link
+            href={`/jobs/new?customer_id=${p.customer_id}&property_id=${p.id}`}
+            className="btn btn-header btn-sm"
+          >
+            + New Job
+          </Link>
+        </div>
       </div>
 
       {/* Revenue stats */}
@@ -189,7 +194,7 @@ export default async function PropertyDetailPage({
             <div className="stat-label">Total revenue</div>
           </div>
           {propUnpaid > 0 && (
-            <Link href="/jobs?view=completed&filter=unpaid" className="stat-card" style={{ color: 'inherit', textDecoration: 'none' }}>
+            <Link href={`/jobs?view=completed&filter=unpaid&property_id=${p.id}`} className="stat-card" style={{ color: 'inherit', textDecoration: 'none' }}>
               <div className="stat-value" style={{ color: 'var(--color-unpaid)' }}>${propUnpaid.toFixed(0)}</div>
               <div className="stat-label">Unpaid</div>
             </Link>
