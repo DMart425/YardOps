@@ -202,6 +202,10 @@ export default async function JobsPage({
   const hasPrevCompletedPage = view === 'completed' && page > 1
   const hasNextCompletedPage = view === 'completed' && jobRows.length === COMPLETED_PAGE_SIZE
   const completedPageOneHref = `/jobs?view=completed&filter=${filter}&page=1`
+  const completedStart = completedFrom + 1
+  const completedEnd = completedFrom + jobRows.length
+  const completedHasRows = jobRows.length > 0
+  const completedMayHaveMore = jobRows.length === COMPLETED_PAGE_SIZE
 
   // ── Blackout dates ──
   const blackoutDates: string[] = (settings?.blackout_dates as string[] | null) ?? []
@@ -478,7 +482,11 @@ export default async function JobsPage({
                   </Link>
                 ) : null}
               </div>
-              <div className="text-small text-muted">Page {page}</div>
+              <div className="text-small text-muted">
+                {completedHasRows
+                  ? `Showing ${completedStart}–${completedEnd}${completedMayHaveMore ? '+' : ''}`
+                  : 'Showing 0'}
+              </div>
               <div>
                 {hasNextCompletedPage ? (
                   <Link href={`/jobs?view=completed&filter=${filter}&page=${page + 1}`} className="btn btn-sm btn-secondary">
