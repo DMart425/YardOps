@@ -189,10 +189,10 @@ export default async function PropertyDetailPage({
             <div className="stat-label">Total revenue</div>
           </div>
           {propUnpaid > 0 && (
-            <div className="stat-card">
+            <Link href="/jobs?view=completed&filter=unpaid" className="stat-card" style={{ color: 'inherit', textDecoration: 'none' }}>
               <div className="stat-value" style={{ color: 'var(--color-unpaid)' }}>${propUnpaid.toFixed(0)}</div>
               <div className="stat-label">Unpaid</div>
-            </div>
+            </Link>
           )}
           <div className="stat-card">
             <div className="stat-value" style={{ fontSize: '1rem' }}>
