@@ -170,6 +170,12 @@ export default async function PropertyDetailPage({
           <h1 className="page-title">{p.property_name ?? p.service_address}</h1>
           <span className={`pill pill-${p.status}`}>{p.status}</span>
         </div>
+        <Link
+          href={`/jobs/new?customer_id=${p.customer_id}&property_id=${p.id}`}
+          className="btn btn-header btn-sm"
+        >
+          + New Job
+        </Link>
       </div>
 
       {/* Revenue stats */}
