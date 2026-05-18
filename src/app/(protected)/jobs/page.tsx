@@ -206,6 +206,15 @@ export default async function JobsPage({
     .eq('status', 'completed')
     .in('payment_status', ['unpaid', 'partial'])
     .lt('completed_at', `${sevenDaysAgoStr}T00:00:00`)
+
+  // ── Overdue scheduled count (active status + scheduled_date before today) ──
+  const { count: overdueScheduledCount } = await supabase
+    .from('jobs')
+    .select('id', { count: 'exact', head: true })
+    .eq('business_id', businessId)
+    .in('status', active)
+    .lt('scheduled_date', today)
+
   function routeUrl(addresses: string[]): string | null {
     if (addresses.length === 0) return null
     if (addresses.length === 1) {
@@ -283,7 +292,7 @@ export default async function JobsPage({
             href={view === 'completed' ? `/jobs?view=completed&filter=${key}&page=1` : `/jobs?view=scheduled&filter=${key}`}
             className={`filter-tab${filter === key ? ' active' : ''}`}
           >
-            {label}{key === 'unpaid' && overdueCount ? <span style={{ marginLeft: 4, background: '#dc2626', color: '#fff', borderRadius: '999px', padding: '1px 6px', fontSize: '0.65rem', fontWeight: 700, verticalAlign: 'middle' }}>{overdueCount}</span> : null}
+            {label}{key === 'unpaid' && overdueCount ? <span style={{ marginLeft: 4, background: '#dc2626', color: '#fff', borderRadius: '999px', padding: '1px 6px', fontSize: '0.65rem', fontWeight: 700, verticalAlign: 'middle' }}>{overdueCount}</span> : null}{key === 'overdue' && overdueScheduledCount ? <span style={{ marginLeft: 4, background: '#dc2626', color: '#fff', borderRadius: '999px', padding: '1px 6px', fontSize: '0.65rem', fontWeight: 700, verticalAlign: 'middle' }}>{overdueScheduledCount}</span> : null}
           </Link>
         ))}
       </div>
