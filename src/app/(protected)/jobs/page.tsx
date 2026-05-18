@@ -58,6 +58,15 @@ function formatServiceBooleans(prop: PropertyRelation | null | undefined): strin
   return parts.length > 0 ? parts.join(', ') : null
 }
 
+// Title-cases a raw enum value for display in pills.
+// e.g. 'in_progress' → 'In Progress', 'needs_reschedule' → 'Needs Reschedule'
+function statusLabel(value: string | null | undefined): string {
+  if (!value) return ''
+  return value
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, l => l.toUpperCase())
+}
+
 // Derives a human-readable service label for a job card.
 // Priority: property booleans (most precise) → service_package code (legacy fallback).
 // job_type ('recurring', 'one_time') is intentionally never used here.
@@ -383,8 +392,8 @@ export default async function JobsPage({
                           <div className="card-meta">💵 {job.price != null ? `$${Number(job.price).toFixed(0)}` : 'No price set'}</div>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
-                          <span className={`pill pill-${job.status}`}>{job.status.replace(/_/g, ' ')}</span>
-                          {showPayment && <span className={`pill pill-${job.payment_status}`}>{job.payment_status.replace(/_/g, ' ')}</span>}
+                          <span className={`pill pill-${job.status}`}>{statusLabel(job.status)}</span>
+                          {showPayment && <span className={`pill pill-${job.payment_status}`}>{statusLabel(job.payment_status)}</span>}
                         </div>
                       </div>
                     </Link>
@@ -424,8 +433,8 @@ export default async function JobsPage({
                     <div className="card-meta">💵 {job.price != null ? `$${Number(job.price).toFixed(0)}` : 'No price set'}</div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
-                    <span className={`pill pill-${job.status}`}>{job.status.replace(/_/g, ' ')}</span>
-                    {showPayment && <span className={`pill pill-${job.payment_status}`}>{job.payment_status.replace(/_/g, ' ')}</span>}
+                    <span className={`pill pill-${job.status}`}>{statusLabel(job.status)}</span>
+                    {showPayment && <span className={`pill pill-${job.payment_status}`}>{statusLabel(job.payment_status)}</span>}
                   </div>
                 </div>
               </Link>
