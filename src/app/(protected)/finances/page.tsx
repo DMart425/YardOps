@@ -369,20 +369,31 @@ export default async function FinancesPage({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
               <div className="section-heading" style={{ fontSize: '0.8125rem', margin: 0 }}>Expenses</div>
             </div>
-            {[...monthExpenses].reverse().slice(0, 15).map(e => (
-              <Link key={e.id} href={'/finances/expenses/' + e.id} style={{ display: 'block', textDecoration: 'none' }}>
-                <div className="card-row" style={{ padding: '6px 0', borderBottom: '1px solid var(--color-border)' }}>
-                  <div>
-                    <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>
-                      {e.vendor ? e.vendor : CATEGORY_LABELS[e.category] ?? e.category}
-                      <span className="text-small text-muted" style={{ marginLeft: '6px' }}>{formatDateOnly(e.purchased_at)}</span>
-                    </div>
-                    {e.description && <div className="text-small text-muted">{e.description}</div>}
-                  </div>
-                  <span style={{ fontWeight: 700, color: 'var(--color-danger, #dc2626)' }}>{fmt$(e.amount)}</span>
-                </div>
-              </Link>
-            ))}
+            {(() => {
+              const visibleExpenses = [...monthExpenses].reverse().slice(0, 15)
+              const hiddenCount = Math.max(0, monthExpenses.length - 15)
+              return (
+                <>
+                  {visibleExpenses.map(e => (
+                    <Link key={e.id} href={'/finances/expenses/' + e.id} style={{ display: 'block', textDecoration: 'none' }}>
+                      <div className="card-row" style={{ padding: '6px 0', borderBottom: '1px solid var(--color-border)' }}>
+                        <div>
+                          <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>
+                            {e.vendor ? e.vendor : CATEGORY_LABELS[e.category] ?? e.category}
+                            <span className="text-small text-muted" style={{ marginLeft: '6px' }}>{formatDateOnly(e.purchased_at)}</span>
+                          </div>
+                          {e.description && <div className="text-small text-muted">{e.description}</div>}
+                        </div>
+                        <span style={{ fontWeight: 700, color: 'var(--color-danger, #dc2626)' }}>{fmt$(e.amount)}</span>
+                      </div>
+                    </Link>
+                  ))}
+                  {hiddenCount > 0 && (
+                    <p className="text-small text-muted" style={{ marginTop: '6px' }}>+ {hiddenCount} more expense{hiddenCount !== 1 ? 's' : ''} not shown</p>
+                  )}
+                </>
+              )
+            })()}
           </>
         )}
 
