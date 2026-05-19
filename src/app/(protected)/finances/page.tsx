@@ -62,6 +62,14 @@ export default async function FinancesPage({
     .lte('purchased_at', yearEnd)
     .order('purchased_at')
 
+  // Fetch all-time completed jobs that still carry an uncollected balance
+  const { data: uncollectedJobs } = await supabase
+    .from('jobs')
+    .select('price, amount_paid')
+    .eq('business_id', businessId)
+    .eq('status', 'completed')
+    .in('payment_status', ['unpaid', 'partial'])
+
   // ── Aggregate + monthly breakdown (single pass) ────────────────
   let totalIncome = 0
   let totalExpenses = 0
@@ -92,6 +100,17 @@ export default async function FinancesPage({
     if (monthKey === selectedMonthKey) monthExpenses.push(e)
   }
   const avgJobValue = totalJobCount > 0 ? totalIncome / totalJobCount : 0
+
+  // ── Uncollected receivables (all-time completed unpaid/partial) ─
+  let uncollectedBalance = 0
+  let uncollectedCount = 0
+  for (const j of uncollectedJobs ?? []) {
+    const balance = Math.max(0, Number(j.price ?? 0) - Number(j.amount_paid ?? 0))
+    if (balance > 0) {
+      uncollectedBalance += balance
+      uncollectedCount++
+    }
+  }
 
   // ── Best month ────────────────────────────────────────────────
   const bestMonthIdx = incomeByMonth.indexOf(Math.max(...incomeByMonth))
@@ -201,6 +220,22 @@ export default async function FinancesPage({
           </div>
         </div>
       </div>
+
+      {/* Uncollected receivables */}
+      {uncollectedBalance > 0 && (
+        <Link href="/jobs?view=completed&filter=unpaid&page=1" style={{ textDecoration: 'none', display: 'block', marginBottom: '1.25rem' }}>
+          <div className="card" style={{ borderLeft: '3px solid var(--color-unpaid, #f97316)', background: 'rgba(249,115,22,0.06)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+              <div>
+                <div className="text-small text-muted" style={{ marginBottom: '2px' }}>Uncollected</div>
+                <div style={{ fontWeight: 700, color: 'var(--color-unpaid, #f97316)', fontSize: '1.125rem' }}>{fmt$(uncollectedBalance)}</div>
+                <div className="text-small text-muted">{uncollectedCount} completed job{uncollectedCount !== 1 ? 's' : ''} with balance owed · all time</div>
+              </div>
+              <span style={{ fontSize: '0.8rem', color: 'var(--color-unpaid, #f97316)', flexShrink: 0 }}>View →</span>
+            </div>
+          </div>
+        </Link>
+      )}
 
       {/* Monthly bar chart */}
       {totalIncome > 0 && (() => {
