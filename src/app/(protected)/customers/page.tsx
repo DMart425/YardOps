@@ -97,16 +97,33 @@ export default async function CustomersPage({
 
   const displayedCustomerIds = customerRows.map(c => c.id)
   let upcomingJobs: UpcomingJob[] = []
+  const unpaidBalanceMap = new Map<string, number>()
   if (displayedCustomerIds.length > 0) {
-    const { data: jobs } = await supabase
-      .from('jobs')
-      .select('customer_id, scheduled_date, scheduled_time_window')
-      .eq('business_id', businessId)
-      .in('status', ['scheduled', 'in_progress', 'needs_reschedule'])
-      .gte('scheduled_date', today)
-      .in('customer_id', displayedCustomerIds)
-      .order('scheduled_date', { ascending: true })
+    const [{ data: jobs }, { data: unpaidJobsData }] = await Promise.all([
+      supabase
+        .from('jobs')
+        .select('customer_id, scheduled_date, scheduled_time_window')
+        .eq('business_id', businessId)
+        .in('status', ['scheduled', 'in_progress', 'needs_reschedule'])
+        .gte('scheduled_date', today)
+        .in('customer_id', displayedCustomerIds)
+        .order('scheduled_date', { ascending: true }),
+      supabase
+        .from('jobs')
+        .select('customer_id, price, amount_paid')
+        .eq('business_id', businessId)
+        .eq('status', 'completed')
+        .in('payment_status', ['unpaid', 'partial'])
+        .in('customer_id', displayedCustomerIds),
+    ])
     upcomingJobs = (jobs ?? []) as UpcomingJob[]
+    for (const j of unpaidJobsData ?? []) {
+      const balance = Math.max(0, Number(j.price ?? 0) - Number(j.amount_paid ?? 0))
+      if (balance > 0) {
+        const cid = j.customer_id as string
+        unpaidBalanceMap.set(cid, (unpaidBalanceMap.get(cid) ?? 0) + balance)
+      }
+    }
   }
 
   function customersHref(targetPage: number): string {
@@ -171,6 +188,7 @@ export default async function CustomersPage({
       ) : (
         <div>
           {customerRows.map((c) => {
+            const unpaidBalance = unpaidBalanceMap.get(c.id) ?? 0
             const props = (c.properties ?? []) as PropertySummary[]
             const activeProps = props.filter(p => p.status !== 'archived')
             const prop = activeProps[0] ?? props[0] ?? null
@@ -244,6 +262,11 @@ export default async function CustomersPage({
                     )}
                     {price && (
                       <div className="card-meta">💵 {price}</div>
+                    )}
+                    {unpaidBalance > 0 && (
+                      <div className="card-meta" style={{ color: 'var(--color-unpaid, #f97316)', fontWeight: 600 }}>
+                        💰 ${unpaidBalance % 1 === 0 ? unpaidBalance.toFixed(0) : unpaidBalance.toFixed(2)} unpaid
+                      </div>
                     )}
                   </div>
                 </div>
