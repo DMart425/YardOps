@@ -8,7 +8,8 @@ import { Toast } from '@/components/Toast'
 
 export function JobActions({ job, venmoHandle, customerPhone, customerFirstName }: { job: Job; venmoHandle?: string | null; customerPhone?: string | null; customerFirstName?: string | null }) {
   const [panel,          setPanel]         = useState<'complete' | 'skip' | 'paid' | 'partial' | 'reschedule' | null>(null)
-  const [markAsPaid,     setMarkAsPaid]     = useState(false)
+  const [completionPayStatus,  setCompletionPayStatus]  = useState('unpaid')
+  const [completionPartialAmt, setCompletionPartialAmt] = useState('')
   const [reschedReason,  setReschedReason]  = useState('')
   const [reschedTimeWin, setReschedTimeWin] = useState('')
   const router = useRouter()
@@ -40,9 +41,18 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
   const canReschedule = isActive || job.status === 'needs_reschedule'
   const isCompleted   = job.status === 'completed'
 
-  // Build invoice SMS body (used both for auto-launch and manual button)
-  const invoiceSmsBody = customerPhone
-    ? buildInvoiceSms(customerFirstName, job, venmoHandle)
+  // Build invoice SMS body using completion-time state so partial amounts are accurate
+  // even before router.refresh() updates stale job props.
+  const completionAmtForSms =
+    completionPayStatus === 'paid'
+      ? (job.price != null ? Number(job.price) : null)
+      : completionPayStatus === 'partial'
+        ? (parseFloat(completionPartialAmt) || null)
+        : null  // 'unpaid' → null → full balance shown in SMS
+
+  // Suppress SMS entirely for not_billable completions (no payment expected).
+  const invoiceSmsBody = (customerPhone && completionPayStatus !== 'not_billable')
+    ? buildInvoiceSms(customerFirstName, job, venmoHandle, completionAmtForSms)
     : null
 
   // Refresh page data and auto-launch SMS compose when job is first marked complete.
@@ -146,17 +156,35 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
                       <select
                         name="payment_status"
                         className="form-select"
-                        defaultValue="unpaid"
-                        onChange={e => setMarkAsPaid(e.target.value === 'paid')}
+                        value={completionPayStatus}
+                        onChange={e => setCompletionPayStatus(e.target.value)}
                       >
                         <option value="unpaid">Unpaid</option>
-                        <option value="paid">Paid now</option>
+                        <option value="partial">Partial payment</option>
+                        <option value="paid">Paid in full</option>
                         <option value="not_billable">Not billable</option>
                       </select>
                     </div>
                   </div>
 
-                  {markAsPaid && (
+                  {completionPayStatus === 'partial' && (
+                    <div className="form-field">
+                      <label className="form-label">Payment Amount ($) *</label>
+                      <input
+                        name="partial_amount"
+                        type="number"
+                        min="1"
+                        step="1"
+                        className="form-input"
+                        required
+                        value={completionPartialAmt}
+                        onChange={e => setCompletionPartialAmt(e.target.value)}
+                        placeholder={job.price ? String(Number(job.price).toFixed(0)) : '0'}
+                      />
+                    </div>
+                  )}
+
+                  {(completionPayStatus === 'paid' || completionPayStatus === 'partial') && (
                     <div className="form-field">
                       <label className="form-label">Payment Method</label>
                       <select name="payment_method" className="form-select">
@@ -442,6 +470,7 @@ function buildInvoiceSms(
   firstName: string | null | undefined,
   job: Job,
   venmoHandle: string | null | undefined,
+  amountPaidOverride?: number | null,
 ): string {
   const name = firstName ?? 'there'
   const lines: string[] = [
@@ -457,16 +486,36 @@ function buildInvoiceSms(
     const d = new Date(job.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     lines.push(`Date: ${d}`)
   }
-  if (job.price != null) {
-    lines.push(`Total: $${Number(job.price).toFixed(0)}`)
+
+  const jobPrice      = job.price != null ? Number(job.price) : null
+  const effectivePaid = amountPaidOverride != null ? Math.max(0, amountPaidOverride) : null
+  const isPaidInFull  = effectivePaid != null && jobPrice != null && effectivePaid >= jobPrice
+  const isPartial     = effectivePaid != null && jobPrice != null && effectivePaid > 0 && !isPaidInFull
+  const remaining     = (isPartial && jobPrice != null && effectivePaid != null)
+    ? Math.max(0, jobPrice - effectivePaid)
+    : null
+
+  if (jobPrice != null) {
+    lines.push(`Total: $${jobPrice.toFixed(0)}`)
+    if (isPartial && effectivePaid != null) {
+      lines.push(`Paid: $${effectivePaid.toFixed(0)}`)
+      lines.push(`Balance due: $${remaining!.toFixed(0)}`)
+    } else if (isPaidInFull) {
+      lines.push('Paid in full. Thank you! 🙏')
+    }
   }
-  if (venmoHandle && job.price != null) {
-    const venmoUrl = `https://venmo.com/${venmoHandle}?txn=pay&amount=${Number(job.price).toFixed(0)}&note=${encodeURIComponent('Lawn service')}`
-    lines.push('', `Pay via Venmo: ${venmoUrl}`)
-    lines.push('Cash is also accepted.')
-  } else {
-    lines.push('', 'Payment accepted via cash.')
+
+  if (!isPaidInFull) {
+    const venmoAmt = isPartial ? remaining : jobPrice
+    if (venmoHandle && venmoAmt != null && venmoAmt > 0) {
+      const venmoUrl = `https://venmo.com/${venmoHandle}?txn=pay&amount=${venmoAmt.toFixed(0)}&note=${encodeURIComponent('Lawn service')}`
+      lines.push('', `Pay via Venmo: ${venmoUrl}`)
+      lines.push('Cash is also accepted.')
+    } else {
+      lines.push('', 'Payment accepted via cash.')
+    }
   }
+
   lines.push('', 'Thank you for your business! 🌿')
   return lines.join('\n')
 }

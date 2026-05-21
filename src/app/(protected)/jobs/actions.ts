@@ -112,6 +112,32 @@ export async function completeJob(
   const paymentStatus = (formData.get('payment_status') as string) || 'unpaid'
   const finalPrice    = price && !isNaN(price) ? price : existing.price
 
+  // Resolve amount_paid and final payment_status for all completion paths
+  let completionAmountPaid:  number = 0
+  let resolvedPaymentStatus: string = paymentStatus
+
+  if (paymentStatus === 'partial') {
+    const partialAmt = parseFloat((formData.get('partial_amount') as string) ?? '')
+    if (isNaN(partialAmt) || partialAmt <= 0) {
+      return { error: 'Enter a valid payment amount.' }
+    }
+    if (finalPrice != null) {
+      const p = Number(finalPrice)
+      completionAmountPaid  = Math.min(partialAmt, p)
+      resolvedPaymentStatus = completionAmountPaid >= p ? 'paid' : 'partial'
+    } else {
+      completionAmountPaid  = partialAmt
+      resolvedPaymentStatus = 'partial'
+    }
+  } else if (paymentStatus === 'paid') {
+    completionAmountPaid  = finalPrice != null ? Number(finalPrice) : 0
+    resolvedPaymentStatus = 'paid'
+  } else {
+    // 'unpaid' or 'not_billable'
+    completionAmountPaid  = 0
+    resolvedPaymentStatus = paymentStatus
+  }
+
   const { error } = await supabase
     .from('jobs')
     .update({
@@ -119,10 +145,10 @@ export async function completeJob(
       completed_at:     new Date().toISOString(),
       actual_minutes:   actualMinutes,
       completion_notes: (formData.get('completion_notes') as string)?.trim() || null,
-      payment_status:   paymentStatus,
+      payment_status:   resolvedPaymentStatus,
       payment_method:   (formData.get('payment_method') as string) || null,
       price:            finalPrice,
-      amount_paid:      paymentStatus === 'paid' ? finalPrice : 0,
+      amount_paid:      completionAmountPaid,
     })
     .eq('id', id)
     .eq('business_id', businessId)
