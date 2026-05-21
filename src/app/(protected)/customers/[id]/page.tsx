@@ -63,10 +63,10 @@ export default async function CustomerDetailPage({
       .eq('customer_id', id)
       .eq('business_id', businessId)
       .eq('status', 'completed'),
-    // Narrow completed-job fields needed for revenue/unpaid only.
+    // Completed-job fields for revenue/unpaid stats and outstanding balance list.
     supabase
       .from('jobs')
-      .select('price, amount_paid, payment_status')
+      .select('id, title, completed_at, price, amount_paid, payment_status')
       .eq('customer_id', id)
       .eq('business_id', businessId)
       .eq('status', 'completed'),
@@ -96,6 +96,14 @@ export default async function CustomerDetailPage({
       const owed = Number(j.price ?? 0) - Number((j.amount_paid || null) ?? 0)
       return s + Math.max(0, owed)
     }, 0)
+  const outstandingJobs = completedStatsRows
+    .filter(j => (j.payment_status === 'unpaid' || j.payment_status === 'partial') && Math.max(0, Number(j.price ?? 0) - Number(j.amount_paid ?? 0)) > 0)
+    .sort((a, b) => {
+      if (!a.completed_at && !b.completed_at) return 0
+      if (!a.completed_at) return 1
+      if (!b.completed_at) return -1
+      return b.completed_at.localeCompare(a.completed_at)
+    })
   const lastVisit = lastCompletedJob?.completed_at ?? null
   const propertyRows = (properties as Pick<Property, 'id' | 'property_name' | 'service_address' | 'city' | 'service_frequency' | 'preferred_service_day' | 'default_price' | 'default_service_package' | 'default_mowing_enabled' | 'default_weed_eating_enabled' | 'default_edging_enabled' | 'default_blow_off_enabled' | 'status'>[] | null) ?? []
   const activeProperties = propertyRows.filter(p => p.status !== 'archived')
@@ -192,6 +200,45 @@ export default async function CustomerDetailPage({
           </div>
         )}
       </div>
+
+      {/* Outstanding Balance */}
+      {outstandingJobs.length > 0 && (
+        <div className="detail-section">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <div className="section-heading" style={{ marginBottom: 0 }}>Outstanding Balance</div>
+            <span style={{ fontWeight: 700, color: 'var(--color-unpaid)', fontSize: '0.875rem' }}>
+              ${totalUnpaid.toFixed(2)} across {outstandingJobs.length} job{outstandingJobs.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          {outstandingJobs.map((j) => {
+            const balance = Math.max(0, Number(j.price ?? 0) - Number(j.amount_paid ?? 0))
+            return (
+              <Link key={j.id} href={`/jobs/${j.id}`} style={{ display: 'block' }}>
+                <div className="card">
+                  <div className="card-row">
+                    <div>
+                      <div className="card-title">{j.title ?? 'Lawn Service'}</div>
+                      <div className="card-meta">
+                        {j.completed_at
+                          ? formatTimestampDate(j.completed_at, timeZone, { month: 'short', day: 'numeric', year: 'numeric' })
+                          : 'No completion date'}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
+                      <span className={`pill pill-${j.payment_status}`}>
+                        {j.payment_status === 'partial' ? 'Partial' : 'Unpaid'}
+                      </span>
+                      <span style={{ fontWeight: 700, color: 'var(--color-unpaid)', fontSize: '0.875rem' }}>
+                        ${balance.toFixed(2)} due
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            )
+          })}
+        </div>
+      )}
 
       {/* Properties */}
       <div className="detail-section">
