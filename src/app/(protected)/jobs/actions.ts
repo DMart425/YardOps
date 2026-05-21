@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import type { FormState } from '@/types/database'
 import { requireBusinessContext } from '@/lib/business/context'
+import { getLocalDateStr, resolveTimeZone } from '@/lib/date'
 
 // Derives a service_package code from a property's individual service booleans.
 // Used as a fallback when neither the parent job nor default_service_package is set.
@@ -158,6 +159,17 @@ export async function scheduleFollowUpJob(
 
   const nextDate = (formData.get('next_scheduled_date') as string)?.trim() || ''
   if (!nextDate) return { error: 'Next visit date is required.' }
+
+  // Server-side past-date guard — uses business timezone for accurate local-date comparison
+  const { data: tzSettings } = await supabase
+    .from('pricing_settings')
+    .select('time_zone')
+    .eq('user_id', userId)
+    .maybeSingle()
+  const todayStr = getLocalDateStr(resolveTimeZone(tzSettings?.time_zone ?? null))
+  if (nextDate < todayStr) {
+    return { error: 'Follow-up date cannot be in the past.' }
+  }
 
   const nextTimeWindowRaw = (formData.get('next_time_window') as string)?.trim() || ''
   const customNextTimeWindow = (formData.get('custom_next_time_window') as string)?.trim() || ''

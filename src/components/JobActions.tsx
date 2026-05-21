@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import type { FormState, Job } from '@/types/database'
 import { completeJob, markInProgress, skipJob, cancelJob, markPaid, markPartial, rescheduleJob } from '@/app/(protected)/jobs/actions'
 import { Toast } from '@/components/Toast'
@@ -10,6 +11,7 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
   const [markAsPaid,     setMarkAsPaid]     = useState(false)
   const [reschedReason,  setReschedReason]  = useState('')
   const [reschedTimeWin, setReschedTimeWin] = useState('')
+  const router = useRouter()
   const notesRef = useRef<HTMLTextAreaElement>(null)
 
   const NOTE_TEMPLATES = [
@@ -41,10 +43,15 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
     ? buildInvoiceSms(customerFirstName, job, venmoHandle)
     : null
 
-  // Auto-launch SMS compose when job is first marked complete
+  // Refresh page data and auto-launch SMS compose when job is first marked complete.
+  // router.refresh() re-fetches server component data so the UI reflects the new
+  // job status regardless of payment method (unpaid, paid, or not_billable).
   useEffect(() => {
-    if (justCompleted && customerPhone && invoiceSmsBody) {
-      window.location.href = `sms:${customerPhone}?&body=${encodeURIComponent(invoiceSmsBody)}`
+    if (justCompleted) {
+      router.refresh()
+      if (customerPhone && invoiceSmsBody) {
+        window.location.href = `sms:${customerPhone}?&body=${encodeURIComponent(invoiceSmsBody)}`
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [justCompleted])

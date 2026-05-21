@@ -55,6 +55,7 @@ export function ScheduleFollowUpCard({
               type="date"
               className="form-input"
               defaultValue={suggestedDate}
+              min={todayLocal}
               required
             />
           </div>
