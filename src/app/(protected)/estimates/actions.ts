@@ -338,6 +338,10 @@ export async function convertToJob(
 
   if (!estimate) return { error: 'Estimate not found.' }
 
+  if (estimate.status === 'converted') {
+    return { error: 'This estimate has already been converted to a job.' }
+  }
+
   const scope = deriveJobScopeFromEstimate(estimate)
 
   const { data: job, error } = await supabase

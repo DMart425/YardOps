@@ -49,6 +49,26 @@ export default async function EstimateDetailPage({
   const timeZone = resolveTimeZone(settings?.time_zone)
   const localToday = getLocalDateStr(timeZone)
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('business_name, business_phone')
+    .eq('id', userId)
+    .single()
+  const businessName = (profile?.business_name as string | null) ?? 'Lawn Service'
+  const businessPhone = (profile?.business_phone as string | null) ?? null
+
+  // Find the linked job if this estimate was converted (for View Job link)
+  let convertedJobId: string | null = null
+  if (estimate.status === 'converted') {
+    const { data: linkedJob } = await supabase
+      .from('jobs')
+      .select('id')
+      .eq('estimate_id', id)
+      .eq('business_id', businessId)
+      .maybeSingle()
+    convertedJobId = linkedJob?.id ?? null
+  }
+
   const customer = estimate.customers
   const property = estimate.properties
   const customerName = customer.first_name + (customer.last_name ? ' ' + customer.last_name : '')
@@ -70,8 +90,8 @@ export default async function EstimateDetailPage({
   const isRevised = estimate.revision_number > 1
   const smsLines = [
     isRevised
-      ? 'Hi ' + customer.first_name + ', here is your revised lawn service estimate from Wicksburg Lawn Service:'
-      : 'Hi ' + customer.first_name + ', here is your lawn service estimate from Wicksburg Lawn Service:',
+      ? `Hi ${customer.first_name}, here is your revised lawn service estimate from ${businessName}:`
+      : `Hi ${customer.first_name}, here is your lawn service estimate from ${businessName}:`,
     '',
     'Address: ' + address,
     '',
@@ -108,7 +128,7 @@ export default async function EstimateDetailPage({
     smsLines.push('Payment accepted via cash.')
   }
   smsLines.push('')
-  smsLines.push('Questions? Call or text (334) 320-7514')
+  smsLines.push(businessPhone ? `Questions? Call or text ${businessPhone}` : 'Questions? Contact us anytime.')
   const smsBody = smsLines.join('\n')
 
   return (
@@ -328,6 +348,9 @@ export default async function EstimateDetailPage({
         <div style={{ display: 'flex', gap: '8px', marginTop: '0.75rem', flexWrap: 'wrap' }}>
           {estimate.status !== 'converted' && (
             <Link href={`/estimates/${estimate.id}/edit`} className="btn btn-sm btn-secondary">Edit</Link>
+          )}
+          {estimate.status === 'converted' && convertedJobId && (
+            <Link href={`/jobs/${convertedJobId}`} className="btn btn-sm btn-primary">View Job →</Link>
           )}
           <Link href={'/customers/' + estimate.customer_id} className="btn btn-sm btn-secondary">Customer</Link>
           <Link href={'/properties/' + estimate.property_id} className="btn btn-sm btn-secondary">Property</Link>
