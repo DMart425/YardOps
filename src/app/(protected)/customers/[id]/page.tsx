@@ -113,7 +113,7 @@ export default async function CustomerDetailPage({
     const lines = [
       `Hi ${firstName}, this is Wicksburg Lawn Service. Your current outstanding balance is ${totalStr}.`,
       '',
-      'Open items:',
+      'Balance details:',
       ...outstandingJobs.slice(0, 5).map(j => {
         const bal = Math.max(0, Number(j.price ?? 0) - Number(j.amount_paid ?? 0))
         const dateStr = j.completed_at
