@@ -265,8 +265,51 @@ export default async function CustomerPortalPage({
             Service History
           </div>
           {history.map(j => {
-            const paid   = (j.amount_paid ?? 0) >= (j.price ?? 0)
-            const unpaid = Math.max(0, (j.price ?? 0) - (j.amount_paid ?? 0))
+            const price     = Number(j.price ?? 0)
+            const amtPaid   = Number(j.amount_paid ?? 0)
+            const remaining = Math.max(0, price - amtPaid)
+            const ps        = j.payment_status as string | null
+
+            let amountLine  = ''
+            let subtextLine: string | null = null
+            let pillLabel   = ''
+            let pillBg      = ''
+            let pillColor   = ''
+            let amountColor = ''
+
+            if (ps === 'not_billable') {
+              amountLine  = 'No payment due'
+              pillLabel   = 'Not Billable'
+              pillBg      = 'rgba(0,0,0,0.06)'
+              pillColor   = 'var(--color-text-muted)'
+              amountColor = 'var(--color-text-muted)'
+            } else if (ps === 'paid') {
+              amountLine  = price > 0 ? `${fmt$(price)} paid` : 'Paid'
+              pillLabel   = 'Paid'
+              pillBg      = 'var(--color-paid-bg)'
+              pillColor   = 'var(--color-paid)'
+              amountColor = 'var(--color-text)'
+            } else if (ps === 'partial') {
+              amountLine  = `${fmt$(remaining)} remaining`
+              subtextLine = price > 0 ? `${fmt$(amtPaid)} paid of ${fmt$(price)}` : null
+              pillLabel   = 'Partial'
+              pillBg      = 'var(--color-unpaid-bg)'
+              pillColor   = 'var(--color-unpaid)'
+              amountColor = 'var(--color-unpaid)'
+            } else {
+              // unpaid (or null/unknown)
+              if (amtPaid > 0) {
+                amountLine  = `${fmt$(remaining)} remaining`
+                subtextLine = `${fmt$(amtPaid)} paid`
+              } else {
+                amountLine = price > 0 ? `${fmt$(price)} due` : 'Unpaid'
+              }
+              pillLabel   = 'Unpaid'
+              pillBg      = 'var(--color-unpaid-bg)'
+              pillColor   = 'var(--color-unpaid)'
+              amountColor = 'var(--color-unpaid)'
+            }
+
             return (
               <div key={j.id} style={{
                 background: 'var(--color-surface)',
@@ -276,7 +319,7 @@ export default async function CustomerPortalPage({
                 marginBottom: '8px',
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'center',
+                alignItems: 'flex-start',
               }}>
                 <div>
                   <div style={{ fontWeight: 500, fontSize: '0.9375rem', color: 'var(--color-text)' }}>
@@ -289,42 +332,28 @@ export default async function CustomerPortalPage({
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '0.75rem' }}>
-                  {j.price != null && (
-                    <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: 'var(--color-text)' }}>
-                      {fmt$(j.price)}
+                  <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: amountColor }}>
+                    {amountLine}
+                  </div>
+                  {subtextLine && (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '1px' }}>
+                      {subtextLine}
                     </div>
                   )}
-                  {!paid && unpaid > 0 ? (
-                    <span style={{
-                      display: 'inline-block',
-                      marginTop: '3px',
-                      background: 'var(--color-unpaid-bg)',
-                      color: 'var(--color-unpaid)',
-                      borderRadius: '999px',
-                      padding: '2px 8px',
-                      fontSize: '0.7rem',
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.04em',
-                    }}>
-                      Unpaid
-                    </span>
-                  ) : (
-                    <span style={{
-                      display: 'inline-block',
-                      marginTop: '3px',
-                      background: 'var(--color-paid-bg)',
-                      color: 'var(--color-paid)',
-                      borderRadius: '999px',
-                      padding: '2px 8px',
-                      fontSize: '0.7rem',
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.04em',
-                    }}>
-                      Paid
-                    </span>
-                  )}
+                  <span style={{
+                    display: 'inline-block',
+                    marginTop: '3px',
+                    background: pillBg,
+                    color: pillColor,
+                    borderRadius: '999px',
+                    padding: '2px 8px',
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                  }}>
+                    {pillLabel}
+                  </span>
                 </div>
               </div>
             )
