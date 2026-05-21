@@ -8,7 +8,7 @@ YardOps is the private operations app for Wicksburg Lawn Service.
 
 Current verified YardOps checkpoint commit:
 
-`ffbd42b` (Polish lead property return flow)
+`e1a6b7a` (Support partial payment at completion)
 
 The public website repo is separate:
 

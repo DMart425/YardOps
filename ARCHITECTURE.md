@@ -4,8 +4,8 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-16
-Current checkpoint commit: `ec48565` (Use business name for invoice header)
+Last updated: 2026-05-21
+Current checkpoint commit: `e1a6b7a` (Support partial payment at completion)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -363,6 +363,8 @@ After property save, the canonical service scope is stored in four boolean colum
 2. Property's `default_service_package` (legacy)
 3. Derived from property booleans via `deriveServicePackageFromBooleans()`
 
+`internal_notes` from the parent job is also copied to the follow-up job.
+
 ---
 
 ## 9. Frequency Normalization
@@ -685,19 +687,22 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 
 **Goal:** Improve day-to-day YardOps usability after data hardening.
 
-**Status:** ⏸ Pending
+**Status:** ⏸ In Progress
 
-**Potential tasks:**
-1. Customer/property workflow polish.
-2. Estimate builder polish.
-3. Estimate → job conversion polish.
-4. Jobs page/service card polish.
-5. Scheduling and recurring job improvements.
-6. Equipment/maintenance polish.
-7. Daily/weekly brief improvements.
-8. Reports/export improvements.
-9. Payment/portal/invoice polish.
-10. Better validation/errors for forms.
+**Completed (4A–4D + payment bugfixes):**
+
+- **4A/4B — Today and Jobs page polish:** Today stat cards are actionable links to filtered Jobs views. Jobs page: status label polish, overdue count, weekly scheduled total, cancelled/skipped filter, pagination clarity. Customer/property detail pages link to filtered Jobs views; property detail has "+ New Job" shortcut. "Total revenue" relabeled to "Total billed" on customer/property detail (accrual vs. cash clarity).
+- **4C — Follow-up scheduling improvements:** Explicit property frequency required. Blow off label aligned. `unsure` frequency preserved in lead notes. Parent job shows Follow-up Visit summary. One-time job flag on follow-up card. `internal_notes` carried forward to follow-up job. Warning when suggested date is in the past.
+- **4D — Finances display polish:** Uncollected receivables card (all-time completed unpaid/partial, links to Jobs filter). Month selector responsive grid. Expense list cap disclosed when truncated.
+- **Payment bugfixes (production-verified):** `completeJob()` now correctly handles all four payment paths. `markPartial()` is cumulative. Complete Job panel supports partial payment at completion. Past-date guard on both `rescheduleJob()` and `scheduleFollowUpJob()`. See §18 for full behavior spec.
+
+**Remaining potential tasks:**
+1. Estimate builder polish.
+2. Estimate → job conversion polish.
+3. Equipment/maintenance polish.
+4. Daily/weekly brief improvements.
+5. Reports/export improvements.
+6. Better validation/errors for forms.
 
 ---
 
@@ -755,14 +760,20 @@ Every future handoff to a new chat MUST include:
 
 These must not break during any refactor:
 
-- **Follow-up scheduling:** Follow-up visits are always manually created via `scheduleFollowUpJob()` — `completeJob()` does NOT auto-schedule. The `ScheduleFollowUpCard` component appears after completion and suggests a date based on `property.service_frequency` (+7 days weekly / +14 days biweekly). `property.auto_schedule_next` and `property.service_frequency` must remain present for future auto-schedule implementation.
+- **Follow-up scheduling:** Follow-up visits are always manually created via `scheduleFollowUpJob()` — `completeJob()` does NOT auto-schedule. The `ScheduleFollowUpCard` component appears after completion and suggests a date based on `property.service_frequency` (+7 days weekly / +14 days biweekly). `internal_notes` from the parent job is copied to the follow-up. `property.auto_schedule_next` and `property.service_frequency` must remain present for future auto-schedule implementation.
+- **Past-date guards on scheduling:** `rescheduleJob()` and `scheduleFollowUpJob()` both validate that the submitted date is not in the past (server-side, timezone-aware via `getLocalDateStr` / `resolveTimeZone`). Today is allowed; yesterday and older are rejected. Client-side `min` date inputs provide a matching UX guard. Do not remove these guards.
 - **Recurrence chain:** `recurrence_source` and `next_job_created_id` must not be removed or reset.
 - **`started_at` → `actual_minutes`:** `markInProgress()` sets `started_at`; `completeJob()` computes `actual_minutes`. Must stay coupled.
 - **Reschedule log:** `reschedule_count` and `reschedule_log` are append-only.
 - **Today page date assumptions:** `scheduled_date` as `YYYY-MM-DD`; `completed_at` as full ISO timestamp.
 - **Estimate visit fields:** `visit_scheduled_date` and `visit_scheduled_time` appear on Today page.
 - **`payment_status` enum:** `unpaid`, `partial`, `paid`, `not_billable` — renaming is a breaking change.
-- **`amount_paid` on completion:** `completeJob()` sets `amount_paid = finalPrice` when `payment_status = 'paid'`; sets `null` for `unpaid` and `not_billable`. `markPaid()` and `markPartial()` manage `amount_paid` independently for post-completion payment flows. These behaviors must stay coupled — the invoice PDF relies on `amount_paid` being correct for its PAID banner and balance display.
+- **`amount_paid` on completion:** `completeJob()` resolves `amount_paid` based on the payment path selected at completion:
+  - `paid` → `amount_paid = finalPrice`
+  - `partial` → `amount_paid = Math.min(partialAmt, finalPrice)`; auto-promotes to `payment_status = 'paid'` if amount ≥ price
+  - `unpaid` / `not_billable` → `amount_paid = 0`
+
+  `markPartial()` (post-completion partial payments) is **cumulative** — adds the submitted amount to existing `amount_paid`, clamps to price, auto-promotes to `paid` when total ≥ price. `markPaid()` sets `amount_paid = price`. These behaviors must stay coupled — the invoice PDF relies on `amount_paid` being correct for its PAID banner and balance display.
 - **FK cascades:** `job_photos`, `job_visits`, `expenses` all use `job_id` as FK.
 
 ---

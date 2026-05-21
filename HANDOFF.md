@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-16 (ec48565)
+Last updated: 2026-05-21 (e1a6b7a)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-05-16 (ec48565)
 
 ## Current Checkpoint
 
-- **Latest commit:** `ec48565` — Use business name for invoice header
+- **Latest commit:** `e1a6b7a` — Support partial payment at completion
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -265,6 +265,46 @@ No migrations. No schema changes. All three commits user-tested in production: b
 
 ---
 
+### Phase 4 — Operations UX / Workflow Polish ⏸ In Progress
+
+**4A/4B — Today dashboard and Jobs page polish (user-tested):**
+- Today stat cards are actionable links to filtered Jobs views (overdue, completed today, unpaid balance)
+- Jobs page: status label polish, overdue count, weekly scheduled total, cancelled/skipped filter, completed pagination clarity
+- Customer/property detail pages link to filtered Jobs views; property detail has "+ New Job" shortcut (`77aa780`)
+- "Total revenue" relabeled to "Total billed" on customer/property detail pages (`46d9b6b`)
+
+Key commits: `430782d`, `c19c507`, `94fc267`, `6efb8c6`, `2f5fcc2`, `d4a5e44`, `99d14dc`, `829e1bf`, `576dc89`, `f1512e2`, `e039c86`, `13ce8be`, `77aa780`, `dcfa1dd`, `12451f6`, `175aabb`, `c71d60f`
+
+**4C — Follow-up scheduling improvements (user-tested):**
+- Explicit property frequency selection required — no silent default
+- Blow off service label aligned across app
+- `unsure` frequency preserved in lead notes
+- Parent job shows Follow-up Visit summary with date and status (`30df416`)
+- One-time job flag shown on follow-up scheduling card (`dd7dbb6`)
+- `internal_notes` carried forward to follow-up job (`7c8ead6`)
+- Warning shown when suggested follow-up date is in the past (`406f727`)
+
+Key commits: `fbe63c0`, `3f5645c`, `b93e836`, `406f727`, `dd7dbb6`, `30df416`, `7c8ead6`
+
+**4D — Finances display polish (user-tested):**
+- Uncollected receivables card on Finances page (all-time completed unpaid/partial balance; links to Jobs filter) (`4b02414`)
+- Month selector uses responsive CSS grid — mobile-friendly (`0b310f3`)
+- Expense list cap disclosed when truncated ("+ X more not shown") (`225b5e0`)
+
+**Phase 3 follow-up verification bugfixes (production-verified):**
+- `scheduleFollowUpJob()` now has server-side past-date guard (timezone-aware) + client `min` date (`5a26387`)
+- `rescheduleJob()` now has matching server-side past-date guard + client `min` date (`89d4f6b`)
+- `JobActions` calls `router.refresh()` on completion success so UI reflects new status without page reload (`5a26387`)
+
+**Payment workflow — production-verified complete (`89d4f6b`, `6e70e61`, `e1a6b7a`):**
+- Completing as unpaid writes `amount_paid = 0` — fixes NOT NULL constraint error
+- Complete Job panel supports "Partial payment" option — partial amount input shown, auto-promotes to `paid` if amount ≥ price
+- `markPartial()` is cumulative — adds to existing `amount_paid`, clamps to price, auto-promotes to `paid` when fully paid
+- "Add Another Payment" shown on partial-status completed jobs
+- SMS reflects completion payment status: unpaid shows full balance, partial shows Total / Paid / Balance due with scaled Venmo link, paid shows receipt, not_billable suppresses SMS
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -284,6 +324,38 @@ No migrations. No schema changes. All three commits user-tested in production: b
 
 | Hash | Description |
 |------|-------------|
+| `e1a6b7a` | Support partial payment at completion (Phase 4) |
+| `6e70e61` | Support cumulative partial payments (Phase 4) |
+| `89d4f6b` | Fix unpaid completion and block past reschedules (Phase 4) |
+| `5a26387` | Block past follow-ups and refresh completed jobs (Phase 4) |
+| `225b5e0` | Disclose capped Finances expense list (Phase 4D) |
+| `0b310f3` | Improve Finances month selector layout (Phase 4D) |
+| `4b02414` | Show uncollected receivables on Finances (Phase 4D) |
+| `46d9b6b` | Clarify billed totals on detail pages (Phase 4B) |
+| `c71d60f` | Route Today stats to Jobs views (Phase 4B) |
+| `175aabb` | Link detail pages to filtered Jobs views (Phase 4B) |
+| `12451f6` | Support filtered Jobs views by customer and property (Phase 4B) |
+| `dcfa1dd` | Link unpaid detail stats to Jobs (Phase 4B) |
+| `77aa780` | Add property New Job shortcut (Phase 4B) |
+| `13ce8be` | Polish customer and property detail labels (Phase 4B) |
+| `e039c86` | Clarify completed jobs pagination (Phase 4A) |
+| `f1512e2` | Show cancelled and skipped jobs filter (Phase 4A) |
+| `576dc89` | Show weekly scheduled total on Jobs (Phase 4A) |
+| `829e1bf` | Show overdue count on Jobs filter (Phase 4A) |
+| `99d14dc` | Polish Jobs status labels (Phase 4A) |
+| `d4a5e44` | Polish Today status labels (Phase 4A) |
+| `2f5fcc2` | Show capped Today counts clearly (Phase 4A) |
+| `6efb8c6` | Polish Tomorrow jobs on Today (Phase 4A) |
+| `94fc267` | Clarify unpaid job action label (Phase 4A) |
+| `c19c507` | Make Today stat cards actionable (Phase 4A) |
+| `430782d` | Show property service labels on Today (Phase 4A) |
+| `fbe63c0` | Require explicit property frequency selection (Phase 4C) |
+| `3f5645c` | Align remaining blow off service labels (Phase 4C) |
+| `b93e836` | Preserve unsure frequency in lead notes (Phase 4C) |
+| `30df416` | Show follow-up summary on parent job (Phase 4C) |
+| `dd7dbb6` | Note one-time jobs on follow-up card (Phase 4C) |
+| `406f727` | Warn on past follow-up suggestion (Phase 4C) |
+| `7c8ead6` | Carry internal notes to follow-up jobs (Phase 4C) |
 | `ec48565` | Use business name for invoice header (Phase 3) |
 | `2342041` | Use neutral invoice business fallback (Phase 3) |
 | `dd19b02` | Persist paid completion amount (Phase 3) |
@@ -416,6 +488,17 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ PDF invoice "Balance Due:" label no longer overlaps the value column — label column width increased from 80pt to 120pt (`dd19b02`)
 - ✅ All Wicksburg paid jobs confirmed to have correct `amount_paid` — post-`dd19b02` data repair verified, query for `payment_status = 'paid' AND COALESCE(amount_paid, 0) = 0` returns zero rows
 - ✅ Invoice PDF business name now uses `businesses.name` first, falls back to `profiles.business_name`, then neutral `"Lawn Service"` — no hardcoded tenant names (`ec48565`)
+- ✅ Follow-up scheduling works for recurring/bi-weekly jobs and for one-time jobs (`5a26387`, `dd7dbb6`)
+- ✅ Internal/property/operator notes carry forward to follow-up jobs (`7c8ead6`)
+- ✅ Parent job shows Follow-up Visit summary with date and status (`30df416`)
+- ✅ Follow-up dates in the past are blocked — client-side `min` date + server-side timezone-aware guard (`5a26387`)
+- ✅ Regular job reschedule dates in the past are blocked — matching client + server guard (`89d4f6b`)
+- ✅ `JobActions` calls `router.refresh()` after job completion so UI reflects new status without page reload (`5a26387`)
+- ✅ Completing a job as unpaid correctly writes `amount_paid = 0` — no more NOT NULL constraint error (`89d4f6b`)
+- ✅ Multiple partial payments accumulate correctly — each payment adds to existing `amount_paid`, clamps to price, auto-promotes to `paid` when fully paid (`6e70e61`)
+- ✅ "Add Another Payment" button shown on partial-status completed jobs (`6e70e61`)
+- ✅ Complete Job panel supports "Partial payment" option at completion time — partial amount input shown, auto-promotes to `paid` if amount ≥ price (`e1a6b7a`)
+- ✅ Completion SMS reflects payment status: unpaid shows full balance due, partial shows Total / Paid / Balance due with Venmo link scaled to remaining balance, paid shows receipt, not_billable suppresses SMS entirely (`e1a6b7a`)
 
 ---
 
@@ -431,6 +514,10 @@ All of the following were user-tested and confirmed working as of `289b732`:
 | B.7a website frequency/service-interest intake | ⏸ Pending | `6c8bada` in WicksburgLawnService |
 | B.7b YardOps consumption of B.7a leads | ⏸ Pending | Verify normalization/carryover |
 | Stale jobs with `service_package = null` and no property booleans | ℹ️ Minor | Cards show no 🌿 line — acceptable for now, data cleanup optional |
+| Phase 4 — Operations UX polish (4A–4D) | ✅ Substantially complete | Today/Jobs polish, follow-up improvements, Finances display, payment workflow all done (`e1a6b7a`) |
+| `overdueCount` → `staleUnpaidCount` rename in `jobs/page.tsx` | ⏸ Deferred | Internal rename only; no UI change |
+| Customer detail `+ New Job` shortcut | ⏸ Pending | Property detail has it (`77aa780`); customer detail does not yet |
+| Job detail payment row wording polish | ⏸ Deferred | Low severity; cosmetic for `payment_status = 'unpaid'` completed jobs |
 
 ---
 
@@ -442,8 +529,8 @@ Full roadmap lives in Architecture.md §16. Summary:
 |-------|------|--------|
 | 2F | Final end-to-end multi-business audit | ✅ Complete |
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
-| 3 | Public intake and lead workflow improvements | ⏸ In Progress — UI/copy polish complete; Patches 1–3, Parcel Lookup fixes, frequency cleanup, EstimateForm hint clarity, job detail label polish, approved-estimate operator workflow, post-estimate audit, Today service labels, invoice/payment fixes (ec48565) complete; next patch TBD |
-| 4 | Operations UX / workflow polish | ⏸ Pending |
+| 3 | Public intake and lead workflow improvements | ✅ Complete — all listed tasks done through `ec48565`; payment bugfixes continued in Phase 4 |
+| 4 | Operations UX / workflow polish | ⏸ In Progress — 4A–4D complete (`e1a6b7a`); minor cleanup items deferred (see Open/Deferred) |
 | 5 | Reporting, automation, and growth features | ⏸ Pending |
 
 **Permanent Future-Handoff Requirements** (mandatory — see Architecture.md §16):
@@ -453,11 +540,17 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Phase 3 — Decide next workflow polish patch**
+**Phase 4 — Decide next patch (minor cleanup or Phase 5 planning)**
 
-Phase 2G active cleanup is complete (cron scoping deferred). Phase 3 UI/copy polish, Patches 1–3, Parcel Lookup fixes, frequency cleanup, EstimateForm hint clarity, job detail label polish, approved-estimate operator workflow, post-estimate workflow audit, and Today service label polish are all complete and user-tested.
+Phase 3 is complete. Phase 4A–4D operations polish and the payment bugfix series are production-verified and committed (`e1a6b7a`). The most impactful remaining items are minor cleanup.
 
-**Phase 3 completed tasks (all user-tested in production):**
+**Safe next candidates (smallest first):**
+1. `overdueCount` → `staleUnpaidCount` rename in `jobs/page.tsx` — internal rename, no UI change
+2. Customer detail `+ New Job` shortcut — property detail already has it (`77aa780`)
+3. Job detail payment row polish for `payment_status = 'unpaid'` completed jobs — cosmetic, low severity
+4. Phase 5 planning — reporting, automation, scheduling gap detection, bulk job actions
+
+**Phase 3 completed tasks (all user-tested in production — historical record):**
 1. ~~Frequency display — website lead detail page~~ ✅ (`0589026`)
 2. ~~Frequency display — lead detail property card~~ ✅ (`3cc8a77`)
 3. ~~Show service interests on website lead detail page~~ ✅ (`591ca1b`)
@@ -483,11 +576,6 @@ Phase 2G active cleanup is complete (cron scoping deferred). Phase 3 UI/copy pol
 23. ~~Persist paid-at-completion `amount_paid`; fix PDF totals label overlap~~ ✅ (`dd19b02`)
 24. ~~SaaS-safe invoice business name fallback~~ ✅ (`2342041`)
 25. ~~Invoice business name from `businesses.name`~~ ✅ (`ec48565`)
-
-**Suggested next patch candidates (decide before starting):**
-1. Review public WicksburgLawnService intake to YardOps service mapping — ensure service interest labels stay in sync between repos.
-2. Continue post-estimate workflow audit — follow-up scheduling UX.
-3. Business-scoped contact/payment fields — `businesses` table currently has only `name`; phone, email, Venmo handle are still profile-sourced.
 
 Do not run SQL or apply migrations without approval. Do not modify WicksburgLawnService unless explicitly approved.
 
@@ -518,5 +606,5 @@ These must not break during any refactor:
 - **Today page date assumptions:** `scheduled_date` as `YYYY-MM-DD`; `completed_at` as full ISO timestamp.
 - **Estimate visit fields:** `visit_scheduled_date` and `visit_scheduled_time` appear on Today page.
 - **`payment_status` enum:** `unpaid`, `partial`, `paid`, `not_billable` — renaming any value is a breaking change.
-- **`amount_paid` on completion:** `completeJob()` sets `amount_paid = finalPrice` when `payment_status = 'paid'`; sets `null` for `unpaid` and `not_billable`. `markPaid()` and `markPartial()` manage `amount_paid` independently. These must stay coupled — the invoice PDF relies on `amount_paid` being correct for its PAID banner and balance display.
+- **`amount_paid` on completion:** `completeJob()` resolves `amount_paid` based on the selected payment path: `paid` → `finalPrice`; `partial` → `Math.min(partialAmt, finalPrice)`, auto-promotes to `paid` if amount ≥ price; `unpaid` / `not_billable` → `0`. `markPartial()` is cumulative — adds to existing `amount_paid`, clamps to price, auto-promotes to `paid` when total ≥ price. `markPaid()` sets `amount_paid = price`. These must stay coupled — the invoice PDF relies on `amount_paid` being correct for its PAID banner and balance display.
 - **FK cascades:** `job_photos`, `job_visits`, `expenses` all use `job_id` as FK.

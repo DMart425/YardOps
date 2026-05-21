@@ -2,7 +2,7 @@
 
 Private operations app for Wicksburg Lawn Service.
 
-Verified checkpoint commit: `ffbd42b` (Polish lead property return flow).
+Verified checkpoint commit: `e1a6b7a` (Support partial payment at completion).
 
 ## Read First
 
