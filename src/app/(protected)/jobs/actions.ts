@@ -348,29 +348,56 @@ export async function markPartial(
   const supabase = await createClient()
   const { businessId } = await requireBusinessContext()
 
-  const amountPaid = parseFloat(formData.get('amount_paid') as string)
-  if (isNaN(amountPaid) || amountPaid <= 0) return { error: 'Enter a valid amount.' }
+  const paymentAmount = parseFloat(formData.get('amount_paid') as string)
+  if (isNaN(paymentAmount) || paymentAmount <= 0) return { error: 'Enter a valid amount.' }
 
-  const { data: updated, error } = await supabase
+  // Fetch existing job to compute cumulative amount_paid
+  const { data: job } = await supabase
+    .from('jobs')
+    .select('id, price, amount_paid, payment_status')
+    .eq('id', id)
+    .eq('business_id', businessId)
+    .single()
+
+  if (!job) return { error: 'Job not found.' }
+
+  const existingPaid = Number(job.amount_paid ?? 0)
+  const rawTotal     = existingPaid + paymentAmount
+
+  let newTotal:  number
+  let newStatus: string
+
+  if (job.price != null) {
+    const priceNumber = Number(job.price)
+    newTotal  = Math.min(rawTotal, priceNumber)
+    newStatus = newTotal >= priceNumber ? 'paid' : 'partial'
+  } else {
+    newTotal  = rawTotal
+    newStatus = 'partial'
+  }
+
+  const { error } = await supabase
     .from('jobs')
     .update({
-      payment_status: 'partial',
+      payment_status: newStatus,
       payment_method: (formData.get('payment_method') as string) || null,
-      amount_paid: amountPaid,
+      amount_paid:    newTotal,
     })
     .eq('id', id)
     .eq('business_id', businessId)
-    .select('id')
-    .maybeSingle()
 
   if (error) return { error: error.message }
-  if (!updated) return { error: 'Job not found.' }
 
   revalidatePath('/jobs')
   revalidatePath(`/jobs/${id}`)
   revalidatePath('/today')
   revalidatePath('/finances')
-  return { error: null, success: `Partial payment of $${amountPaid.toFixed(0)} recorded.` }
+  return {
+    error: null,
+    success: newStatus === 'paid'
+      ? 'Paid in full.'
+      : `Partial payment of $${paymentAmount.toFixed(0)} recorded.`,
+  }
 }
 
 export async function rescheduleJob(

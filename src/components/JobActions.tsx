@@ -306,7 +306,7 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
             $ Mark Paid
           </button>
           <button type="button" className="btn btn-secondary btn-full" onClick={() => setPanel(panel === 'partial' ? null : 'partial')}>
-            $ Mark Partial Payment
+            Add Partial Payment
           </button>
 
           {panel === 'paid' && (
@@ -331,7 +331,7 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
           {panel === 'partial' && (
             <form action={partialAction} className="form action-panel">
               <div className="form-field">
-                <label className="form-label">Amount received ($)</label>
+                <label className="form-label">Payment Amount ($)</label>
                 <input type="number" name="amount_paid" min="1" step="1" className="form-input"
                   placeholder={job.price ? String(Number(job.price).toFixed(0)) : '0'} />
               </div>
@@ -379,6 +379,42 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
               </div>
               <button type="submit" disabled={paidPending} className="btn btn-primary btn-full">
                 {paidPending ? 'Saving…' : 'Confirm Full Payment'}
+              </button>
+            </form>
+          )}
+          <button type="button" className="btn btn-secondary btn-full" onClick={() => setPanel(panel === 'partial' ? null : 'partial')}>
+            Add Another Payment
+          </button>
+          {panel === 'partial' && (
+            <form action={partialAction} className="form action-panel">
+              <div className="form-field">
+                <label className="form-label">Payment Amount ($)</label>
+                <input
+                  type="number"
+                  name="amount_paid"
+                  min="1"
+                  step="1"
+                  className="form-input"
+                  placeholder={
+                    job.price != null
+                      ? String(Math.max(0, Number(job.price) - Number(job.amount_paid ?? 0)).toFixed(0))
+                      : '0'
+                  }
+                />
+              </div>
+              <div className="form-field">
+                <label className="form-label">Payment Method</label>
+                <select name="payment_method" className="form-select">
+                  <option value="">Not specified</option>
+                  <option value="cash">Cash</option>
+                  <option value="check">Check</option>
+                  <option value="venmo">Venmo</option>
+                  <option value="cashapp">CashApp</option>
+                  <option value="zelle">Zelle</option>
+                </select>
+              </div>
+              <button type="submit" disabled={partialPending} className="btn btn-secondary btn-full">
+                {partialPending ? 'Saving…' : 'Record Payment'}
               </button>
             </form>
           )}
