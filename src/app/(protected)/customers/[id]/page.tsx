@@ -9,6 +9,7 @@ import { requireBusinessContext } from '@/lib/business/context'
 import { CustomerDangerZone } from './CustomerDangerZone'
 import { LeadStatusActions } from './LeadStatusActions'
 import { CustomerInfoSection } from './CustomerInfoSection'
+import { getOrCreatePortalToken } from './portal-actions'
 
 type CustomerWithTags = Customer & { tags?: string[] | null; business_id?: string | null }
 
@@ -105,6 +106,16 @@ export default async function CustomerDetailPage({
       if (!b.completed_at) return -1
       return b.completed_at.localeCompare(a.completed_at)
     })
+  // Fetch portal token only when the SMS button will actually render
+  let portalUrl: string | null = null
+  if (outstandingJobs.length > 0 && customerRow.phone) {
+    const portalResult = await getOrCreatePortalToken(id)
+    if (!('error' in portalResult)) {
+      const base = process.env.NEXT_PUBLIC_QUOTE_BASE_URL ?? 'https://app.wicksburglawnservice.com'
+      portalUrl = `${base}/portal/${portalResult.token}`
+    }
+  }
+
   // Build balance reminder SMS body (computed server-side; only meaningful when outstandingJobs > 0)
   const balanceSmsBody = (() => {
     if (!outstandingJobs.length) return ''
@@ -123,6 +134,7 @@ export default async function CustomerDetailPage({
       }),
       ...(outstandingJobs.length > 5 ? [`+ ${outstandingJobs.length - 5} more`] : []),
       '',
+      ...(portalUrl ? [`View your account: ${portalUrl}`, ''] : []),
       venmoHandle
         ? `Pay via Venmo @${venmoHandle} or cash. Thank you!`
         : 'You can pay by cash or check. Thank you!',
