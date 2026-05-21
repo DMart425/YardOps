@@ -572,6 +572,12 @@ export default async function TodayPage() {
               </Link>
             )
           })}
+          {overdueJobs!.length === 10 && (
+            <p className="text-small text-muted" style={{ marginTop: '8px', paddingLeft: '2px' }}>
+              Showing first 10.{' '}
+              <Link href="/jobs?view=scheduled&filter=overdue">Open Jobs</Link> to see the full list.
+            </p>
+          )}
         </div>
       )}
 
@@ -668,6 +674,12 @@ export default async function TodayPage() {
               </div>
             )
           })}
+          {unpaidJobs!.length === 10 && (
+            <p className="text-small text-muted" style={{ marginTop: '8px', paddingLeft: '2px' }}>
+              Showing first 10.{' '}
+              <Link href="/jobs?view=completed&filter=unpaid&page=1">Open Jobs</Link> to see the full list.
+            </p>
+          )}
         </div>
       )}
     </div>
