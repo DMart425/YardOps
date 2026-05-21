@@ -2,7 +2,7 @@
 
 Private operations app for Wicksburg Lawn Service.
 
-Verified checkpoint commit: `e1a6b7a` (Support partial payment at completion).
+Verified checkpoint commit: `8232e4a` (Clarify portal service history payments).
 
 ## Read First
 

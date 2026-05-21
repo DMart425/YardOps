@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-21 (e1a6b7a)
+Last updated: 2026-05-21 (8232e4a)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-05-21 (e1a6b7a)
 
 ## Current Checkpoint
 
-- **Latest commit:** `e1a6b7a` — Support partial payment at completion
+- **Latest commit:** `8232e4a` — Clarify portal service history payments
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -265,7 +265,7 @@ No migrations. No schema changes. All three commits user-tested in production: b
 
 ---
 
-### Phase 4 — Operations UX / Workflow Polish ⏸ In Progress
+### Phase 4 — Operations UX / Workflow Polish ✅ Substantially Complete
 
 **4A/4B — Today dashboard and Jobs page polish (user-tested):**
 - Today stat cards are actionable links to filtered Jobs views (overdue, completed today, unpaid balance)
@@ -303,6 +303,35 @@ Key commits: `fbe63c0`, `3f5645c`, `b93e836`, `406f727`, `dd7dbb6`, `30df416`, `
 - "Add Another Payment" shown on partial-status completed jobs
 - SMS reflects completion payment status: unpaid shows full balance, partial shows Total / Paid / Balance due with scaled Venmo link, paid shows receipt, not_billable suppresses SMS
 
+**Phase 4 cleanup (user-tested):**
+- Customer detail header now has `+ New Job` shortcut (matching property detail) (`5acdcbb`)
+- Today page overdue/unpaid capped list sections now disclose the cap with a disclosure note (`890cfcf`)
+- Internal variable `overdueCount` renamed to `staleUnpaidCount` in `jobs/page.tsx` — no UI change (`c1b22b9`)
+- Job detail payment summary row wording clarified for all four payment status cases: unpaid/partial/paid/not_billable (`463e762`)
+
+---
+
+### Phase 5A — Customer Collections / Receivables ⏸ In Progress
+
+**Goal:** Give the operator clear visibility into outstanding customer balances and an easy path to collect payment.
+
+**Completed:**
+- Customers list unpaid balance badges — orange dollar amount badge on each customer card with outstanding balance (`53b22c0`)
+- Customer detail Outstanding Balance section — unpaid/partial job list with amounts, dates, and links to job detail (`95cb0cc`)
+- Customer detail Send Balance Reminder SMS — pre-filled SMS body with total balance, per-job breakdown, Venmo/cash wording, and customer portal link (`0259d1e`, `561bf76`, `7093925`)
+  - Portal token generated only when `outstandingJobs.length > 0 && customerRow.phone` — no unnecessary token creation on every page load
+  - Portal URL built from `NEXT_PUBLIC_QUOTE_BASE_URL ?? 'https://app.wicksburglawnservice.com'` + `/portal/${token}`
+- Customer portal service history payment states clarified: shows "X due" / "X remaining" (with "Y paid" subtext) / "X paid" / "No payment due" depending on `payment_status` and `amount_paid` (`8232e4a`)
+
+**Production-verified:**
+- Customer detail `+ New Job` shortcut works
+- Customer Outstanding Balance section displayed correctly
+- Customers list unpaid badge displayed correctly
+- Balance reminder SMS opened correctly with balance details, Venmo handle, and portal link
+- Portal link opened to the correct customer portal
+- Portal showed outstanding balance banner and Venmo Pay Now button
+- Portal service history correctly showed `$82 remaining`, `$3 paid of $85`, and Partial pill
+
 ---
 
 ## Committed Migrations (Full List)
@@ -324,6 +353,16 @@ Key commits: `fbe63c0`, `3f5645c`, `b93e836`, `406f727`, `dd7dbb6`, `30df416`, `
 
 | Hash | Description |
 |------|-------------|
+| `8232e4a` | Clarify portal service history payments (Phase 5A) |
+| `7093925` | Add portal link to balance reminder SMS (Phase 5A) |
+| `561bf76` | Polish balance reminder SMS wording (Phase 5A) |
+| `0259d1e` | Add customer balance reminder SMS (Phase 5A) |
+| `53b22c0` | Show unpaid balances on Customers list (Phase 5A) |
+| `95cb0cc` | Show customer outstanding job balances (Phase 5A) |
+| `463e762` | Clarify Job detail payment summary (Phase 4 cleanup) |
+| `c1b22b9` | Rename stale unpaid count variable (Phase 4 cleanup) |
+| `890cfcf` | Disclose capped Today job lists (Phase 4 cleanup) |
+| `5acdcbb` | Add Customer detail New Job shortcut (Phase 4 cleanup) |
 | `e1a6b7a` | Support partial payment at completion (Phase 4) |
 | `6e70e61` | Support cumulative partial payments (Phase 4) |
 | `89d4f6b` | Fix unpaid completion and block past reschedules (Phase 4) |
@@ -499,6 +538,14 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ "Add Another Payment" button shown on partial-status completed jobs (`6e70e61`)
 - ✅ Complete Job panel supports "Partial payment" option at completion time — partial amount input shown, auto-promotes to `paid` if amount ≥ price (`e1a6b7a`)
 - ✅ Completion SMS reflects payment status: unpaid shows full balance due, partial shows Total / Paid / Balance due with Venmo link scaled to remaining balance, paid shows receipt, not_billable suppresses SMS entirely (`e1a6b7a`)
+- ✅ Customer detail header has `+ New Job` shortcut (matching property detail shortcut added in `77aa780`) (`5acdcbb`)
+- ✅ Job detail payment summary row wording correct for all four cases: unpaid completed job shows balance due; partial shows remaining and paid; paid shows paid confirmation; not_billable shows no charge (`463e762`)
+- ✅ Customers list shows orange unpaid balance badge for customers with outstanding completed jobs (`53b22c0`)
+- ✅ Customer detail shows Outstanding Balance section with per-job unpaid/partial list and links to job detail (`95cb0cc`)
+- ✅ Customer detail Send Balance Reminder SMS button generates correct pre-filled SMS body: balance total, per-job breakdown, Venmo handle (if set), and customer portal link (`0259d1e`, `561bf76`, `7093925`)
+- ✅ Customer portal link in SMS opens to correct customer portal (`7093925`)
+- ✅ Customer portal shows outstanding balance banner and Venmo Pay Now button when balance > 0 (pre-existing — verified)
+- ✅ Customer portal service history correctly shows due/remaining/paid/partial/not-billable payment states with colored amounts and contextual labels; partial state shows subtext with amount paid and total (`8232e4a`)
 
 ---
 
@@ -514,10 +561,15 @@ All of the following were user-tested and confirmed working as of `289b732`:
 | B.7a website frequency/service-interest intake | ⏸ Pending | `6c8bada` in WicksburgLawnService |
 | B.7b YardOps consumption of B.7a leads | ⏸ Pending | Verify normalization/carryover |
 | Stale jobs with `service_package = null` and no property booleans | ℹ️ Minor | Cards show no 🌿 line — acceptable for now, data cleanup optional |
-| Phase 4 — Operations UX polish (4A–4D) | ✅ Substantially complete | Today/Jobs polish, follow-up improvements, Finances display, payment workflow all done (`e1a6b7a`) |
-| `overdueCount` → `staleUnpaidCount` rename in `jobs/page.tsx` | ⏸ Deferred | Internal rename only; no UI change |
-| Customer detail `+ New Job` shortcut | ⏸ Pending | Property detail has it (`77aa780`); customer detail does not yet |
-| Job detail payment row wording polish | ⏸ Deferred | Low severity; cosmetic for `payment_status = 'unpaid'` completed jobs |
+| Phase 4 — Operations UX polish (4A–4D + cleanup) | ✅ Substantially complete | Today/Jobs polish, follow-up, Finances, payment workflow, cleanup batch all done (`8232e4a`) |
+| `overdueCount` → `staleUnpaidCount` rename in `jobs/page.tsx` | ✅ Complete | `c1b22b9` |
+| Customer detail `+ New Job` shortcut | ✅ Complete | `5acdcbb` |
+| Job detail payment row wording polish | ✅ Complete | `463e762` |
+| Phase 5A — Customer collections / receivables | ⏸ In Progress | Balance badges, Outstanding Balance section, SMS reminder, portal clarity done; see Phase 5A section |
+| Operational weekly summary improvements | ⏸ Future | Deferred — Phase 5 candidate |
+| Estimate → Job conversion polish | ⏸ Future | Deferred — Phase 5 candidate |
+| Bulk job actions | ⏸ Future | Deferred — Phase 5 candidate |
+| Revenue / expense reporting improvements | ⏸ Future | Deferred — Phase 5 candidate |
 
 ---
 
@@ -530,8 +582,8 @@ Full roadmap lives in Architecture.md §16. Summary:
 | 2F | Final end-to-end multi-business audit | ✅ Complete |
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
 | 3 | Public intake and lead workflow improvements | ✅ Complete — all listed tasks done through `ec48565`; payment bugfixes continued in Phase 4 |
-| 4 | Operations UX / workflow polish | ⏸ In Progress — 4A–4D complete (`e1a6b7a`); minor cleanup items deferred (see Open/Deferred) |
-| 5 | Reporting, automation, and growth features | ⏸ Pending |
+| 4 | Operations UX / workflow polish | ✅ Substantially complete — 4A–4D + cleanup batch done (`463e762`) |
+| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A customer collections started (`8232e4a`) |
 
 **Permanent Future-Handoff Requirements** (mandatory — see Architecture.md §16):
 Every future handoff must instruct the next chat to read ARCHITECTURE.md and HANDOFF.md first, remind it to update those docs after any verified/committed change, state the latest commit, current phase status, open items, workflow guardrails, and known security follow-ups (no secret values).
@@ -540,15 +592,22 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Phase 4 — Decide next patch (minor cleanup or Phase 5 planning)**
+**Phase 5A — Customer Collections continues or Phase 5B planning**
 
-Phase 3 is complete. Phase 4A–4D operations polish and the payment bugfix series are production-verified and committed (`e1a6b7a`). The most impactful remaining items are minor cleanup.
+Phase 4 is substantially complete including the cleanup batch (`463e762`). Phase 5A customer collections / receivables core is production-verified (`8232e4a`).
 
-**Safe next candidates (smallest first):**
-1. `overdueCount` → `staleUnpaidCount` rename in `jobs/page.tsx` — internal rename, no UI change
-2. Customer detail `+ New Job` shortcut — property detail already has it (`77aa780`)
-3. Job detail payment row polish for `payment_status = 'unpaid'` completed jobs — cosmetic, low severity
-4. Phase 5 planning — reporting, automation, scheduling gap detection, bulk job actions
+**Completed Phase 5A work:**
+- ✅ Customers list unpaid balance badges
+- ✅ Customer detail Outstanding Balance section
+- ✅ Balance reminder SMS with portal link
+- ✅ Portal service history payment clarity
+
+**Next Phase 5 candidates:**
+1. Portal enhancements — customer-facing UX improvements (payment confirmation, contact button polish)
+2. Operational weekly summary — improve daily/weekly brief for the operator
+3. Estimate → Job conversion polish — smoother scheduling after estimate approval
+4. Revenue/expense reporting — more useful Finances page analytics
+5. Bulk job actions — mark multiple jobs paid, batch scheduling operations
 
 **Phase 3 completed tasks (all user-tested in production — historical record):**
 1. ~~Frequency display — website lead detail page~~ ✅ (`0589026`)

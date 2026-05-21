@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-21
-Current checkpoint commit: `e1a6b7a` (Support partial payment at completion)
+Current checkpoint commit: `8232e4a` (Clarify portal service history payments)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -687,22 +687,15 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 
 **Goal:** Improve day-to-day YardOps usability after data hardening.
 
-**Status:** ⏸ In Progress
+**Status:** ✅ Substantially Complete
 
-**Completed (4A–4D + payment bugfixes):**
+**Completed (4A–4D + payment bugfixes + cleanup):**
 
 - **4A/4B — Today and Jobs page polish:** Today stat cards are actionable links to filtered Jobs views. Jobs page: status label polish, overdue count, weekly scheduled total, cancelled/skipped filter, pagination clarity. Customer/property detail pages link to filtered Jobs views; property detail has "+ New Job" shortcut. "Total revenue" relabeled to "Total billed" on customer/property detail (accrual vs. cash clarity).
 - **4C — Follow-up scheduling improvements:** Explicit property frequency required. Blow off label aligned. `unsure` frequency preserved in lead notes. Parent job shows Follow-up Visit summary. One-time job flag on follow-up card. `internal_notes` carried forward to follow-up job. Warning when suggested date is in the past.
 - **4D — Finances display polish:** Uncollected receivables card (all-time completed unpaid/partial, links to Jobs filter). Month selector responsive grid. Expense list cap disclosed when truncated.
 - **Payment bugfixes (production-verified):** `completeJob()` now correctly handles all four payment paths. `markPartial()` is cumulative. Complete Job panel supports partial payment at completion. Past-date guard on both `rescheduleJob()` and `scheduleFollowUpJob()`. See §18 for full behavior spec.
-
-**Remaining potential tasks:**
-1. Estimate builder polish.
-2. Estimate → job conversion polish.
-3. Equipment/maintenance polish.
-4. Daily/weekly brief improvements.
-5. Reports/export improvements.
-6. Better validation/errors for forms.
+- **Phase 4 cleanup:** Customer detail `+ New Job` shortcut (`5acdcbb`). Today capped list disclosure notes (`890cfcf`). `staleUnpaidCount` internal rename in `jobs/page.tsx` (`c1b22b9`). Job detail payment summary row wording for all four payment status cases (`463e762`).
 
 ---
 
@@ -710,17 +703,29 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 
 **Goal:** Build features on top of the stable multi-business-safe foundation.
 
-**Status:** ⏸ Pending
+**Status:** ⏸ In Progress
 
-**Potential tasks:**
-1. Daily brief and weekly brief improvements.
-2. More useful revenue/expense reporting.
-3. Better route/day planning.
-4. Follow-up reminders.
-5. Customer service history improvements.
-6. Portal enhancements.
-7. Better public quote/intake analytics.
-8. Future multi-business/team/operator support if desired.
+#### Phase 5A — Customer Collections / Receivables (⏸ In Progress)
+
+**Completed:**
+- Customers list unpaid balance badges — orange dollar amount shown on customer cards with outstanding balances (`53b22c0`)
+- Customer detail Outstanding Balance section — per-job unpaid/partial list with amounts, dates, and links to job detail (`95cb0cc`)
+- Customer detail Send Balance Reminder SMS — pre-filled SMS with total balance, per-job breakdown, Venmo handle, and customer portal link (`0259d1e`, `561bf76`, `7093925`)
+- Customer portal service history payment clarity — due/remaining/paid/partial/not-billable states shown with contextual wording and amounts; partial state shows subtext with amount paid and total (`8232e4a`)
+
+**Portal SMS token behavior:**
+- `getOrCreatePortalToken()` (`customers/[id]/portal-actions.ts`) called only when `outstandingJobs.length > 0 && customerRow.phone`
+- Token is permanent, one-per-customer; upsert with `onConflict: 'customer_id'`
+- Portal URL: `NEXT_PUBLIC_QUOTE_BASE_URL ?? 'https://app.wicksburglawnservice.com'` + `/portal/${token}`
+
+**Potential next Phase 5 tasks:**
+1. Operational weekly summary improvements.
+2. Estimate → job conversion polish.
+3. Revenue/expense reporting improvements.
+4. Portal enhancements (customer-facing UX).
+5. Bulk job actions.
+6. Better public quote/intake analytics.
+7. Future multi-business/team/operator support if desired.
 
 ---
 
