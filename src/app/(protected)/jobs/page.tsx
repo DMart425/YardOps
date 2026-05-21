@@ -231,9 +231,9 @@ export default async function JobsPage({
   // ── Blackout dates ──
   const blackoutDates: string[] = (settings?.blackout_dates as string[] | null) ?? []
 
-  // ── Overdue unpaid count (completed + unpaid + >7 days old) ──
+  // ── Stale unpaid count (completed + unpaid/partial + >7 days old) ──
   const sevenDaysAgoStr = addDays(today, -7)
-  const { count: overdueCount } = await supabase
+  const { count: staleUnpaidCount } = await supabase
     .from('jobs')
     .select('id', { count: 'exact', head: true })
     .eq('business_id', businessId)
@@ -326,7 +326,7 @@ export default async function JobsPage({
             href={view === 'completed' ? jobsHref({ view: 'completed', filter: key, page: '1' }) : jobsHref({ view: 'scheduled', filter: key })}
             className={`filter-tab${filter === key ? ' active' : ''}`}
           >
-            {label}{key === 'unpaid' && overdueCount ? <span style={{ marginLeft: 4, background: '#dc2626', color: '#fff', borderRadius: '999px', padding: '1px 6px', fontSize: '0.65rem', fontWeight: 700, verticalAlign: 'middle' }}>{overdueCount}</span> : null}{key === 'overdue' && overdueScheduledCount ? <span style={{ marginLeft: 4, background: '#dc2626', color: '#fff', borderRadius: '999px', padding: '1px 6px', fontSize: '0.65rem', fontWeight: 700, verticalAlign: 'middle' }}>{overdueScheduledCount}</span> : null}
+            {label}{key === 'unpaid' && staleUnpaidCount ? <span style={{ marginLeft: 4, background: '#dc2626', color: '#fff', borderRadius: '999px', padding: '1px 6px', fontSize: '0.65rem', fontWeight: 700, verticalAlign: 'middle' }}>{staleUnpaidCount}</span> : null}{key === 'overdue' && overdueScheduledCount ? <span style={{ marginLeft: 4, background: '#dc2626', color: '#fff', borderRadius: '999px', padding: '1px 6px', fontSize: '0.65rem', fontWeight: 700, verticalAlign: 'middle' }}>{overdueScheduledCount}</span> : null}
           </Link>
         ))}
       </div>
@@ -339,9 +339,9 @@ export default async function JobsPage({
         </div>
       )}
 
-      {filter === 'unpaid' && overdueCount != null && overdueCount > 0 && (
+      {filter === 'unpaid' && staleUnpaidCount != null && staleUnpaidCount > 0 && (
         <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
-          ⚠️ {overdueCount} job{overdueCount !== 1 ? 's' : ''} unpaid for 7+ days
+          ⚠️ {staleUnpaidCount} job{staleUnpaidCount !== 1 ? 's' : ''} unpaid for 7+ days
         </div>
       )}
 
