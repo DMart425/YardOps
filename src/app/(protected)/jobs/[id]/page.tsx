@@ -130,6 +130,25 @@ export default async function JobDetailPage({
     ? (SERVICE_LABELS[job.service_package] ?? job.service_package.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()))
     : 'Standard Mow'
 
+  // ── Payment row display ──
+  const ps            = job.payment_status
+  const payPrice      = job.price != null ? Number(job.price) : null
+  const payAmtPaid    = Number(job.amount_paid ?? 0)
+  const payBalance    = payPrice != null ? Math.max(0, payPrice - payAmtPaid) : null
+  const showPaymentRow = job.status === 'completed' || ps === 'not_billable' || ps === 'paid' || ps === 'partial'
+  const paymentRowLabel =
+    ps === 'not_billable' ? '💰 Not billable' :
+    ps === 'paid'         ? '💰 Paid'         :
+    ps === 'partial'      ? '💰 Payment'      :
+                            '💰 Balance'
+  const paymentRowValue =
+    ps === 'not_billable' ? 'No payment due' :
+    ps === 'paid'         ? (payPrice != null ? `$${payPrice.toFixed(2)} paid in full` : 'Paid in full') :
+    ps === 'partial'      ? (payPrice != null
+                              ? `$${payAmtPaid.toFixed(2)} paid of $${payPrice.toFixed(2)} · $${payBalance!.toFixed(2)} remaining`
+                              : `$${payAmtPaid.toFixed(2)} paid`) :
+    /* unpaid */             (payPrice != null ? `$${payPrice.toFixed(2)} remaining` : 'Unpaid')
+
   return (
     <div className="page">
       <Link href="/jobs" className="back-link">← Jobs</Link>
@@ -185,13 +204,10 @@ export default async function JobDetailPage({
             <span className="text-small text-muted">🔄 Type</span>
             <span className="text-small">{JOB_TYPE_LABELS[job.job_type ?? ''] ?? job.job_type}</span>
           </div>
-          {job.price != null && (job.status === 'completed' || Number(job.amount_paid ?? 0) > 0 || job.payment_status === 'paid' || job.payment_status === 'partial') && (
+          {showPaymentRow && (
             <div className="card-row">
-              <span className="text-small text-muted">💰 Paid</span>
-              <span className="text-small">
-                ${Number(job.amount_paid).toFixed(2)} of ${Number(job.price).toFixed(2)}
-                {Number(job.amount_paid) < Number(job.price) ? ` · $${(Number(job.price) - Number(job.amount_paid)).toFixed(2)} remaining` : ''}
-              </span>
+              <span className="text-small text-muted">{paymentRowLabel}</span>
+              <span className="text-small">{paymentRowValue}</span>
             </div>
           )}
         </div>
