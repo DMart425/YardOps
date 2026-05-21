@@ -121,6 +121,9 @@ export default async function CustomerDetailPage({
             ))}
           </div>
         </div>
+        <Link href={`/jobs/new?customer_id=${id}`} className="btn btn-header btn-sm">
+          + New Job
+        </Link>
       </div>
 
       {customerRow.status === 'lead' && (
