@@ -34,6 +34,8 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
   const anySuccess    = completeState.success ?? skipState.success ?? paidState.success ?? partialState.success ?? startState.success ?? cancelState.success ?? reschedState.success
   const justCompleted = !!completeState.success
 
+  const todayLocal    = new Intl.DateTimeFormat('en-CA').format(new Date())
+
   const isActive      = job.status === 'scheduled' || job.status === 'in_progress'
   const canReschedule = isActive || job.status === 'needs_reschedule'
   const isCompleted   = job.status === 'completed'
@@ -256,7 +258,7 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
               <div className="form-row">
                 <div className="form-field">
                   <label className="form-label">New Date *</label>
-                  <input name="new_date" type="date" className="form-input" required />
+                  <input name="new_date" type="date" className="form-input" min={todayLocal} required />
                 </div>
                 <div className="form-field">
                   <label className="form-label">Time Window</label>

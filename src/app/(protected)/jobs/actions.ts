@@ -122,7 +122,7 @@ export async function completeJob(
       payment_status:   paymentStatus,
       payment_method:   (formData.get('payment_method') as string) || null,
       price:            finalPrice,
-      amount_paid:      paymentStatus === 'paid' ? finalPrice : null,
+      amount_paid:      paymentStatus === 'paid' ? finalPrice : 0,
     })
     .eq('id', id)
     .eq('business_id', businessId)
@@ -379,10 +379,21 @@ export async function rescheduleJob(
   formData: FormData
 ): Promise<FormState> {
   const supabase = await createClient()
-  const { businessId } = await requireBusinessContext()
+  const { userId, businessId } = await requireBusinessContext()
 
   const newDate = (formData.get('new_date') as string)?.trim()
   if (!newDate) return { error: 'Please pick a new date.' }
+
+  // Server-side past-date guard — uses business timezone for accurate local-date comparison
+  const { data: tzSettingsR } = await supabase
+    .from('pricing_settings')
+    .select('time_zone')
+    .eq('user_id', userId)
+    .maybeSingle()
+  const todayStrR = getLocalDateStr(resolveTimeZone(tzSettingsR?.time_zone ?? null))
+  if (newDate < todayStrR) {
+    return { error: 'Job date cannot be in the past.' }
+  }
 
   const reasonCode  = (formData.get('reason_code') as string)?.trim() || ''
   if (!reasonCode) return { error: 'Please select a reason.' }
