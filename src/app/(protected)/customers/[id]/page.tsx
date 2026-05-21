@@ -23,10 +23,11 @@ export default async function CustomerDetailPage({
 
   const { data: settings } = await supabase
     .from('pricing_settings')
-    .select('time_zone')
+    .select('time_zone, venmo_handle')
     .eq('user_id', userId)
     .maybeSingle()
   const timeZone = resolveTimeZone(settings?.time_zone ?? null)
+  const venmoHandle = (settings?.venmo_handle as string | null) ?? null
   const today = getLocalDateStr(timeZone)
 
   const [
@@ -104,6 +105,30 @@ export default async function CustomerDetailPage({
       if (!b.completed_at) return -1
       return b.completed_at.localeCompare(a.completed_at)
     })
+  // Build balance reminder SMS body (computed server-side; only meaningful when outstandingJobs > 0)
+  const balanceSmsBody = (() => {
+    if (!outstandingJobs.length) return ''
+    const firstName = customerRow.first_name
+    const totalStr = `$${totalUnpaid % 1 === 0 ? totalUnpaid.toFixed(0) : totalUnpaid.toFixed(2)}`
+    const lines = [
+      `Hi ${firstName}, this is Wicksburg Lawn Service. Your current outstanding balance is ${totalStr}.`,
+      '',
+      'Open items:',
+      ...outstandingJobs.slice(0, 5).map(j => {
+        const bal = Math.max(0, Number(j.price ?? 0) - Number(j.amount_paid ?? 0))
+        const dateStr = j.completed_at
+          ? formatTimestampDate(j.completed_at, timeZone, { month: 'short', day: 'numeric', year: 'numeric' })
+          : 'No date'
+        return `- ${dateStr}: $${bal % 1 === 0 ? bal.toFixed(0) : bal.toFixed(2)} remaining`
+      }),
+      ...(outstandingJobs.length > 5 ? [`+ ${outstandingJobs.length - 5} more`] : []),
+      '',
+      venmoHandle
+        ? `Pay via Venmo @${venmoHandle} or cash. Thank you!`
+        : 'You can pay by cash or check. Thank you!',
+    ]
+    return lines.join('\n')
+  })()
   const lastVisit = lastCompletedJob?.completed_at ?? null
   const propertyRows = (properties as Pick<Property, 'id' | 'property_name' | 'service_address' | 'city' | 'service_frequency' | 'preferred_service_day' | 'default_price' | 'default_service_package' | 'default_mowing_enabled' | 'default_weed_eating_enabled' | 'default_edging_enabled' | 'default_blow_off_enabled' | 'status'>[] | null) ?? []
   const activeProperties = propertyRows.filter(p => p.status !== 'archived')
@@ -237,6 +262,16 @@ export default async function CustomerDetailPage({
               </Link>
             )
           })}
+          {customerRow.phone && (
+            <div style={{ marginTop: '12px' }}>
+              <a
+                href={`sms:${customerRow.phone}?body=${encodeURIComponent(balanceSmsBody)}`}
+                className="btn btn-sm btn-secondary"
+              >
+                📱 Send Balance Reminder
+              </a>
+            </div>
+          )}
         </div>
       )}
 
