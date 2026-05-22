@@ -13,6 +13,7 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
   const [reschedReason,    setReschedReason]    = useState('')
   const [reschedTimeWin,   setReschedTimeWin]   = useState('')
   const [laterPartialAmt,  setLaterPartialAmt]  = useState('')
+  const [pendingReceipt,   setPendingReceipt]   = useState<{ smsBody: string; isPaidInFull: boolean } | null>(null)
   const router = useRouter()
   const notesRef = useRef<HTMLTextAreaElement>(null)
 
@@ -41,9 +42,7 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
   const isActive         = job.status === 'scheduled' || job.status === 'in_progress'
   const canReschedule    = isActive || job.status === 'needs_reschedule'
   const isCompleted      = job.status === 'completed'
-  const partialRemaining    = Math.max(0, Number(job.price ?? 0) - Number(job.amount_paid ?? 0))
-  const laterPartialAmtNum  = parseFloat(laterPartialAmt) || 0
-  const partialIsPaidInFull = partialState.success === 'Paid in full.'
+  const partialRemaining = Math.max(0, Number(job.price ?? 0) - Number(job.amount_paid ?? 0))
 
   // Build invoice SMS body using completion-time state so partial amounts are accurate
   // even before router.refresh() updates stale job props.
@@ -76,6 +75,20 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       <Toast message={anySuccess} />
       {anyError && <div className="alert alert-error">{anyError}</div>}
+
+      {/* ── Later payment receipt SMS (set at submit time; persists across route revalidation) ── */}
+      {(paidState.success || partialState.success) && pendingReceipt && customerPhone && (
+        <button
+          type="button"
+          className={`btn btn-full ${pendingReceipt.isPaidInFull ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => {
+            window.location.href = `sms:${customerPhone}?&body=${encodeURIComponent(pendingReceipt.smsBody)}`
+            setPendingReceipt(null)
+          }}
+        >
+          📱 {pendingReceipt.isPaidInFull ? 'Send Receipt' : 'Send Payment Receipt'}
+        </button>
+      )}
 
       {/* ── Completion SMS prompt (fallback / re-send) ── */}
       {justCompleted && customerPhone && invoiceSmsBody && (
@@ -354,7 +367,20 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
                   <option value="zelle">Zelle</option>
                 </select>
               </div>
-              <button type="submit" disabled={paidPending} className="btn btn-primary btn-full">
+              <button
+                type="submit"
+                disabled={paidPending}
+                className="btn btn-primary btn-full"
+                onClick={() => {
+                  if (customerPhone) {
+                    const amt = job.price != null ? Number(job.price) : 0
+                    setPendingReceipt({
+                      smsBody: buildPaymentReceiptSms(customerFirstName, amt, true, 0, portalInvoiceUrl, businessPhone),
+                      isPaidInFull: true,
+                    })
+                  }
+                }}
+              >
                 {paidPending ? 'Saving…' : 'Confirm Full Payment'}
               </button>
             </form>
@@ -386,43 +412,28 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
                   <option value="zelle">Zelle</option>
                 </select>
               </div>
-              <button type="submit" disabled={partialPending} className="btn btn-secondary btn-full">
+              <button
+                type="submit"
+                disabled={partialPending}
+                className="btn btn-secondary btn-full"
+                onClick={() => {
+                  const amt = parseFloat(laterPartialAmt) || 0
+                  const willBePaidInFull = amt >= partialRemaining
+                  if (customerPhone && amt > 0) {
+                    setPendingReceipt({
+                      smsBody: buildPaymentReceiptSms(customerFirstName, amt, willBePaidInFull, willBePaidInFull ? 0 : Math.max(0, partialRemaining - amt), portalInvoiceUrl, businessPhone),
+                      isPaidInFull: willBePaidInFull,
+                    })
+                  }
+                  setLaterPartialAmt('')
+                  setPanel(null)
+                }}
+              >
                 {partialPending ? 'Saving…' : 'Record Partial Payment'}
               </button>
             </form>
           )}
 
-          {/* Receipt SMS after Mark Paid (unpaid → paid in full) */}
-          {paidState.success && customerPhone && (
-            <button
-              type="button"
-              className="btn btn-primary btn-full"
-              onClick={() => {
-                router.refresh()
-                window.location.href = `sms:${customerPhone}?&body=${encodeURIComponent(
-                  buildPaymentReceiptSms(customerFirstName, job.price != null ? Number(job.price) : 0, true, 0, portalInvoiceUrl, businessPhone)
-                )}`
-              }}
-            >
-              📱 Send Receipt
-            </button>
-          )}
-
-          {/* Receipt SMS after Add Partial Payment (unpaid → still partial) */}
-          {partialState.success && customerPhone && laterPartialAmtNum > 0 && (
-            <button
-              type="button"
-              className="btn btn-secondary btn-full"
-              onClick={() => {
-                router.refresh()
-                window.location.href = `sms:${customerPhone}?&body=${encodeURIComponent(
-                  buildPaymentReceiptSms(customerFirstName, laterPartialAmtNum, false, Math.max(0, Number(job.price ?? 0) - laterPartialAmtNum), portalInvoiceUrl, businessPhone)
-                )}`
-              }}
-            >
-              📱 Send Payment Receipt
-            </button>
-          )}
         </>
       )}
 
@@ -457,26 +468,22 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
                   <option value="zelle">Zelle</option>
                 </select>
               </div>
-              <button type="submit" disabled={paidPending} className="btn btn-primary btn-full">
+              <button
+                type="submit"
+                disabled={paidPending}
+                className="btn btn-primary btn-full"
+                onClick={() => {
+                  if (customerPhone) {
+                    setPendingReceipt({
+                      smsBody: buildPaymentReceiptSms(customerFirstName, partialRemaining, true, 0, portalInvoiceUrl, businessPhone),
+                      isPaidInFull: true,
+                    })
+                  }
+                }}
+              >
                 {paidPending ? 'Saving…' : 'Confirm Full Payment'}
               </button>
             </form>
-          )}
-
-          {/* Receipt SMS after Mark Remaining Paid (partial → paid in full) */}
-          {paidState.success && customerPhone && (
-            <button
-              type="button"
-              className="btn btn-primary btn-full"
-              onClick={() => {
-                router.refresh()
-                window.location.href = `sms:${customerPhone}?&body=${encodeURIComponent(
-                  buildPaymentReceiptSms(customerFirstName, partialRemaining, true, 0, portalInvoiceUrl, businessPhone)
-                )}`
-              }}
-            >
-              📱 Send Receipt
-            </button>
           )}
 
           <button type="button" className="btn btn-secondary btn-full" onClick={() => setPanel(panel === 'partial' ? null : 'partial')}>
@@ -512,34 +519,28 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
                   <option value="zelle">Zelle</option>
                 </select>
               </div>
-              <button type="submit" disabled={partialPending} className="btn btn-secondary btn-full">
+              <button
+                type="submit"
+                disabled={partialPending}
+                className="btn btn-secondary btn-full"
+                onClick={() => {
+                  const amt = parseFloat(laterPartialAmt) || 0
+                  const willBePaidInFull = amt >= partialRemaining
+                  if (customerPhone && amt > 0) {
+                    setPendingReceipt({
+                      smsBody: buildPaymentReceiptSms(customerFirstName, amt, willBePaidInFull, willBePaidInFull ? 0 : Math.max(0, partialRemaining - amt), portalInvoiceUrl, businessPhone),
+                      isPaidInFull: willBePaidInFull,
+                    })
+                  }
+                  setLaterPartialAmt('')
+                  setPanel(null)
+                }}
+              >
                 {partialPending ? 'Saving…' : 'Record Payment'}
               </button>
             </form>
           )}
 
-          {/* Receipt SMS after Add Another Payment (partial → paid in full or still partial) */}
-          {partialState.success && customerPhone && laterPartialAmtNum > 0 && (
-            <button
-              type="button"
-              className={`btn btn-full ${partialIsPaidInFull ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => {
-                router.refresh()
-                window.location.href = `sms:${customerPhone}?&body=${encodeURIComponent(
-                  buildPaymentReceiptSms(
-                    customerFirstName,
-                    laterPartialAmtNum,
-                    partialIsPaidInFull,
-                    partialIsPaidInFull ? 0 : Math.max(0, partialRemaining - laterPartialAmtNum),
-                    portalInvoiceUrl,
-                    businessPhone,
-                  )
-                )}`
-              }}
-            >
-              📱 {partialIsPaidInFull ? 'Send Receipt' : 'Send Payment Receipt'}
-            </button>
-          )}
         </>
       )}
 

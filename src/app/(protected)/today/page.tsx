@@ -530,7 +530,7 @@ export default async function TodayPage() {
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       {job.price != null && <div style={{ fontWeight: 700 }}>${Number(job.price).toFixed(0)}</div>}
                       <span className={`pill pill-${job.payment_status}`}>{statusLabel(job.payment_status)}</span>
-                      {balance > 0 && <div className="text-small" style={{ color: 'var(--color-unpaid)', marginTop: '4px' }}>${balance.toFixed(0)} owed</div>}
+                      {balance > 0 && job.payment_status !== 'not_billable' && <div className="text-small" style={{ color: 'var(--color-unpaid)', marginTop: '4px' }}>${balance.toFixed(0)} owed</div>}
                     </div>
                   </div>
                 </div>
