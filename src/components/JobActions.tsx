@@ -6,7 +6,7 @@ import type { FormState, Job } from '@/types/database'
 import { completeJob, markInProgress, skipJob, cancelJob, markPaid, markPartial, rescheduleJob } from '@/app/(protected)/jobs/actions'
 import { Toast } from '@/components/Toast'
 
-export function JobActions({ job, venmoHandle, customerPhone, customerFirstName }: { job: Job; venmoHandle?: string | null; customerPhone?: string | null; customerFirstName?: string | null }) {
+export function JobActions({ job, venmoHandle, customerPhone, customerFirstName, businessName, businessPhone }: { job: Job; venmoHandle?: string | null; customerPhone?: string | null; customerFirstName?: string | null; businessName?: string | null; businessPhone?: string | null }) {
   const [panel,          setPanel]         = useState<'complete' | 'skip' | 'paid' | 'partial' | 'reschedule' | null>(null)
   const [completionPayStatus,  setCompletionPayStatus]  = useState('unpaid')
   const [completionPartialAmt, setCompletionPartialAmt] = useState('')
@@ -52,7 +52,7 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
 
   // Suppress SMS entirely for not_billable completions (no payment expected).
   const invoiceSmsBody = (customerPhone && completionPayStatus !== 'not_billable')
-    ? buildInvoiceSms(customerFirstName, job, venmoHandle, completionAmtForSms)
+    ? buildInvoiceSms(customerFirstName, job, venmoHandle, completionAmtForSms, businessPhone)
     : null
 
   // Refresh page data and auto-launch SMS compose when job is first marked complete.
@@ -324,7 +324,7 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName 
         <>
           {venmoHandle && customerPhone && job.price && (
             <a
-              href={`sms:${customerPhone}?&body=${encodeURIComponent(`Hi ${customerFirstName ?? ''}, friendly reminder for $${Number(job.price).toFixed(0)} for the lawn service. Pay via Venmo: https://venmo.com/${venmoHandle}?txn=pay&amount=${Number(job.price).toFixed(0)}&note=${encodeURIComponent('Lawn service')}\n\nThanks!`)}`}
+              href={`sms:${customerPhone}?&body=${encodeURIComponent(`Hi ${customerFirstName ?? ''}, friendly reminder for $${Number(job.price).toFixed(0)} for the lawn service. Pay via Venmo: https://venmo.com/${venmoHandle}?txn=pay&amount=${Number(job.price).toFixed(0)}&note=${encodeURIComponent('Lawn service')}\n\nThanks!${businessName ? ` — ${businessName}` : ''}`)}`}
               className="btn btn-secondary btn-full"
             >
               📲 Send Pay Reminder
@@ -471,6 +471,7 @@ function buildInvoiceSms(
   job: Job,
   venmoHandle: string | null | undefined,
   amountPaidOverride?: number | null,
+  businessPhone?: string | null,
 ): string {
   const name = firstName ?? 'there'
   const lines: string[] = [
@@ -517,5 +518,8 @@ function buildInvoiceSms(
   }
 
   lines.push('', 'Thank you for your business! 🌿')
+  if (businessPhone) {
+    lines.push(`Questions? Call or text ${businessPhone}`)
+  }
   return lines.join('\n')
 }

@@ -81,6 +81,7 @@ export default async function JobDetailPage({
   const timeZone = resolveTimeZone(settings?.time_zone ?? null)
   const rawBusinessPhone = business?.phone ?? profile?.business_phone ?? null
   const businessPhone = rawBusinessPhone ? formatPhoneInput(rawBusinessPhone) : null
+  const businessName  = (business?.name as string | null) ?? (profile?.business_name as string | null) ?? null
 
   const { data: photos } = await supabase
     .from('job_photos')
@@ -305,7 +306,7 @@ export default async function JobDetailPage({
       {/* Actions */}
       <div className="card">
         <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Actions</div>
-        <JobActions job={job} venmoHandle={venmoHandle} customerPhone={customer.phone} customerFirstName={customer.first_name} />
+        <JobActions job={job} venmoHandle={venmoHandle} customerPhone={customer.phone} customerFirstName={customer.first_name} businessName={businessName} businessPhone={businessPhone} />
       </div>
 
       {/* Follow-up scheduling (completed jobs only) */}
@@ -416,7 +417,7 @@ export default async function JobDetailPage({
         <div style={{ marginTop: '1rem' }}>
           <DownloadInvoiceButton
             data={{
-              businessName:   business?.name ?? profile?.business_name ?? 'Lawn Service',
+              businessName:   businessName ?? 'Lawn Service',
               businessPhone:  businessPhone,
               businessEmail:  profile?.business_email ?? null,
               customerName,
