@@ -440,9 +440,12 @@ export default async function JobDetailPage({
       )}
 
       {/* Nav links */}
-      <div style={{ display: 'flex', gap: '8px', marginTop: '1rem' }}>
+      <div style={{ display: 'flex', gap: '8px', marginTop: '1rem', flexWrap: 'wrap' }}>
         <Link href={`/customers/${job.customer_id}`} className="btn btn-sm btn-secondary">Customer</Link>
         <Link href={`/properties/${job.property_id}`} className="btn btn-sm btn-secondary">Property</Link>
+        {job.estimate_id && (
+          <Link href={`/estimates/${job.estimate_id}`} className="btn btn-sm btn-secondary">View Estimate →</Link>
+        )}
       </div>
     </div>
   )
