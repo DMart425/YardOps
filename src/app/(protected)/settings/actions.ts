@@ -1,45 +1,52 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import type { FormState } from '@/types/database'
 import { resolveTimeZone } from '@/lib/date'
+import { requireBusinessContext } from '@/lib/business/context'
 
 export async function saveSettings(
   prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
   const parse = (key: string, fallback: number) => {
     const n = parseFloat(formData.get(key) as string ?? '')
     return isNaN(n) ? fallback : n
   }
 
-  const target_hourly_rate   = parse('target_hourly_rate', 65)
-  const minimum_price        = parse('minimum_price', 55)
-  const round_to_nearest     = parse('round_to_nearest', 5)
+  const target_hourly_rate    = parse('target_hourly_rate', 65)
+  const minimum_price         = parse('minimum_price', 55)
+  const round_to_nearest      = parse('round_to_nearest', 5)
   const default_setup_minutes = parse('default_setup_minutes', 10)
-  const venmo_handle         = (formData.get('venmo_handle') as string ?? '').trim().replace(/^@/, '') || null
-  const rawTimeZone          = (formData.get('time_zone') as string ?? '').trim()
-  const time_zone            = resolveTimeZone(rawTimeZone)
+  const venmo_handle          = (formData.get('venmo_handle') as string ?? '').trim().replace(/^@/, '') || null
+  const rawTimeZone           = (formData.get('time_zone') as string ?? '').trim()
+  const time_zone             = resolveTimeZone(rawTimeZone)
+  const business_phone        = (formData.get('business_phone') as string ?? '').trim() || null
 
-  const { error } = await supabase
-    .from('pricing_settings')
-    .upsert({
-      user_id:              user.id,
-      target_hourly_rate,
-      minimum_price,
-      round_to_nearest,
-      default_setup_minutes,
-      venmo_handle,
-      time_zone,
-    }, { onConflict: 'user_id' })
+  const [settingsResult, businessResult] = await Promise.all([
+    supabase
+      .from('pricing_settings')
+      .upsert({
+        user_id: userId,
+        target_hourly_rate,
+        minimum_price,
+        round_to_nearest,
+        default_setup_minutes,
+        venmo_handle,
+        time_zone,
+      }, { onConflict: 'user_id' }),
+    supabase
+      .from('businesses')
+      .update({ phone: business_phone })
+      .eq('id', businessId),
+  ])
 
-  if (error) return { error: error.message }
+  if (settingsResult.error) return { error: settingsResult.error.message }
+  if (businessResult.error) return { error: businessResult.error.message }
 
   revalidatePath('/settings')
   return { error: null, success: 'Settings saved.', savedAt: Date.now() }

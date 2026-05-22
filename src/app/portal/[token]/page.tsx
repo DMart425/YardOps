@@ -62,6 +62,7 @@ export default async function CustomerPortalPage({
   const [
     { data: customer },
     { data: profile },
+    { data: businessRow },
     { data: jobs },
     { data: pricing },
     { data: properties },
@@ -75,6 +76,11 @@ export default async function CustomerPortalPage({
       .from('profiles')
       .select('business_name, business_phone')
       .eq('id', created_by)
+      .single(),
+    supabase
+      .from('businesses')
+      .select('name, phone')
+      .eq('id', business_id)
       .single(),
     supabase
       .from('jobs')
@@ -97,8 +103,8 @@ export default async function CustomerPortalPage({
 
   if (!customer) notFound()
 
-  const businessName  = profile?.business_name  ?? 'Your Lawn Service'
-  const businessPhone = profile?.business_phone ?? null
+  const businessName  = businessRow?.name  ?? profile?.business_name  ?? 'Your Lawn Service'
+  const businessPhone = businessRow?.phone ?? profile?.business_phone ?? null
   const venmoHandle   = (pricing?.venmo_handle as string | null) ?? null
   const timeZone = resolveTimeZone(pricing?.time_zone)
 

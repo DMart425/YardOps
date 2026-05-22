@@ -6,18 +6,24 @@ import { BackfillCoordinatesButton } from '@/components/BackfillCoordinatesButto
 import { DataExportSection } from '@/components/DataExportSection'
 import { EnableNotificationsButton } from '@/components/EnableNotificationsButton'
 import { BlackoutDatesForm } from '@/components/BlackoutDatesForm'
-import { redirect } from 'next/navigation'
+import { requireBusinessContext } from '@/lib/business/context'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { userId, businessId } = await requireBusinessContext()
 
-  const { data: settings } = await supabase
-    .from('pricing_settings')
-    .select('*')
-    .eq('user_id', user.id)
-    .maybeSingle()
+  const [{ data: settings }, { data: businessRow }] = await Promise.all([
+    supabase
+      .from('pricing_settings')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle(),
+    supabase
+      .from('businesses')
+      .select('phone')
+      .eq('id', businessId)
+      .single(),
+  ])
 
   const defaults = {
     target_hourly_rate:    settings?.target_hourly_rate    ?? DEFAULT_SETTINGS.targetHourlyRate,
@@ -26,6 +32,7 @@ export default async function SettingsPage() {
     default_setup_minutes: settings?.default_setup_minutes ?? DEFAULT_SETTINGS.defaultSetupMinutes,
     venmo_handle:          settings?.venmo_handle          ?? '',
     time_zone:             resolveTimeZone(settings?.time_zone),
+    business_phone:        (businessRow?.phone as string | null) ?? '',
   }
 
   const blackoutDates: string[] = (settings?.blackout_dates as string[] | null) ?? []

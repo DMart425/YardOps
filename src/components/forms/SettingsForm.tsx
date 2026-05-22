@@ -24,6 +24,7 @@ interface Defaults {
   default_setup_minutes: number
   venmo_handle:          string
   time_zone:             string
+  business_phone:        string
 }
 
 export function SettingsForm({ defaults }: { defaults: Defaults }) {
@@ -33,6 +34,20 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
     <form action={action} className="form">
       <Toast message={state.success} triggerKey={state.savedAt} />
       {state.error && <div className="alert alert-error">{state.error}</div>}
+
+      <div className="form-section-label">Business Info</div>
+      <div className="form-field">
+        <label className="form-label" htmlFor="s_bphone">Business Phone</label>
+        <input
+          id="s_bphone"
+          name="business_phone"
+          type="tel"
+          className="form-input"
+          placeholder="(334) 555-0100"
+          defaultValue={defaults.business_phone}
+        />
+        <p className="form-hint">Shown in customer-facing texts and portal contact info.</p>
+      </div>
 
       <div className="form-section-label">Pricing Defaults</div>
       <p className="text-small text-muted" style={{ marginBottom: '8px' }}>

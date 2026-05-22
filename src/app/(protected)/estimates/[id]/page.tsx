@@ -57,12 +57,12 @@ export default async function EstimateDetailPage({
 
   const { data: business } = await supabase
     .from('businesses')
-    .select('name')
+    .select('name, phone')
     .eq('id', businessId)
     .single()
 
   const businessName = (business?.name as string | null) ?? (profile?.business_name as string | null) ?? 'Lawn Service'
-  const businessPhone = (profile?.business_phone as string | null) ?? null
+  const businessPhone = (business?.phone as string | null) ?? (profile?.business_phone as string | null) ?? null
 
   // Find the linked job if this estimate was converted (for View Job link)
   let convertedJobId: string | null = null

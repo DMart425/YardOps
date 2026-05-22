@@ -17,6 +17,17 @@ export type MessageType =
 export type EstimateApprovalSource = 'customer_quote' | 'manual'
 export type AppNotificationType = 'estimate_approved'
 
+export interface Business {
+  id: string
+  name: string
+  slug: string
+  owner_user_id: string
+  phone: string | null
+  status: string
+  created_at: string
+  updated_at: string
+}
+
 export interface Profile {
   id: string
   business_name: string | null

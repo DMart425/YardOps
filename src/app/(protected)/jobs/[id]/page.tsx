@@ -67,7 +67,7 @@ export default async function JobDetailPage({
 
   const { data: business } = await supabase
     .from('businesses')
-    .select('name')
+    .select('name, phone')
     .eq('id', businessId)
     .single()
 
@@ -414,7 +414,7 @@ export default async function JobDetailPage({
           <DownloadInvoiceButton
             data={{
               businessName:   business?.name ?? profile?.business_name ?? 'Lawn Service',
-              businessPhone:  profile?.business_phone ?? null,
+              businessPhone:  business?.phone ?? profile?.business_phone ?? null,
               businessEmail:  profile?.business_email ?? null,
               customerName,
               customerPhone:  customer.phone,
