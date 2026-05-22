@@ -1,10 +1,12 @@
 'use client'
 
+import { useState } from 'react'
 import { useActionState } from 'react'
 import type { FormState } from '@/types/database'
 import { saveSettings } from '@/app/(protected)/settings/actions'
 import { APP_DEFAULT_TIMEZONE } from '@/lib/date'
 import { Toast } from '@/components/Toast'
+import { formatPhoneInput } from '@/lib/format'
 
 const US_TIMEZONES = [
   { value: APP_DEFAULT_TIMEZONE,  label: 'UTC (neutral default fallback)' },
@@ -29,6 +31,7 @@ interface Defaults {
 
 export function SettingsForm({ defaults }: { defaults: Defaults }) {
   const [state, action, pending] = useActionState<FormState, FormData>(saveSettings, { error: null })
+  const [businessPhone, setBusinessPhone] = useState(defaults.business_phone)
 
   return (
     <form action={action} className="form">
@@ -44,7 +47,8 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
           type="tel"
           className="form-input"
           placeholder="(334) 555-0100"
-          defaultValue={defaults.business_phone}
+          value={businessPhone}
+          onChange={e => setBusinessPhone(formatPhoneInput(e.target.value))}
         />
         <p className="form-hint">Shown in customer-facing texts and portal contact info.</p>
       </div>

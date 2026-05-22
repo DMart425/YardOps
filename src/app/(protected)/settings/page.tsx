@@ -7,6 +7,7 @@ import { DataExportSection } from '@/components/DataExportSection'
 import { EnableNotificationsButton } from '@/components/EnableNotificationsButton'
 import { BlackoutDatesForm } from '@/components/BlackoutDatesForm'
 import { requireBusinessContext } from '@/lib/business/context'
+import { formatPhoneInput } from '@/lib/format'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -32,7 +33,7 @@ export default async function SettingsPage() {
     default_setup_minutes: settings?.default_setup_minutes ?? DEFAULT_SETTINGS.defaultSetupMinutes,
     venmo_handle:          settings?.venmo_handle          ?? '',
     time_zone:             resolveTimeZone(settings?.time_zone),
-    business_phone:        (businessRow?.phone as string | null) ?? '',
+    business_phone:        formatPhoneInput((businessRow?.phone as string | null) ?? ''),
   }
 
   const blackoutDates: string[] = (settings?.blackout_dates as string[] | null) ?? []

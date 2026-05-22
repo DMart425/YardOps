@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { formatTimestampDate, resolveTimeZone } from '@/lib/date'
+import { formatPhoneInput } from '@/lib/format'
 
 function fmtDate(d: string) {
   return new Date(d + 'T12:00:00').toLocaleDateString('en-US', {
@@ -103,8 +104,9 @@ export default async function CustomerPortalPage({
 
   if (!customer) notFound()
 
-  const businessName  = businessRow?.name  ?? profile?.business_name  ?? 'Your Lawn Service'
-  const businessPhone = businessRow?.phone ?? profile?.business_phone ?? null
+  const businessName    = businessRow?.name  ?? profile?.business_name  ?? 'Your Lawn Service'
+  const rawBusinessPhone = businessRow?.phone ?? profile?.business_phone ?? null
+  const businessPhone   = rawBusinessPhone ? formatPhoneInput(rawBusinessPhone) : null
   const venmoHandle   = (pricing?.venmo_handle as string | null) ?? null
   const timeZone = resolveTimeZone(pricing?.time_zone)
 

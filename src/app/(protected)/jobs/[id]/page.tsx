@@ -8,6 +8,7 @@ import { DownloadInvoiceButton } from '@/components/DownloadInvoiceButton'
 import { ScheduleFollowUpCard } from '@/components/ScheduleFollowUpCard'
 import type { Job } from '@/types/database'
 import { requireBusinessContext } from '@/lib/business/context'
+import { formatPhoneInput } from '@/lib/format'
 
 type JobDetail = Job & {
   customers: { first_name: string; last_name: string | null; phone: string | null; email: string | null }
@@ -78,6 +79,8 @@ export default async function JobDetailPage({
     .maybeSingle()
   const venmoHandle = (settings?.venmo_handle as string | null) ?? null
   const timeZone = resolveTimeZone(settings?.time_zone ?? null)
+  const rawBusinessPhone = business?.phone ?? profile?.business_phone ?? null
+  const businessPhone = rawBusinessPhone ? formatPhoneInput(rawBusinessPhone) : null
 
   const { data: photos } = await supabase
     .from('job_photos')
@@ -414,7 +417,7 @@ export default async function JobDetailPage({
           <DownloadInvoiceButton
             data={{
               businessName:   business?.name ?? profile?.business_name ?? 'Lawn Service',
-              businessPhone:  business?.phone ?? profile?.business_phone ?? null,
+              businessPhone:  businessPhone,
               businessEmail:  profile?.business_email ?? null,
               customerName,
               customerPhone:  customer.phone,

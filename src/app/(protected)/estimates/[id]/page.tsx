@@ -7,6 +7,7 @@ import { formatDateOnly, formatTimestampDate, getLocalDateStr, resolveTimeZone }
 import type { EstimateInputs } from '@/lib/pricing'
 import type { Estimate } from '@/types/database'
 import { requireBusinessContext } from '@/lib/business/context'
+import { formatPhoneInput } from '@/lib/format'
 import SendSmsButton from './SendSmsButton'
 import ScheduleVisitForm from './ScheduleVisitForm'
 import EstimateDangerZone from './EstimateDangerZone'
@@ -62,7 +63,8 @@ export default async function EstimateDetailPage({
     .single()
 
   const businessName = (business?.name as string | null) ?? (profile?.business_name as string | null) ?? 'Lawn Service'
-  const businessPhone = (business?.phone as string | null) ?? (profile?.business_phone as string | null) ?? null
+  const rawBusinessPhone = (business?.phone as string | null) ?? (profile?.business_phone as string | null) ?? null
+  const businessPhone = rawBusinessPhone ? formatPhoneInput(rawBusinessPhone) : null
 
   // Find the linked job if this estimate was converted (for View Job link)
   let convertedJobId: string | null = null

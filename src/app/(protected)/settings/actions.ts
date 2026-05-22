@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import type { FormState } from '@/types/database'
 import { resolveTimeZone } from '@/lib/date'
 import { requireBusinessContext } from '@/lib/business/context'
+import { formatPhoneInput } from '@/lib/format'
 
 export async function saveSettings(
   prevState: FormState,
@@ -25,7 +26,8 @@ export async function saveSettings(
   const venmo_handle          = (formData.get('venmo_handle') as string ?? '').trim().replace(/^@/, '') || null
   const rawTimeZone           = (formData.get('time_zone') as string ?? '').trim()
   const time_zone             = resolveTimeZone(rawTimeZone)
-  const business_phone        = (formData.get('business_phone') as string ?? '').trim() || null
+  const rawPhone              = (formData.get('business_phone') as string ?? '').trim()
+  const business_phone        = rawPhone ? formatPhoneInput(rawPhone) : null
 
   const [settingsResult, businessResult] = await Promise.all([
     supabase
