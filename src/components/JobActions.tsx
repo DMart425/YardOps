@@ -37,9 +37,10 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
 
   const todayLocal    = new Intl.DateTimeFormat('en-CA').format(new Date())
 
-  const isActive      = job.status === 'scheduled' || job.status === 'in_progress'
-  const canReschedule = isActive || job.status === 'needs_reschedule'
-  const isCompleted   = job.status === 'completed'
+  const isActive         = job.status === 'scheduled' || job.status === 'in_progress'
+  const canReschedule    = isActive || job.status === 'needs_reschedule'
+  const isCompleted      = job.status === 'completed'
+  const partialRemaining = Math.max(0, Number(job.price ?? 0) - Number(job.amount_paid ?? 0))
 
   // Build invoice SMS body using completion-time state so partial amounts are accurate
   // even before router.refresh() updates stale job props.
@@ -389,6 +390,14 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
             Partial: ${Number(job.amount_paid ?? 0).toFixed(0)} of ${Number(job.price ?? 0).toFixed(0)} paid
             &nbsp;— ${(Number(job.price ?? 0) - Number(job.amount_paid ?? 0)).toFixed(0)} remaining
           </div>
+          {venmoHandle && customerPhone && partialRemaining > 0 && (
+            <a
+              href={`sms:${customerPhone}?&body=${encodeURIComponent(`Hi ${customerFirstName ?? ''}, friendly reminder for the remaining $${partialRemaining.toFixed(0)} balance for your lawn service. Pay via Venmo: https://venmo.com/${venmoHandle}?txn=pay&amount=${partialRemaining.toFixed(0)}&note=${encodeURIComponent('Lawn service')}\n\nThanks!${businessName ? ` — ${businessName}` : ''}`)}`}
+              className="btn btn-secondary btn-full"
+            >
+              📲 Send Pay Reminder
+            </a>
+          )}
           <button type="button" className="btn btn-primary btn-full" onClick={() => setPanel(panel === 'paid' ? null : 'paid')}>
             $ Mark Remaining Paid
           </button>
