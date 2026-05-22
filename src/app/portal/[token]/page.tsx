@@ -338,6 +338,21 @@ export default async function CustomerPortalPage({
                       ? formatTimestampDate(j.completed_at, timeZone, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
                       : '—'}
                   </div>
+                  {ps !== 'not_billable' && (
+                    <a
+                      href={`/portal/${token}/invoice/${j.id}`}
+                      style={{
+                        display: 'inline-block',
+                        marginTop: '6px',
+                        fontSize: '0.8125rem',
+                        color: 'var(--color-primary)',
+                        textDecoration: 'none',
+                        fontWeight: 500,
+                      }}
+                    >
+                      {ps === 'paid' ? 'View Receipt →' : 'View Invoice →'}
+                    </a>
+                  )}
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '0.75rem' }}>
                   <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: amountColor }}>
