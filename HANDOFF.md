@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-21 (8232e4a)
+Last updated: 2026-05-22 (ac212ba)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-05-21 (8232e4a)
 
 ## Current Checkpoint
 
-- **Latest commit:** `8232e4a` — Clarify portal service history payments
+- **Latest commit:** `ac212ba` — Format business phone displays
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -334,6 +334,40 @@ Key commits: `fbe63c0`, `3f5645c`, `b93e836`, `406f727`, `dd7dbb6`, `30df416`, `
 
 ---
 
+### Phase 5B — Estimate Conversion Polish & Business-Scoped Phone ✅
+
+**Commits:** `2fd14eb`, `4f3254b`, `924dead`, `ac212ba`
+
+**Estimate conversion polish:**
+- `convertToJob()` — duplicate conversion guard added; returns error if estimate is already `converted`
+- Converted estimate detail looks up linked job via `jobs.estimate_id + business_id`; renders **View Job →** button when job found
+- Estimate SMS business name now uses `businesses.name` → `profiles.business_name` → `'Lawn Service'` (was profile-only, always hit fallback)
+
+**Business-scoped phone:**
+- Migration `20260522000000_add_business_phone.sql` — adds `phone text` (nullable) to `businesses`; applied and verified on `lewzqavgvltzwfeypvam`
+- Settings → **Business Phone** field added; saves to `businesses.phone` via `businessId` (business-scoped, not user-scoped)
+- Resolution order for all customer-facing surfaces: `businesses.phone → profiles.business_phone → null`
+- Surfaces updated: estimate SMS contact line, job invoice PDF, customer portal header + contact section
+- `formatPhoneInput()` applied at input (live formatting while typing) and at all display points; stored/displayed as `(xxx) xxx-xxxx`
+
+**Deferred from this phase:**
+- Job detail **View Estimate** link when `job.estimate_id` exists
+- Convert-to-job date/time pre-fill polish
+- Public quote page phone source (separate data path — not updated here)
+- `JobActions` SMS messages — `businessPhone` not yet passed; job SMS bodies remain phone-free
+
+**Production-verified:**
+- Converted estimate shows View Job link ✅
+- Estimate SMS uses correct business name ✅
+- Settings → Business Phone field saves successfully ✅
+- Business phone formats live as `(334) 320-7514` in Settings ✅
+- Settings reload shows formatted value ✅
+- Estimate SMS contact line shows formatted business phone ✅
+- Customer portal displays formatted business phone ✅
+- Job invoice PDF uses business-scoped phone ✅
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -346,6 +380,8 @@ Key commits: `fbe63c0`, `3f5645c`, `b93e836`, `406f727`, `dd7dbb6`, `30df416`, `
 | `20260511180000_phase2e_group2_not_null_equipment.sql` | Phase 2E Group 2 NOT NULL |
 | `20260511190000_phase2e_group3_not_null_core_operations.sql` | Phase 2E Group 3 NOT NULL |
 | `20260511200000_phase2e_leads_not_null.sql` | Phase 2E leads — business_id NOT NULL / FK ON DELETE RESTRICT |
+| `20260513200000_phase2g_leads_rls_cosmetic.sql` | Phase 2G leads RLS — remove redundant NOT NULL prefix from SELECT/DELETE USING clauses |
+| `20260522000000_add_business_phone.sql` | Add nullable `phone text` column to `businesses` — business-scoped contact number |
 
 ---
 
@@ -353,6 +389,10 @@ Key commits: `fbe63c0`, `3f5645c`, `b93e836`, `406f727`, `dd7dbb6`, `30df416`, `
 
 | Hash | Description |
 |------|-------------|
+| `ac212ba` | Format business phone displays (Phase 5B) |
+| `924dead` | Add business-scoped phone setting (Phase 5B) |
+| `4f3254b` | Use business name in estimate SMS (Phase 5B) |
+| `2fd14eb` | Polish estimate conversion workflow (Phase 5B) |
 | `8232e4a` | Clarify portal service history payments (Phase 5A) |
 | `7093925` | Add portal link to balance reminder SMS (Phase 5A) |
 | `561bf76` | Polish balance reminder SMS wording (Phase 5A) |
@@ -546,6 +586,15 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ Customer portal link in SMS opens to correct customer portal (`7093925`)
 - ✅ Customer portal shows outstanding balance banner and Venmo Pay Now button when balance > 0 (pre-existing — verified)
 - ✅ Customer portal service history correctly shows due/remaining/paid/partial/not-billable payment states with colored amounts and contextual labels; partial state shows subtext with amount paid and total (`8232e4a`)
+- ✅ Converted estimate detail shows **View Job →** button linking to the created job (`2fd14eb`)
+- ✅ `convertToJob()` duplicate conversion guard — returns error if estimate is already `converted`; double-trigger safe (`2fd14eb`)
+- ✅ Estimate SMS uses `businesses.name` as business name source; no longer falls back to `'Lawn Service'` when `businesses.name` is populated (`4f3254b`)
+- ✅ Settings → Business Phone field saves `businesses.phone` using `businessId` (business-scoped, not profile-scoped) (`924dead`)
+- ✅ Business phone formats live as `(334) 320-7514` while typing in Settings (`ac212ba`)
+- ✅ Settings page reload shows formatted phone value (`ac212ba`)
+- ✅ Estimate SMS contact line shows `Questions? Call or text (334) 320-7514` when business phone is set (`ac212ba`)
+- ✅ Customer portal header and contact section display formatted business phone (`ac212ba`)
+- ✅ Job invoice PDF uses business-scoped phone (`businesses.phone → profiles.business_phone → null`) formatted as `(xxx) xxx-xxxx` (`ac212ba`)
 
 ---
 
@@ -565,9 +614,13 @@ All of the following were user-tested and confirmed working as of `289b732`:
 | `overdueCount` → `staleUnpaidCount` rename in `jobs/page.tsx` | ✅ Complete | `c1b22b9` |
 | Customer detail `+ New Job` shortcut | ✅ Complete | `5acdcbb` |
 | Job detail payment row wording polish | ✅ Complete | `463e762` |
-| Phase 5A — Customer collections / receivables | ⏸ In Progress | Balance badges, Outstanding Balance section, SMS reminder, portal clarity done; see Phase 5A section |
+| Phase 5A — Customer collections / receivables | ✅ Complete | Balance badges, Outstanding Balance section, SMS reminder, portal clarity — all production-verified |
+| Phase 5B — Estimate conversion + business phone | ✅ Complete | Duplicate guard, View Job link, businesses.name SMS, businesses.phone setting + formatting — all production-verified |
+| Job detail View Estimate link | ⏸ Future | When `job.estimate_id` exists — not yet added |
+| Convert-to-job date/time pre-fill polish | ⏸ Future | Deferred — Phase 5 candidate |
+| Public quote page phone source | ⏸ Future | Uses separate data path; not updated in Phase 5B |
+| `JobActions` SMS business phone | ⏸ Future | On-my-way / day-before / job-complete SMS bodies; `businessPhone` not yet passed as prop |
 | Operational weekly summary improvements | ⏸ Future | Deferred — Phase 5 candidate |
-| Estimate → Job conversion polish | ⏸ Future | Deferred — Phase 5 candidate |
 | Bulk job actions | ⏸ Future | Deferred — Phase 5 candidate |
 | Revenue / expense reporting improvements | ⏸ Future | Deferred — Phase 5 candidate |
 
@@ -583,7 +636,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
 | 3 | Public intake and lead workflow improvements | ✅ Complete — all listed tasks done through `ec48565`; payment bugfixes continued in Phase 4 |
 | 4 | Operations UX / workflow polish | ✅ Substantially complete — 4A–4D + cleanup batch done (`463e762`) |
-| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A customer collections started (`8232e4a`) |
+| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A customer collections ✅ complete; Phase 5B estimate conversion + business phone ✅ complete (`ac212ba`) |
 
 **Permanent Future-Handoff Requirements** (mandatory — see Architecture.md §16):
 Every future handoff must instruct the next chat to read ARCHITECTURE.md and HANDOFF.md first, remind it to update those docs after any verified/committed change, state the latest commit, current phase status, open items, workflow guardrails, and known security follow-ups (no secret values).
@@ -592,22 +645,26 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Phase 5A — Customer Collections continues or Phase 5B planning**
+**Phase 5C planning — next area TBD**
 
-Phase 4 is substantially complete including the cleanup batch (`463e762`). Phase 5A customer collections / receivables core is production-verified (`8232e4a`).
+Phase 5A (customer collections) and Phase 5B (estimate conversion + business phone) are both production-verified and complete as of `ac212ba`.
 
-**Completed Phase 5A work:**
+**Completed Phase 5A + 5B work:**
 - ✅ Customers list unpaid balance badges
 - ✅ Customer detail Outstanding Balance section
 - ✅ Balance reminder SMS with portal link
 - ✅ Portal service history payment clarity
+- ✅ Estimate conversion duplicate guard + View Job link
+- ✅ Estimate SMS business name from `businesses.name`
+- ✅ Business-scoped phone — Settings field, formatting, all customer-facing surfaces
 
 **Next Phase 5 candidates:**
-1. Portal enhancements — customer-facing UX improvements (payment confirmation, contact button polish)
-2. Operational weekly summary — improve daily/weekly brief for the operator
-3. Estimate → Job conversion polish — smoother scheduling after estimate approval
-4. Revenue/expense reporting — more useful Finances page analytics
-5. Bulk job actions — mark multiple jobs paid, batch scheduling operations
+1. Job detail View Estimate link — add back-link from job to its source estimate
+2. `JobActions` SMS business phone — wire `businessPhone` into on-my-way / day-before / job-complete SMS
+3. Portal enhancements — customer-facing UX improvements
+4. Operational weekly summary — improve daily/weekly brief for the operator
+5. Revenue/expense reporting — more useful Finances page analytics
+6. Bulk job actions — mark multiple jobs paid, batch scheduling
 
 **Phase 3 completed tasks (all user-tested in production — historical record):**
 1. ~~Frequency display — website lead detail page~~ ✅ (`0589026`)

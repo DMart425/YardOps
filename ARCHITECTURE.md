@@ -4,8 +4,8 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-21
-Current checkpoint commit: `8232e4a` (Clarify portal service history payments)
+Last updated: 2026-05-22
+Current checkpoint commit: `ac212ba` (Format business phone displays)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -99,6 +99,7 @@ src/
 │   ├── business/
 │   │   └── context.ts            # requireBusinessContext() — resolves userId + businessId
 │   ├── pricing.ts                # Estimate calculation engine
+│   ├── format.ts                 # Display formatting helpers: formatPhoneInput() — formats 10-digit US numbers as (xxx) xxx-xxxx; used on all phone input fields and customer-facing output
 │   ├── geocode.ts                # Address geocoding helper
 │   ├── frequency.ts              # Frequency and service interest helpers: normalizeFrequency(), formatFrequencyLabel(), parseWebsiteServiceInterests(), formatServiceInterestLabel()
 │   └── push.ts                   # Web push helper
@@ -200,13 +201,15 @@ Business-owned tables use `public.is_business_member(business_id)` in all SELECT
 
 ### `businesses`
 - `id` — FK target for `business_id` on all business-owned tables
-- `name` — primary source for invoice PDF business header. Resolution order: `businesses.name → profiles.business_name → 'Lawn Service'`. Do not hardcode tenant names as invoice fallbacks.
+- `name` — primary business display name. Resolution order: `businesses.name → profiles.business_name → 'Lawn Service'`. Do not hardcode tenant names as fallbacks.
+- `phone` (nullable text) — business-scoped contact number. Configurable in Settings → Business Phone (saves via `businessId`). Resolution order for all customer-facing surfaces: `businesses.phone → profiles.business_phone → null`. Formatted as `(xxx) xxx-xxxx` using `formatPhoneInput()` at input and display. Added in migration `20260522000000_add_business_phone.sql`.
 
 ### `profiles` (1 per user)
 - `id` (auth user ID)
 - `business_name`, `owner_name`, `business_phone`, `business_email`
 - `service_radius_miles`, `default_hourly_rate`, `minimum_visit_charge`
 - `created_at`, `updated_at`
+- **Note:** `profiles.business_name` and `profiles.business_phone` are now secondary fallbacks. Primary sources are `businesses.name` and `businesses.phone`. The Settings page does not expose UI to edit profile fields directly — it writes to `businesses` (phone) and `pricing_settings` (all other settings).
 
 ### `pricing_settings` (1 per user)
 - `id`, `user_id` (FK → auth.users)
@@ -720,12 +723,46 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 
 **Potential next Phase 5 tasks:**
 1. Operational weekly summary improvements.
-2. Estimate → job conversion polish.
+2. ~~Estimate → job conversion polish.~~ ✅ complete (see Phase 5B)
 3. Revenue/expense reporting improvements.
 4. Portal enhancements (customer-facing UX).
 5. Bulk job actions.
 6. Better public quote/intake analytics.
 7. Future multi-business/team/operator support if desired.
+
+---
+
+### Phase 5B — Estimate Conversion Polish & Business-Scoped Phone
+
+**Goal:** Polish the estimate → job conversion workflow and add a proper business-scoped phone for customer-facing communications.
+
+**Status:** ✅ Complete (2026-05-22)
+
+**Commits:** `2fd14eb`, `4f3254b`, `924dead`, `ac212ba`
+
+**Estimate conversion polish (`2fd14eb`, `4f3254b`):**
+
+- `convertToJob()` in `estimates/actions.ts` — added duplicate conversion guard: returns early with error if `estimate.status === 'converted'`; prevents double-conversion if action is triggered twice
+- Converted estimate detail (`estimates/[id]/page.tsx`) — looks up linked job via `jobs.estimate_id + business_id` when `estimate.status === 'converted'`; renders **View Job →** button when a linked job is found
+- Estimate SMS business name now uses `businesses.name` as primary source, then `profiles.business_name`, then `'Lawn Service'` — matches the resolution already established in `jobs/[id]/page.tsx`
+
+**Business-scoped phone (`924dead`, `ac212ba`):**
+
+- Migration: `supabase/migrations/20260522000000_add_business_phone.sql` — adds `phone text` (nullable) to `businesses`. Applied and verified on `lewzqavgvltzwfeypvam`.
+- `src/types/database.ts` — added `Business` interface with `phone: string | null`
+- Settings → Business Phone field: saves to `businesses.phone` using `businessId` (business-scoped, not user-scoped). `saveSettings()` updated to call `requireBusinessContext()` and write `businesses.phone` in parallel with `pricing_settings` upsert
+- Phone input live-formats while typing using existing `formatPhoneInput()` from `src/lib/format.ts` (same pattern as customer/lead phone fields)
+- Resolution order for all customer-facing surfaces: `businesses.phone → profiles.business_phone → null`
+- Surfaces updated: estimate SMS, job invoice PDF (`DownloadInvoiceButton`), customer portal (header + contact section)
+- Display formatting: `formatPhoneInput()` applied at read time on all server-rendered surfaces so raw-digit stored values display as `(xxx) xxx-xxxx`
+
+**Deferred from this phase:**
+
+- Job detail **View Estimate** link when `job.estimate_id` exists — not yet added
+- Convert-to-job date/time pre-fill polish — not yet added
+- Public quote page phone source — uses a separate data path; not updated in this phase
+- `JobActions` component SMS messages (on-my-way, day-before, job-complete) — `businessPhone` not yet passed as a prop; still phone-free in SMS bodies
+- Operational weekly summary improvements
 
 ---
 

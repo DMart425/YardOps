@@ -8,7 +8,7 @@ YardOps is the private operations app for Wicksburg Lawn Service.
 
 Current verified YardOps checkpoint commit:
 
-`8232e4a` (Clarify portal service history payments)
+`ac212ba` (Format business phone displays)
 
 The public website repo is separate:
 
