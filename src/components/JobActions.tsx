@@ -10,8 +10,9 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
   const [panel,          setPanel]         = useState<'complete' | 'skip' | 'paid' | 'partial' | 'reschedule' | null>(null)
   const [completionPayStatus,  setCompletionPayStatus]  = useState('unpaid')
   const [completionPartialAmt, setCompletionPartialAmt] = useState('')
-  const [reschedReason,  setReschedReason]  = useState('')
-  const [reschedTimeWin, setReschedTimeWin] = useState('')
+  const [reschedReason,    setReschedReason]    = useState('')
+  const [reschedTimeWin,   setReschedTimeWin]   = useState('')
+  const [laterPartialAmt,  setLaterPartialAmt]  = useState('')
   const router = useRouter()
   const notesRef = useRef<HTMLTextAreaElement>(null)
 
@@ -40,7 +41,9 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
   const isActive         = job.status === 'scheduled' || job.status === 'in_progress'
   const canReschedule    = isActive || job.status === 'needs_reschedule'
   const isCompleted      = job.status === 'completed'
-  const partialRemaining = Math.max(0, Number(job.price ?? 0) - Number(job.amount_paid ?? 0))
+  const partialRemaining    = Math.max(0, Number(job.price ?? 0) - Number(job.amount_paid ?? 0))
+  const laterPartialAmtNum  = parseFloat(laterPartialAmt) || 0
+  const partialIsPaidInFull = partialState.success === 'Paid in full.'
 
   // Build invoice SMS body using completion-time state so partial amounts are accurate
   // even before router.refresh() updates stale job props.
@@ -361,8 +364,16 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
             <form action={partialAction} className="form action-panel">
               <div className="form-field">
                 <label className="form-label">Payment Amount ($)</label>
-                <input type="number" name="amount_paid" min="1" step="1" className="form-input"
-                  placeholder={job.price ? String(Number(job.price).toFixed(0)) : '0'} />
+                <input
+                  type="number"
+                  name="amount_paid"
+                  min="1"
+                  step="1"
+                  className="form-input"
+                  placeholder={job.price ? String(Number(job.price).toFixed(0)) : '0'}
+                  value={laterPartialAmt}
+                  onChange={e => setLaterPartialAmt(e.target.value)}
+                />
               </div>
               <div className="form-field">
                 <label className="form-label">Payment Method</label>
@@ -379,6 +390,38 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
                 {partialPending ? 'Saving…' : 'Record Partial Payment'}
               </button>
             </form>
+          )}
+
+          {/* Receipt SMS after Mark Paid (unpaid → paid in full) */}
+          {paidState.success && customerPhone && (
+            <button
+              type="button"
+              className="btn btn-primary btn-full"
+              onClick={() => {
+                router.refresh()
+                window.location.href = `sms:${customerPhone}?&body=${encodeURIComponent(
+                  buildPaymentReceiptSms(customerFirstName, job.price != null ? Number(job.price) : 0, true, 0, portalInvoiceUrl, businessPhone)
+                )}`
+              }}
+            >
+              📱 Send Receipt
+            </button>
+          )}
+
+          {/* Receipt SMS after Add Partial Payment (unpaid → still partial) */}
+          {partialState.success && customerPhone && laterPartialAmtNum > 0 && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-full"
+              onClick={() => {
+                router.refresh()
+                window.location.href = `sms:${customerPhone}?&body=${encodeURIComponent(
+                  buildPaymentReceiptSms(customerFirstName, laterPartialAmtNum, false, Math.max(0, Number(job.price ?? 0) - laterPartialAmtNum), portalInvoiceUrl, businessPhone)
+                )}`
+              }}
+            >
+              📱 Send Payment Receipt
+            </button>
           )}
         </>
       )}
@@ -419,6 +462,23 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
               </button>
             </form>
           )}
+
+          {/* Receipt SMS after Mark Remaining Paid (partial → paid in full) */}
+          {paidState.success && customerPhone && (
+            <button
+              type="button"
+              className="btn btn-primary btn-full"
+              onClick={() => {
+                router.refresh()
+                window.location.href = `sms:${customerPhone}?&body=${encodeURIComponent(
+                  buildPaymentReceiptSms(customerFirstName, partialRemaining, true, 0, portalInvoiceUrl, businessPhone)
+                )}`
+              }}
+            >
+              📱 Send Receipt
+            </button>
+          )}
+
           <button type="button" className="btn btn-secondary btn-full" onClick={() => setPanel(panel === 'partial' ? null : 'partial')}>
             Add Another Payment
           </button>
@@ -437,6 +497,8 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
                       ? String(Math.max(0, Number(job.price) - Number(job.amount_paid ?? 0)).toFixed(0))
                       : '0'
                   }
+                  value={laterPartialAmt}
+                  onChange={e => setLaterPartialAmt(e.target.value)}
                 />
               </div>
               <div className="form-field">
@@ -454,6 +516,29 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
                 {partialPending ? 'Saving…' : 'Record Payment'}
               </button>
             </form>
+          )}
+
+          {/* Receipt SMS after Add Another Payment (partial → paid in full or still partial) */}
+          {partialState.success && customerPhone && laterPartialAmtNum > 0 && (
+            <button
+              type="button"
+              className={`btn btn-full ${partialIsPaidInFull ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => {
+                router.refresh()
+                window.location.href = `sms:${customerPhone}?&body=${encodeURIComponent(
+                  buildPaymentReceiptSms(
+                    customerFirstName,
+                    laterPartialAmtNum,
+                    partialIsPaidInFull,
+                    partialIsPaidInFull ? 0 : Math.max(0, partialRemaining - laterPartialAmtNum),
+                    portalInvoiceUrl,
+                    businessPhone,
+                  )
+                )}`
+              }}
+            >
+              📱 {partialIsPaidInFull ? 'Send Receipt' : 'Send Payment Receipt'}
+            </button>
           )}
         </>
       )}
@@ -512,6 +597,36 @@ function buildInvoiceSms(
     } else {
       lines.push('', 'Payment accepted via cash.')
     }
+    if (portalInvoiceUrl) {
+      lines.push('', 'View your invoice:', portalInvoiceUrl)
+    }
+  }
+
+  lines.push('', 'Thank you for your business! 🌿')
+  if (businessPhone) {
+    lines.push(`Questions? Call or text ${businessPhone}`)
+  }
+  return lines.join('\n')
+}
+
+function buildPaymentReceiptSms(
+  firstName: string | null | undefined,
+  amtReceived: number,
+  isPaidInFull: boolean,
+  remainingBalance: number,
+  portalInvoiceUrl?: string | null,
+  businessPhone?: string | null,
+): string {
+  const name  = firstName ?? 'there'
+  const lines: string[] = []
+
+  if (isPaidInFull) {
+    lines.push(`Hi ${name}, we received your $${amtReceived.toFixed(0)} payment for your lawn service. You're all paid up — thank you! 🙏`)
+    if (portalInvoiceUrl) {
+      lines.push('', 'View your receipt:', portalInvoiceUrl)
+    }
+  } else {
+    lines.push(`Hi ${name}, we received your $${amtReceived.toFixed(0)} payment for your lawn service. Your remaining balance is $${remainingBalance.toFixed(0)}.`)
     if (portalInvoiceUrl) {
       lines.push('', 'View your invoice:', portalInvoiceUrl)
     }
