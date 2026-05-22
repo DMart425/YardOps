@@ -6,7 +6,7 @@ import type { FormState, Job } from '@/types/database'
 import { completeJob, markInProgress, skipJob, cancelJob, markPaid, markPartial, rescheduleJob } from '@/app/(protected)/jobs/actions'
 import { Toast } from '@/components/Toast'
 
-export function JobActions({ job, venmoHandle, customerPhone, customerFirstName, businessName, businessPhone }: { job: Job; venmoHandle?: string | null; customerPhone?: string | null; customerFirstName?: string | null; businessName?: string | null; businessPhone?: string | null }) {
+export function JobActions({ job, venmoHandle, customerPhone, customerFirstName, businessName, businessPhone, portalInvoiceUrl }: { job: Job; venmoHandle?: string | null; customerPhone?: string | null; customerFirstName?: string | null; businessName?: string | null; businessPhone?: string | null; portalInvoiceUrl?: string | null }) {
   const [panel,          setPanel]         = useState<'complete' | 'skip' | 'paid' | 'partial' | 'reschedule' | null>(null)
   const [completionPayStatus,  setCompletionPayStatus]  = useState('unpaid')
   const [completionPartialAmt, setCompletionPartialAmt] = useState('')
@@ -53,7 +53,7 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
 
   // Suppress SMS entirely for not_billable completions (no payment expected).
   const invoiceSmsBody = (customerPhone && completionPayStatus !== 'not_billable')
-    ? buildInvoiceSms(customerFirstName, job, venmoHandle, completionAmtForSms, businessPhone)
+    ? buildInvoiceSms(customerFirstName, job, venmoHandle, completionAmtForSms, businessPhone, portalInvoiceUrl)
     : null
 
   // Refresh page data and auto-launch SMS compose when job is first marked complete.
@@ -468,35 +468,15 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
   )
 }
 
-const SMS_SERVICE_LABELS: Record<string, string> = {
-  mow_only:      'Mow Only',
-  mow_trim_blow: 'Mow, Trim & Blow',
-  trim_cleanup:  'Trim & Cleanup',
-  full_service:  'Full Service',
-}
-
 function buildInvoiceSms(
   firstName: string | null | undefined,
   job: Job,
   venmoHandle: string | null | undefined,
   amountPaidOverride?: number | null,
   businessPhone?: string | null,
+  portalInvoiceUrl?: string | null,
 ): string {
-  const name = firstName ?? 'there'
-  const lines: string[] = [
-    `Hi ${name}, your lawn service is complete! ✅`,
-    '',
-  ]
-  if (job.service_package) {
-    const svcLabel = SMS_SERVICE_LABELS[job.service_package]
-      ?? job.service_package.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
-    lines.push(`Service: ${svcLabel}`)
-  }
-  if (job.completed_at) {
-    const d = new Date(job.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    lines.push(`Date: ${d}`)
-  }
-
+  const name          = firstName ?? 'there'
   const jobPrice      = job.price != null ? Number(job.price) : null
   const effectivePaid = amountPaidOverride != null ? Math.max(0, amountPaidOverride) : null
   const isPaidInFull  = effectivePaid != null && jobPrice != null && effectivePaid >= jobPrice
@@ -505,17 +485,25 @@ function buildInvoiceSms(
     ? Math.max(0, jobPrice - effectivePaid)
     : null
 
-  if (jobPrice != null) {
-    lines.push(`Total: $${jobPrice.toFixed(0)}`)
-    if (isPartial && effectivePaid != null) {
-      lines.push(`Paid: $${effectivePaid.toFixed(0)}`)
-      lines.push(`Balance due: $${remaining!.toFixed(0)}`)
-    } else if (isPaidInFull) {
-      lines.push('Paid in full. Thank you! 🙏')
-    }
-  }
+  const lines: string[] = []
 
-  if (!isPaidInFull) {
+  if (isPaidInFull) {
+    lines.push(`Hi ${name}, your lawn service is complete and paid in full. Thank you! 🙏`)
+    if (portalInvoiceUrl) {
+      lines.push('', 'View your receipt:', portalInvoiceUrl)
+    }
+  } else {
+    lines.push(`Hi ${name}, your lawn service is complete.`)
+    if (jobPrice != null) {
+      lines.push('')
+      lines.push(`Total: $${jobPrice.toFixed(0)}`)
+      if (isPartial && effectivePaid != null) {
+        lines.push(`Paid: $${effectivePaid.toFixed(0)}`)
+        lines.push(`Balance due: $${remaining!.toFixed(0)}`)
+      } else {
+        lines.push(`Balance due: $${jobPrice.toFixed(0)}`)
+      }
+    }
     const venmoAmt = isPartial ? remaining : jobPrice
     if (venmoHandle && venmoAmt != null && venmoAmt > 0) {
       const venmoUrl = `https://venmo.com/${venmoHandle}?txn=pay&amount=${venmoAmt.toFixed(0)}&note=${encodeURIComponent('Lawn service')}`
@@ -523,6 +511,9 @@ function buildInvoiceSms(
       lines.push('Cash is also accepted.')
     } else {
       lines.push('', 'Payment accepted via cash.')
+    }
+    if (portalInvoiceUrl) {
+      lines.push('', 'View your invoice:', portalInvoiceUrl)
     }
   }
 

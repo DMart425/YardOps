@@ -9,6 +9,7 @@ import { ScheduleFollowUpCard } from '@/components/ScheduleFollowUpCard'
 import type { Job } from '@/types/database'
 import { requireBusinessContext } from '@/lib/business/context'
 import { formatPhoneInput } from '@/lib/format'
+import { getOrCreatePortalToken } from '@/app/(protected)/customers/[id]/portal-actions'
 
 type JobDetail = Job & {
   customers: { first_name: string; last_name: string | null; phone: string | null; email: string | null }
@@ -121,6 +122,16 @@ export default async function JobDetailPage({
 
   const customerName = `${customer.first_name}${customer.last_name ? ' ' + customer.last_name : ''}`
   const address      = `${property.service_address}${property.city ? ', ' + property.city : ''}`
+
+  // Fetch portal token for invoice/receipt link in completion SMS
+  let portalInvoiceUrl: string | null = null
+  if (customer.phone) {
+    const portalResult = await getOrCreatePortalToken(job.customer_id)
+    if (!('error' in portalResult)) {
+      const base = process.env.NEXT_PUBLIC_QUOTE_BASE_URL ?? 'https://app.wicksburglawnservice.com'
+      portalInvoiceUrl = `${base}/portal/${portalResult.token}/invoice/${job.id}`
+    }
+  }
 
   const warnings = [
     property.pet_warning  ? `🐕 ${property.pet_warning}`  : null,
@@ -306,7 +317,7 @@ export default async function JobDetailPage({
       {/* Actions */}
       <div className="card">
         <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Actions</div>
-        <JobActions job={job} venmoHandle={venmoHandle} customerPhone={customer.phone} customerFirstName={customer.first_name} businessName={businessName} businessPhone={businessPhone} />
+        <JobActions job={job} venmoHandle={venmoHandle} customerPhone={customer.phone} customerFirstName={customer.first_name} businessName={businessName} businessPhone={businessPhone} portalInvoiceUrl={portalInvoiceUrl} />
       </div>
 
       {/* Follow-up scheduling (completed jobs only) */}
