@@ -14,6 +14,7 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
   const [reschedTimeWin,   setReschedTimeWin]   = useState('')
   const [laterPartialAmt,  setLaterPartialAmt]  = useState('')
   const [pendingReceipt,   setPendingReceipt]   = useState<{ smsBody: string; isPaidInFull: boolean } | null>(null)
+  const [partialLocked,    setPartialLocked]    = useState(false)
   const router = useRouter()
   const notesRef = useRef<HTMLTextAreaElement>(null)
 
@@ -350,7 +351,10 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
           <button type="button" className="btn btn-primary btn-full" onClick={() => setPanel(panel === 'paid' ? null : 'paid')}>
             $ Mark Paid
           </button>
-          <button type="button" className="btn btn-secondary btn-full" onClick={() => setPanel(panel === 'partial' ? null : 'partial')}>
+          <button type="button" className="btn btn-secondary btn-full" onClick={() => {
+            if (panel !== 'partial') { setPartialLocked(false); setLaterPartialAmt('') }
+            setPanel(panel === 'partial' ? null : 'partial')
+          }}>
             Add Partial Payment
           </button>
 
@@ -414,9 +418,10 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
               </div>
               <button
                 type="submit"
-                disabled={partialPending || !!partialState.success}
+                disabled={partialPending || (partialLocked && !partialState.error)}
                 className="btn btn-secondary btn-full"
                 onClick={() => {
+                  setPartialLocked(true)
                   const amt = parseFloat(laterPartialAmt) || 0
                   const willBePaidInFull = amt >= partialRemaining
                   if (customerPhone && amt > 0) {
@@ -484,7 +489,10 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
             </form>
           )}
 
-          <button type="button" className="btn btn-secondary btn-full" onClick={() => setPanel(panel === 'partial' ? null : 'partial')}>
+          <button type="button" className="btn btn-secondary btn-full" onClick={() => {
+            if (panel !== 'partial') { setPartialLocked(false); setLaterPartialAmt('') }
+            setPanel(panel === 'partial' ? null : 'partial')
+          }}>
             Add Another Payment
           </button>
           {panel === 'partial' && (
@@ -519,9 +527,10 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
               </div>
               <button
                 type="submit"
-                disabled={partialPending || !!partialState.success}
+                disabled={partialPending || (partialLocked && !partialState.error)}
                 className="btn btn-secondary btn-full"
                 onClick={() => {
+                  setPartialLocked(true)
                   const amt = parseFloat(laterPartialAmt) || 0
                   const willBePaidInFull = amt >= partialRemaining
                   if (customerPhone && amt > 0) {
