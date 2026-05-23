@@ -2,7 +2,7 @@
 
 Private operations app for Wicksburg Lawn Service.
 
-Verified checkpoint commit: `ac212ba` (Format business phone displays).
+Verified checkpoint commit: `b985bb3` (Anchor follow-up date to completion).
 
 ## Read First
 

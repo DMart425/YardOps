@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-22 (ac212ba)
+Last updated: 2026-05-23 (b985bb3)
 
 ---
 
@@ -21,11 +21,13 @@ Last updated: 2026-05-22 (ac212ba)
 
 ## Current Checkpoint
 
-- **Latest commit:** `ac212ba` — Format business phone displays
+- **Latest commit:** `b985bb3` — Anchor follow-up date to completion
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
 - **Production URL:** https://app.wicksburglawnservice.com
+
+> **Vercel note:** `b985bb3` did not appear to trigger an immediate Vercel auto-deploy after push. The docs checkpoint push may retrigger the deploy. Not confirmed resolved — check Vercel dashboard if production behavior appears stale.
 
 > **Note:** The Supabase DB password was exposed in a prior session and needs rotation. User has asked
 > not to interrupt active work repeatedly for this. Rotate at a safe pause point.
@@ -368,6 +370,49 @@ Key commits: `fbe63c0`, `3f5645c`, `b93e836`, `406f727`, `dd7dbb6`, `30df416`, `
 
 ---
 
+### Phase 5C — Portal Invoices, Receipt SMS, and Payment Receipt Stability ✅
+
+**Commits:** `da7e53e`, `b6ed6b3`, `453d43f`, `a70c6dc`, `0351ab6`, `b70f1b2`, `13de697`, `ba85520`, `7c5280a`
+
+**Portal invoice page (`da7e53e`, `b6ed6b3`, `453d43f`):**
+- New public route `/portal/[token]/invoice/[jobId]` — per-job invoice/receipt page, accessible without auth via portal token
+- Job double-scoped by `customer_id` (via token lookup) + `business_id` (from token row) — cannot access another customer's or business's job via URL manipulation
+- Portal service history rows now link to **View Invoice** for completed jobs
+- Completion SMS now includes the portal invoice URL
+
+**Receipt SMS for later payment events (`a70c6dc`, `0351ab6`):**
+- `buildPaymentReceiptSms()` — operator-triggered receipt SMS after `markPaid()` / `markPartial()` post-completion
+- Distinct from `buildInvoiceSms()` — receipt SMS must NOT say "job complete"
+- `not_billable` jobs: no owed amount displayed, no invoice/payment SMS
+- `pendingReceipt` state pre-builds SMS body in submit `onClick`; compose sheet opens after action succeeds
+
+**Repeated partial payment stability (`b70f1b2`, `13de697`, `ba85520`, `7c5280a`):**
+- Root cause: `setState` in submit button `onClick` caused form to unmount before native `submit` event fired → `markPartial()` never received `FormData`
+- React 18 invariant: state updates in `onClick` flush synchronously BEFORE the browser fires `submit` — unmounting the form in `onClick` silently breaks the server action
+- Correct fix (`7c5280a`): controlled input, no form-structural state in `onClick`, only side-effect `setPendingReceipt`, input cleared via deferred `useEffect` with `setTimeout`
+- No SQL/migrations
+
+**Production-verified:**
+- ✅ Portal invoice page loads for completed jobs
+- ✅ Portal service history shows View Invoice links
+- ✅ Completion SMS includes portal invoice URL
+- ✅ Receipt SMS opens after marking paid/partial post-completion
+- ✅ `not_billable` jobs show no owed balance and no SMS
+- ✅ Multiple partial payment submissions work reliably — `markPartial()` receives `FormData` each time
+
+---
+
+### Phase 5D — Follow-up Completion-Date Anchor ✅
+
+**Commit:** `b985bb3`
+
+- `jobs/[id]/page.tsx` — computes `completedDateLocal = getLocalDateStr(timeZone, new Date(job.completed_at))` server-side when `completed_at` is present; passes as `completedDate` prop to `ScheduleFollowUpCard`
+- `ScheduleFollowUpCard.tsx` — added `completedDate?: string | null` prop; anchors `suggestedDate` from `completedDate ?? scheduledDate`
+- Prevents follow-up date drift when jobs are completed early or late relative to their scheduled date
+- No migration. No behavior change for jobs without `completed_at`.
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -389,6 +434,16 @@ Key commits: `fbe63c0`, `3f5645c`, `b93e836`, `406f727`, `dd7dbb6`, `30df416`, `
 
 | Hash | Description |
 |------|-------------|
+| `b985bb3` | Anchor follow-up date to completion (Phase 5D) |
+| `7c5280a` | Fix partial payment FormData submission (Phase 5C) |
+| `ba85520` | Stabilize repeated partial payments (Phase 5C — superseded by 7c5280a) |
+| `13de697` | Fix repeated partial payment entry (Phase 5C — superseded by 7c5280a) |
+| `b70f1b2` | Fix partial payment receipt submission (Phase 5C — superseded by 7c5280a) |
+| `0351ab6` | Fix payment receipt SMS and not billable owed display (Phase 5C) |
+| `a70c6dc` | Add later payment receipt SMS (Phase 5C) |
+| `453d43f` | Add portal invoice links to completion SMS (Phase 5C) |
+| `b6ed6b3` | Link portal service history to invoices (Phase 5C) |
+| `da7e53e` | Add portal invoice receipt page (Phase 5C) |
 | `ac212ba` | Format business phone displays (Phase 5B) |
 | `924dead` | Add business-scoped phone setting (Phase 5B) |
 | `4f3254b` | Use business name in estimate SMS (Phase 5B) |
@@ -595,6 +650,14 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ Estimate SMS contact line shows `Questions? Call or text (334) 320-7514` when business phone is set (`ac212ba`)
 - ✅ Customer portal header and contact section display formatted business phone (`ac212ba`)
 - ✅ Job invoice PDF uses business-scoped phone (`businesses.phone → profiles.business_phone → null`) formatted as `(xxx) xxx-xxxx` (`ac212ba`)
+- ✅ Portal invoice page `/portal/[token]/invoice/[jobId]` loads without auth, scoped by both `customer_id` and `business_id` — URL manipulation with a different job ID fails the lookup (`da7e53e`)
+- ✅ Portal service history rows show **View Invoice** link for completed jobs (`b6ed6b3`)
+- ✅ Completion SMS (`buildInvoiceSms`) includes the portal invoice URL as a clickable link (`453d43f`)
+- ✅ Operator can trigger a receipt SMS after marking a job paid or partial post-completion — SMS body pre-built from `buildPaymentReceiptSms()`, compose sheet opens after action succeeds (`a70c6dc`)
+- ✅ Receipt SMS does not say "job complete" — distinct wording from completion invoice SMS (`0351ab6`)
+- ✅ `not_billable` jobs show no owed balance and no invoice/payment SMS prompts (`0351ab6`)
+- ✅ Multiple partial payment submissions work reliably — `markPartial()` receives `FormData` each submission; form input clears after success (`7c5280a`)
+- ✅ `ScheduleFollowUpCard` anchors suggested follow-up date from `completed_at` (local date) when available, falling back to `scheduled_date` — no drift when jobs complete early or late (`b985bb3`)
 
 ---
 
@@ -616,6 +679,9 @@ All of the following were user-tested and confirmed working as of `289b732`:
 | Job detail payment row wording polish | ✅ Complete | `463e762` |
 | Phase 5A — Customer collections / receivables | ✅ Complete | Balance badges, Outstanding Balance section, SMS reminder, portal clarity — all production-verified |
 | Phase 5B — Estimate conversion + business phone | ✅ Complete | Duplicate guard, View Job link, businesses.name SMS, businesses.phone setting + formatting — all production-verified |
+| Phase 5C — Portal invoices, receipt SMS, partial payment stability | ✅ Complete | Portal invoice page, portal service history links, completion SMS invoice URL, receipt SMS, not_billable guard, FormData fix — production-verified |
+| Phase 5D — Follow-up completion-date anchor | ✅ Complete | `b985bb3` — `ScheduleFollowUpCard` anchors from `completed_at`; no migration |
+| Printable/downloadable portal invoice PDF | ⏸ Future | Portal invoice page is web-only; PDF export not yet added |
 | Job detail View Estimate link | ⏸ Future | When `job.estimate_id` exists — not yet added |
 | Convert-to-job date/time pre-fill polish | ⏸ Future | Deferred — Phase 5 candidate |
 | Public quote page phone source | ⏸ Future | Uses separate data path; not updated in Phase 5B |
@@ -636,7 +702,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
 | 3 | Public intake and lead workflow improvements | ✅ Complete — all listed tasks done through `ec48565`; payment bugfixes continued in Phase 4 |
 | 4 | Operations UX / workflow polish | ✅ Substantially complete — 4A–4D + cleanup batch done (`463e762`) |
-| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A customer collections ✅ complete; Phase 5B estimate conversion + business phone ✅ complete (`ac212ba`) |
+| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A ✅, 5B ✅, 5C ✅ complete; Phase 5D follow-up anchor ✅ complete (`b985bb3`) |
 
 **Permanent Future-Handoff Requirements** (mandatory — see Architecture.md §16):
 Every future handoff must instruct the next chat to read ARCHITECTURE.md and HANDOFF.md first, remind it to update those docs after any verified/committed change, state the latest commit, current phase status, open items, workflow guardrails, and known security follow-ups (no secret values).
@@ -645,11 +711,11 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Phase 5C planning — next area TBD**
+**Phase 5E planning — next area TBD**
 
-Phase 5A (customer collections) and Phase 5B (estimate conversion + business phone) are both production-verified and complete as of `ac212ba`.
+Phase 5A–5C (customer collections, estimate conversion + business phone, portal invoices + receipt SMS + payment stability) and Phase 5D (follow-up completion-date anchor) are all production-verified and complete as of `b985bb3`.
 
-**Completed Phase 5A + 5B work:**
+**Completed Phase 5A–5D work:**
 - ✅ Customers list unpaid balance badges
 - ✅ Customer detail Outstanding Balance section
 - ✅ Balance reminder SMS with portal link
@@ -657,6 +723,13 @@ Phase 5A (customer collections) and Phase 5B (estimate conversion + business pho
 - ✅ Estimate conversion duplicate guard + View Job link
 - ✅ Estimate SMS business name from `businesses.name`
 - ✅ Business-scoped phone — Settings field, formatting, all customer-facing surfaces
+- ✅ Portal invoice page `/portal/[token]/invoice/[jobId]` (token-scoped, double-scoped)
+- ✅ Portal service history → View Invoice links
+- ✅ Completion SMS includes portal invoice URL
+- ✅ Later payment receipt SMS (`buildPaymentReceiptSms`)
+- ✅ `not_billable` suppresses owed display and SMS
+- ✅ Repeated partial payment FormData submission fixed (permanent `useActionState` invariant)
+- ✅ Follow-up date anchored from `completed_at` (prevents drift on early/late completions)
 
 **Next Phase 5 candidates:**
 1. Job detail View Estimate link — add back-link from job to its source estimate
@@ -665,6 +738,7 @@ Phase 5A (customer collections) and Phase 5B (estimate conversion + business pho
 4. Operational weekly summary — improve daily/weekly brief for the operator
 5. Revenue/expense reporting — more useful Finances page analytics
 6. Bulk job actions — mark multiple jobs paid, batch scheduling
+7. Printable portal invoice PDF — web-only currently
 
 **Phase 3 completed tasks (all user-tested in production — historical record):**
 1. ~~Frequency display — website lead detail page~~ ✅ (`0589026`)
@@ -715,7 +789,7 @@ Do not run SQL or apply migrations without approval. Do not modify WicksburgLawn
 
 These must not break during any refactor:
 
-- **Follow-up scheduling:** Follow-up visits are always manually created via `scheduleFollowUpJob()` — `completeJob()` does NOT auto-schedule. The `ScheduleFollowUpCard` component appears after completion and suggests a date based on `property.service_frequency`. `property.auto_schedule_next` and `property.service_frequency` must remain present for future auto-schedule implementation.
+- **Follow-up scheduling:** Follow-up visits are always manually created via `scheduleFollowUpJob()` — `completeJob()` does NOT auto-schedule. The `ScheduleFollowUpCard` component appears after completion and suggests a date based on `property.service_frequency`, anchored from `job.completed_at` (local date, computed server-side) when available, falling back to `scheduled_date`. `property.auto_schedule_next`, `property.service_frequency`, `Property.preferred_service_day`, and `Property.schedule_anchor_date` must remain present for future auto-schedule and preferred weekday implementation.
 - **Recurrence chain:** `recurrence_source` (parent) and `next_job_created_id` (child) must not be removed or reset.
 - **`started_at` → `actual_minutes`:** `markInProgress()` sets `started_at`; `completeJob()` computes `actual_minutes`. These must stay coupled.
 - **Reschedule log:** `reschedule_count` and `reschedule_log` are append-only.

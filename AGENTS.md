@@ -8,7 +8,7 @@ YardOps is the private operations app for Wicksburg Lawn Service.
 
 Current verified YardOps checkpoint commit:
 
-`ac212ba` (Format business phone displays)
+`b985bb3` (Anchor follow-up date to completion)
 
 The public website repo is separate:
 
@@ -141,3 +141,14 @@ Never apply SQL to an unconfirmed Supabase project.
 
 Never assume the connected MCP/Supabase tool is pointed at the correct project. Verify first.
 Never commit or push without explicit approval.
+
+## Durable Development Rules
+
+These rules were learned from production bugs and must be preserved across refactors:
+
+* Do not make later-payment receipt SMS say "job complete". The later payment receipt SMS (`buildPaymentReceiptSms`) is operator-triggered after the fact. Only the completion SMS (`buildInvoiceSms`) may reference job completion.
+* Do not show owed balances or payment prompts for `not_billable` jobs. No owed line, no invoice/payment SMS.
+* Keep portal invoice access token-scoped (`/portal/[token]/invoice/[jobId]`) and job double-scoped to both `customer_id` and `business_id`. Do not weaken this without explicit approval.
+* Do not clear, close, key-remount, or otherwise unmount a `useActionState` form in a submit button `onClick` handler. React flushes batched state updates before the native `submit` event fires — unmounting the form in `onClick` prevents the server action from receiving FormData. The only safe thing to do in a submit `onClick` is prepare side-effect state (e.g., SMS body for a receipt button) that does not affect the form's DOM presence.
+* Follow-up default dates must anchor from `completed_at` (converted to local date with the business timezone) when available, not from `scheduled_date`. Stale scheduled dates drift the follow-up cadence when jobs are completed early or late. `scheduled_date` is the fallback only if `completed_at` is absent.
+* Do not add preferred weekday snapping or route balancing to `ScheduleFollowUpCard` until explicitly asked. Those features are planned but deferred. `Property.preferred_service_day` and `Property.schedule_anchor_date` exist in the schema for that future use.

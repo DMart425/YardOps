@@ -4,8 +4,8 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-22
-Current checkpoint commit: `ac212ba` (Format business phone displays)
+Last updated: 2026-05-23
+Current checkpoint commit: `b985bb3` (Anchor follow-up date to completion)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -78,6 +78,7 @@ src/
 │   ├── login/                    # Public: login page
 │   ├── quote/[token]/            # Public: customer-facing estimate quote
 │   ├── portal/[token]/           # Public: customer portal (accessible — see §4)
+│   │   └── invoice/[jobId]/      # Public: per-job invoice/receipt page (token-scoped)
 │   ├── page.tsx                  # Root redirects to /today
 │   ├── layout.tsx                # Root layout (metadata, PWA, theme)
 │   └── globals.css               # Global styles (dark theme, CSS variables)
@@ -476,6 +477,8 @@ Website/manual intake address, frequency, and service interests are written into
 | B.7a website frequency/service intake | ⏸ Pending | WicksburgLawnService `6c8bada` |
 | B.7b YardOps consumption of B.7a leads | ⏸ Pending | |
 | RLS hardening checklist (from prior review) | ℹ️ Future | See below |
+| Preferred weekday / route balancing for follow-up scheduling | ⏸ Future | `Property.preferred_service_day` and `Property.schedule_anchor_date` exist in schema; UI plumbing and snap logic not yet built; route balancing (distributing customers across the week) is a larger feature; do not implement until explicitly asked |
+| Printable/downloadable portal invoice PDF | ⏸ Future | Portal invoice page is web-only; PDF export not yet added |
 
 ### RLS Hardening Checklist (future — not yet applied)
 
@@ -766,6 +769,38 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 
 ---
 
+### Phase 5C — Portal Invoices, Receipt SMS, and Payment Receipt Stability
+
+**Goal:** Give customers a permanent per-job invoice URL via the portal. Provide the operator with a receipt SMS for later payment events. Fix repeated partial payment submission stability.
+
+**Status:** ✅ Complete (2026-05-23)
+
+**Commits:** `da7e53e`, `b6ed6b3`, `453d43f`, `a70c6dc`, `0351ab6`, `b70f1b2`, `13de697`, `ba85520`, `7c5280a`
+
+**Portal invoice page (`da7e53e`, `b6ed6b3`, `453d43f`):**
+
+- New public route `/portal/[token]/invoice/[jobId]` — per-job invoice/receipt page, accessible without auth via portal token
+- Job is double-scoped by both `customer_id` (via token lookup) and `business_id` — cannot access another customer's or business's job via URL manipulation
+- Uses `createAdminClient()` (bypasses RLS, same as portal main page)
+- `portal/[token]/page.tsx` service history rows now include **View Invoice** links pointing to `/portal/[token]/invoice/[jobId]` for completed jobs
+- Completion SMS (`buildInvoiceSms()`) now includes the portal invoice URL as a clickable link for the customer
+
+**Receipt SMS for later payment events (`a70c6dc`, `0351ab6`):**
+
+- `buildPaymentReceiptSms()` — new SMS builder for operator-triggered receipt after `markPaid()` / `markPartial()` post-completion
+- Distinct from `buildInvoiceSms()` (auto-shown at job completion) — receipt SMS must NOT reference job completion; job was already completed earlier
+- `not_billable` jobs: no owed amount displayed, no invoice/payment SMS shown
+- `JobActions.tsx` uses `pendingReceipt` state to pre-build the SMS body in the submit button `onClick` before the server action fires; SMS compose sheet opens after the action succeeds
+
+**Repeated partial payment stability fix (`b70f1b2`, `13de697`, `ba85520`, `7c5280a`):**
+
+- Root cause of regressions: attempts to "reset" the form after submission used `setState` in submit button `onClick` that caused the form to unmount before the native `submit` event fired, preventing `markPartial()` from receiving `FormData`
+- React 18 invariant: state updates in `onClick` are flushed synchronously after the handler returns but BEFORE the browser fires the native `submit` event — unmounting the form in `onClick` means the submit event fires against nothing
+- Correct fix (`7c5280a`): controlled `laterPartialAmt` input; no form-structural state in `onClick`; only `setPendingReceipt` (side-effect, doesn't affect form DOM); input cleared after success via deferred `useEffect` with `setTimeout(..., 0)` (satisfies `react-hooks/set-state-in-effect` ESLint rule)
+- This invariant is documented in `AGENTS.md` Durable Development Rules as a permanent constraint — see §20 for full rule
+
+---
+
 ### Permanent Future-Handoff Requirements
 
 Every future handoff to a new chat MUST include:
@@ -802,7 +837,7 @@ Every future handoff to a new chat MUST include:
 
 These must not break during any refactor:
 
-- **Follow-up scheduling:** Follow-up visits are always manually created via `scheduleFollowUpJob()` — `completeJob()` does NOT auto-schedule. The `ScheduleFollowUpCard` component appears after completion and suggests a date based on `property.service_frequency` (+7 days weekly / +14 days biweekly). `internal_notes` from the parent job is copied to the follow-up. `property.auto_schedule_next` and `property.service_frequency` must remain present for future auto-schedule implementation.
+- **Follow-up scheduling:** Follow-up visits are always manually created via `scheduleFollowUpJob()` — `completeJob()` does NOT auto-schedule. The `ScheduleFollowUpCard` component appears after completion and suggests a date based on `property.service_frequency` (+7 days weekly / +14 days biweekly), anchored from `job.completed_at` (converted to local date via `getLocalDateStr(timeZone, ...)` server-side) when available, falling back to `scheduled_date`. This prevents follow-up date drift when jobs are completed early or late. `internal_notes` from the parent job is copied to the follow-up. `property.auto_schedule_next`, `property.service_frequency`, `Property.preferred_service_day`, and `Property.schedule_anchor_date` must remain present for future auto-schedule and preferred weekday implementation.
 - **Past-date guards on scheduling:** `rescheduleJob()` and `scheduleFollowUpJob()` both validate that the submitted date is not in the past (server-side, timezone-aware via `getLocalDateStr` / `resolveTimeZone`). Today is allowed; yesterday and older are rejected. Client-side `min` date inputs provide a matching UX guard. Do not remove these guards.
 - **Recurrence chain:** `recurrence_source` and `next_job_created_id` must not be removed or reset.
 - **`started_at` → `actual_minutes`:** `markInProgress()` sets `started_at`; `completeJob()` computes `actual_minutes`. Must stay coupled.
@@ -866,3 +901,69 @@ npm run build             # Production build check
 - Forgetting `revalidatePath()` after mutations — cached data won't update
 - Querying `pricing_settings` with wrong FK — use `user_id`, not `created_by`
 - Running `supabase db push` — don't; use `npx supabase db query --linked --file`
+
+---
+
+## 20. Portal Invoice & Payment Behavior
+
+### Portal Invoice Route Security
+
+- Route: `/portal/[token]/invoice/[jobId]` — public, no auth, token-scoped
+- Job is double-scoped: `customer_id` (derived from token lookup) + `business_id` (from token row)
+- A manipulated `[jobId]` for a different customer or business will fail the lookup — both scopes must match
+- Uses `createAdminClient()` (same as portal main page — RLS bypassed, security is in the explicit scoping)
+- Do not weaken this double-scope without explicit approval
+
+### SMS Behavior Split
+
+Two distinct SMS paths exist at job completion and later payment. Do not merge them:
+
+| SMS | Builder | Trigger | Notes |
+|-----|---------|---------|-------|
+| **Completion invoice SMS** | `buildInvoiceSms()` | Auto-shown after `completeJob()` | May reference job completion; includes portal invoice link |
+| **Later payment receipt SMS** | `buildPaymentReceiptSms()` | Operator-triggered after `markPaid()` / `markPartial()` post-completion | Must NOT say "job complete" — job was already completed earlier |
+
+### `not_billable` Job Behavior
+
+- `not_billable` jobs never show an owed balance in the UI
+- No invoice/payment SMS is shown for `not_billable` jobs — neither completion SMS nor receipt SMS
+- PDF invoice download is still available for record-keeping; PAID banner and balance due section reflect zero charge
+
+### `useActionState` Form Invariant
+
+This invariant was established after multiple partial payment regressions. It is a permanent hard constraint:
+
+**Never call `setState` in a submit button `onClick` that causes the form (or any ancestor wrapping the `useActionState` form) to unmount or key-remount.**
+
+React 18 flushes batched state updates synchronously after the `onClick` handler returns, but BEFORE the browser dispatches the native `submit` event. If the form is unmounted during the flush, the `submit` event fires against nothing and the server action never receives `FormData`.
+
+**Safe** in a submit button `onClick`:
+- Side-effect state that does not affect the form's DOM presence (e.g., `setPendingReceipt({ ... })` to pre-build an SMS body)
+
+**Forbidden** in a submit button `onClick`:
+- `setPanel(null)` — collapses the panel containing the form
+- `setFormKey(k => k + 1)` — key-remounts the form
+- Any `setState` that hides, removes, or replaces the `<form>` element before `submit` fires
+
+To clear a form input after a successful submission, use a deferred `useEffect`:
+
+```tsx
+useEffect(() => {
+  if (!state.success) return
+  const id = setTimeout(() => setInputValue(''), 0)
+  return () => clearTimeout(id)
+}, [state])
+```
+
+The `setTimeout(..., 0)` defers the state update to avoid the `react-hooks/set-state-in-effect` ESLint error.
+
+### Follow-up Date Anchor
+
+`ScheduleFollowUpCard` anchors its suggested date from:
+
+1. `job.completed_at` → converted to `YYYY-MM-DD` using `getLocalDateStr(timeZone, new Date(job.completed_at))` computed server-side in `jobs/[id]/page.tsx`
+2. Falls back to `job.scheduled_date` when `completed_at` is absent
+
+This prevents cumulative follow-up date drift when jobs are completed early or late relative to their scheduled date. `scheduled_date` is a planning artifact; `completed_at` is ground truth.
+
+`Property.preferred_service_day` and `Property.schedule_anchor_date` exist in the schema for future preferred weekday snapping and route balancing — not yet implemented. Do not add that logic until explicitly asked.
