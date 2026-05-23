@@ -12,11 +12,10 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
   const [completionPartialAmt, setCompletionPartialAmt] = useState('')
   const [reschedReason,    setReschedReason]    = useState('')
   const [reschedTimeWin,   setReschedTimeWin]   = useState('')
-  const [partialFormKey,   setPartialFormKey]   = useState(0)
+  const [laterPartialAmt,  setLaterPartialAmt]  = useState('')
   const [pendingReceipt,   setPendingReceipt]   = useState<{ smsBody: string; isPaidInFull: boolean } | null>(null)
   const router = useRouter()
-  const notesRef        = useRef<HTMLTextAreaElement>(null)
-  const laterPartialRef = useRef<HTMLInputElement>(null)
+  const notesRef = useRef<HTMLTextAreaElement>(null)
 
   const NOTE_TEMPLATES = [
     'Mowed, edged, blown',
@@ -71,6 +70,14 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [justCompleted])
+
+  // Clear the partial amount input after each successful submission.
+  // setState is deferred via setTimeout to satisfy react-hooks/set-state-in-effect.
+  useEffect(() => {
+    if (!partialState.success) return
+    const id = setTimeout(() => setLaterPartialAmt(''), 0)
+    return () => clearTimeout(id)
+  }, [partialState])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -388,7 +395,7 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
           )}
 
           {panel === 'partial' && (
-            <form key={partialFormKey} action={partialAction} className="form action-panel">
+            <form action={partialAction} className="form action-panel">
               <div className="form-field">
                 <label className="form-label">Payment Amount ($)</label>
                 <input
@@ -398,8 +405,8 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
                   step="1"
                   className="form-input"
                   placeholder={job.price ? String(Number(job.price).toFixed(0)) : '0'}
-                  ref={laterPartialRef}
-                  defaultValue=""
+                  value={laterPartialAmt}
+                  onChange={e => setLaterPartialAmt(e.target.value)}
                 />
               </div>
               <div className="form-field">
@@ -418,7 +425,7 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
                 disabled={partialPending}
                 className="btn btn-secondary btn-full"
                 onClick={() => {
-                  const amt = parseFloat(laterPartialRef.current?.value ?? '') || 0
+                  const amt = parseFloat(laterPartialAmt) || 0
                   const willBePaidInFull = amt >= partialRemaining
                   if (customerPhone && amt > 0) {
                     setPendingReceipt({
@@ -426,7 +433,6 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
                       isPaidInFull: willBePaidInFull,
                     })
                   }
-                  setPartialFormKey(k => k + 1)
                 }}
               >
                 {partialPending ? 'Saving…' : 'Record Partial Payment'}
@@ -490,7 +496,7 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
             Add Another Payment
           </button>
           {panel === 'partial' && (
-            <form key={partialFormKey} action={partialAction} className="form action-panel">
+            <form action={partialAction} className="form action-panel">
               <div className="form-field">
                 <label className="form-label">Payment Amount ($)</label>
                 <input
@@ -504,8 +510,8 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
                       ? String(Math.max(0, Number(job.price) - Number(job.amount_paid ?? 0)).toFixed(0))
                       : '0'
                   }
-                  ref={laterPartialRef}
-                  defaultValue=""
+                  value={laterPartialAmt}
+                  onChange={e => setLaterPartialAmt(e.target.value)}
                 />
               </div>
               <div className="form-field">
@@ -524,7 +530,7 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
                 disabled={partialPending}
                 className="btn btn-secondary btn-full"
                 onClick={() => {
-                  const amt = parseFloat(laterPartialRef.current?.value ?? '') || 0
+                  const amt = parseFloat(laterPartialAmt) || 0
                   const willBePaidInFull = amt >= partialRemaining
                   if (customerPhone && amt > 0) {
                     setPendingReceipt({
@@ -532,7 +538,6 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
                       isPaidInFull: willBePaidInFull,
                     })
                   }
-                  setPartialFormKey(k => k + 1)
                 }}
               >
                 {partialPending ? 'Saving…' : 'Record Payment'}
