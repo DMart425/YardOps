@@ -3,7 +3,7 @@
 import { useActionState, useState } from 'react'
 import type { FormState } from '@/types/database'
 import { scheduleFollowUpJob } from '@/app/(protected)/jobs/actions'
-import { addDays, getNearestWeekday } from '@/lib/date'
+import { addDays, getClosestWeekdayNearDate } from '@/lib/date'
 import { Toast } from '@/components/Toast'
 
 // Compact date label, e.g. "Jun 2"
@@ -82,9 +82,15 @@ export function ScheduleFollowUpCard({
     })
   }
 
-  // 2. Preferred day chip — only when set and nearest weekday differs from cadence
+  // 2. Preferred day chip — closest matching weekday within ±4 days of cadence date.
+  // Searches both backward and forward; excludes dates before today (minDate).
+  // If cadence date is already on the preferred weekday, no chip is shown.
+  // If no valid candidate falls within the window, result === suggestedDate → no chip.
   if (preferredServiceDay && suggestedDate) {
-    const prefDate = getNearestWeekday(suggestedDate, preferredServiceDay)
+    const prefDate = getClosestWeekdayNearDate(suggestedDate, preferredServiceDay, {
+      minDate: todayLocal,
+      maxDays: 4,
+    })
     if (prefDate !== suggestedDate) {
       chips.push({
         date: prefDate,

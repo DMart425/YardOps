@@ -59,16 +59,52 @@ const WEEKDAY_INDEX: Record<string, number> = {
   thursday: 4, friday: 5, saturday: 6,
 }
 
-// Returns the nearest occurrence of `weekday` at or after `startDate`.
-// If weekday is unrecognized, empty, or 'any', returns startDate unchanged.
+// Returns the closest matching weekday to startDate, searching both backward and
+// forward within a bounded window (default maxDays = 4 each direction).
+// - backDays = how far to go backward to reach the target weekday
+// - fwdDays  = 7 - backDays (forward distance; always sums to 7 with backDays)
+// - If startDate is already on the target weekday, returns startDate unchanged.
+// - Backward candidate is excluded when it would fall before options.minDate.
+// - If both candidates are valid, the closer one wins; ties prefer the future date.
+// - If neither candidate qualifies within maxDays, returns startDate unchanged
+//   (caller should suppress the chip when result === startDate).
+// - Unrecognized weekday strings return startDate unchanged.
 // Uses UTC date math consistent with addDays.
-export function getNearestWeekday(startDate: string, weekday: string): string {
+export function getClosestWeekdayNearDate(
+  startDate: string,
+  weekday: string,
+  options?: { minDate?: string; maxDays?: number },
+): string {
   const target = WEEKDAY_INDEX[weekday.toLowerCase()]
   if (target === undefined) return startDate
+
+  const maxDays = options?.maxDays ?? 4
+  const minDate = options?.minDate
+
   const [y, m, d] = startDate.split('-').map(Number)
-  const date = new Date(Date.UTC(y, m - 1, d))
-  const current = date.getUTCDay()
-  const diff = (target - current + 7) % 7
-  date.setUTCDate(date.getUTCDate() + diff)
-  return date.toISOString().slice(0, 10)
+  const currentDay = new Date(Date.UTC(y, m - 1, d)).getUTCDay()
+
+  if (currentDay === target) return startDate   // already on preferred day
+
+  const backDays = (currentDay - target + 7) % 7  // days to go backward
+  const fwdDays  = 7 - backDays                    // days to go forward
+
+  let backDate: string | null = null
+  if (backDays <= maxDays) {
+    const b = new Date(Date.UTC(y, m - 1, d - backDays))
+    const bStr = b.toISOString().slice(0, 10)
+    if (!minDate || bStr >= minDate) backDate = bStr
+  }
+
+  let fwdDate: string | null = null
+  if (fwdDays <= maxDays) {
+    const f = new Date(Date.UTC(y, m - 1, d + fwdDays))
+    fwdDate = f.toISOString().slice(0, 10)
+  }
+
+  if (backDate && fwdDate) {
+    // Smaller distance wins; ties prefer the future date
+    return fwdDays <= backDays ? fwdDate : backDate
+  }
+  return backDate ?? fwdDate ?? startDate
 }
