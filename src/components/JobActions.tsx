@@ -414,7 +414,7 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
               </div>
               <button
                 type="submit"
-                disabled={partialPending}
+                disabled={partialPending || !!partialState.success}
                 className="btn btn-secondary btn-full"
                 onClick={() => {
                   const amt = parseFloat(laterPartialAmt) || 0
@@ -425,8 +425,6 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
                       isPaidInFull: willBePaidInFull,
                     })
                   }
-                  setLaterPartialAmt('')
-                  setPanel(null)
                 }}
               >
                 {partialPending ? 'Saving…' : 'Record Partial Payment'}
@@ -521,7 +519,7 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
               </div>
               <button
                 type="submit"
-                disabled={partialPending}
+                disabled={partialPending || !!partialState.success}
                 className="btn btn-secondary btn-full"
                 onClick={() => {
                   const amt = parseFloat(laterPartialAmt) || 0
@@ -532,8 +530,6 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
                       isPaidInFull: willBePaidInFull,
                     })
                   }
-                  setLaterPartialAmt('')
-                  setPanel(null)
                 }}
               >
                 {partialPending ? 'Saving…' : 'Record Payment'}
