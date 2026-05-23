@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { formatDateOnly, formatTimestampDate, resolveTimeZone, getLocalDateStr } from '@/lib/date'
+import { addDays, formatDateOnly, formatTimestampDate, resolveTimeZone, getLocalDateStr } from '@/lib/date'
 import { JobActions } from '@/components/JobActions'
 import { JobPhotos } from '@/components/JobPhotos'
 import { DownloadInvoiceButton } from '@/components/DownloadInvoiceButton'
@@ -18,6 +18,7 @@ type JobDetail = Job & {
     city: string | null
     state: string | null
     service_frequency: string | null
+    preferred_service_day: string | null
     pet_warning: string | null
     gate_code: string | null
     access_notes: string | null
@@ -52,7 +53,7 @@ export default async function JobDetailPage({
     .select(`
       *,
       customers ( first_name, last_name, phone, email ),
-      properties ( service_address, city, state, service_frequency, pet_warning, gate_code, access_notes, obstacle_notes, parking_notes )
+      properties ( service_address, city, state, service_frequency, preferred_service_day, pet_warning, gate_code, access_notes, obstacle_notes, parking_notes )
     `)
     .eq('id', id)
     .eq('business_id', businessId)
@@ -128,6 +129,23 @@ export default async function JobDetailPage({
 
   const customerName = `${customer.first_name}${customer.last_name ? ' ' + customer.last_name : ''}`
   const address      = `${property.service_address}${property.city ? ', ' + property.city : ''}`
+
+  // Fetch upcoming scheduled job dates for Scheduling Helper suggestion chips.
+  // Only needed when the follow-up card is shown: completed job, no follow-up yet.
+  let scheduledJobDates: string[] = []
+  if (job.status === 'completed' && !job.next_job_created_id) {
+    const todayLocal = getLocalDateStr(timeZone)
+    const { data: upcomingJobs } = await supabase
+      .from('jobs')
+      .select('scheduled_date')
+      .eq('business_id', businessId)
+      .gte('scheduled_date', todayLocal)
+      .lte('scheduled_date', addDays(todayLocal, 21))
+      .not('status', 'in', '("cancelled","skipped")')
+    scheduledJobDates = (upcomingJobs ?? [])
+      .map(j => j.scheduled_date)
+      .filter((d): d is string => d !== null)
+  }
 
   // Fetch portal token for invoice/receipt link in completion SMS
   let portalInvoiceUrl: string | null = null
@@ -334,6 +352,8 @@ export default async function JobDetailPage({
           completedDate={completedDateLocal}
           serviceFrequency={property.service_frequency}
           jobType={job.job_type}
+          preferredServiceDay={property.preferred_service_day ?? null}
+          scheduledJobDates={scheduledJobDates}
         />
       )}
 

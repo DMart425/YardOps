@@ -3,8 +3,23 @@
 import { useActionState, useState } from 'react'
 import type { FormState } from '@/types/database'
 import { scheduleFollowUpJob } from '@/app/(protected)/jobs/actions'
-import { addDays } from '@/lib/date'
+import { addDays, getNearestWeekday } from '@/lib/date'
 import { Toast } from '@/components/Toast'
+
+// Compact date label, e.g. "Jun 2"
+function formatSuggestionDate(dateStr: string): string {
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+type SuggestionChip = {
+  date: string
+  label: string
+  note: string
+  emoji: string
+}
 
 export function ScheduleFollowUpCard({
   jobId,
@@ -12,12 +27,16 @@ export function ScheduleFollowUpCard({
   completedDate,
   serviceFrequency,
   jobType,
+  preferredServiceDay,
+  scheduledJobDates,
 }: {
   jobId: string
   scheduledDate: string | null
   completedDate?: string | null
   serviceFrequency: string | null
   jobType?: string | null
+  preferredServiceDay?: string | null
+  scheduledJobDates?: string[]
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(
     scheduleFollowUpJob.bind(null, jobId),
@@ -38,8 +57,68 @@ export function ScheduleFollowUpCard({
         : '')
     : ''
 
+  // Controlled date input — starts at cadence suggestion, operator can change freely.
+  // useState allows suggestion chips to fill the field via onClick without affecting form submission.
+  const [nextScheduledDate, setNextScheduledDate] = useState(suggestedDate)
+
   const todayLocal = new Intl.DateTimeFormat('en-CA').format(new Date())
-  const suggestedIsPast = suggestedDate !== '' && suggestedDate < todayLocal
+  // Past-date warning tracks the current controlled value, not just the initial cadence date.
+  const suggestedIsPast = nextScheduledDate !== '' && nextScheduledDate < todayLocal
+
+  // ── Suggestion chips ─────────────────────────────────────────────────────
+  const chips: SuggestionChip[] = []
+
+  // 1. Cadence chip — always shown when cadence date is known
+  if (suggestedDate) {
+    const cadenceNote =
+      serviceFrequency === 'weekly'   ? '7-day cadence'  :
+      serviceFrequency === 'biweekly' ? '14-day cadence' :
+                                        'cadence'
+    chips.push({
+      date: suggestedDate,
+      label: formatSuggestionDate(suggestedDate),
+      note: cadenceNote,
+      emoji: '📅',
+    })
+  }
+
+  // 2. Preferred day chip — only when set and nearest weekday differs from cadence
+  if (preferredServiceDay && suggestedDate) {
+    const prefDate = getNearestWeekday(suggestedDate, preferredServiceDay)
+    if (prefDate !== suggestedDate) {
+      chips.push({
+        date: prefDate,
+        label: formatSuggestionDate(prefDate),
+        note: 'Preferred day',
+        emoji: '💡',
+      })
+    }
+  }
+
+  // 3. Lighter workload chip — forward-only scan (+1 to +6 days from cadence).
+  // Only shown when the candidate has ≥2 fewer jobs than the cadence date.
+  // Capped so total chips never exceed 3.
+  if (suggestedDate && scheduledJobDates && scheduledJobDates.length > 0 && chips.length < 3) {
+    const countByDate: Record<string, number> = {}
+    for (const d of scheduledJobDates) {
+      countByDate[d] = (countByDate[d] ?? 0) + 1
+    }
+    const cadenceCount = countByDate[suggestedDate] ?? 0
+    for (let offset = 1; offset <= 6; offset++) {
+      const candidate = addDays(suggestedDate, offset)
+      if (chips.some(c => c.date === candidate)) continue
+      const candidateCount = countByDate[candidate] ?? 0
+      if (cadenceCount - candidateCount >= 2) {
+        chips.push({
+          date: candidate,
+          label: formatSuggestionDate(candidate),
+          note: `Lighter day (${candidateCount} job${candidateCount !== 1 ? 's' : ''})`,
+          emoji: '⚡',
+        })
+        break
+      }
+    }
+  }
 
   return (
     <div className="card" style={{ marginBottom: '1rem' }}>
@@ -61,7 +140,8 @@ export function ScheduleFollowUpCard({
               name="next_scheduled_date"
               type="date"
               className="form-input"
-              defaultValue={suggestedDate}
+              value={nextScheduledDate}
+              onChange={e => setNextScheduledDate(e.target.value)}
               min={todayLocal}
               required
             />
@@ -81,6 +161,48 @@ export function ScheduleFollowUpCard({
             </select>
           </div>
         </div>
+
+        {/* Suggestion chips — optional; only rendered when at least one chip applies */}
+        {chips.length > 0 && (
+          <div className="form-field">
+            <span className="form-label" style={{ marginBottom: '6px', display: 'block' }}>Suggestions</span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {chips.map(chip => {
+                const isActive = chip.date === nextScheduledDate
+                return (
+                  <button
+                    key={chip.date}
+                    type="button"
+                    onClick={() => setNextScheduledDate(chip.date)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      fontSize: '0.8125rem',
+                      cursor: 'pointer',
+                      border: isActive
+                        ? '1.5px solid var(--color-primary, #4f8ef7)'
+                        : '1.5px solid var(--border-color, #333)',
+                      background: isActive
+                        ? 'var(--color-primary-faint, rgba(79,142,247,0.12))'
+                        : 'transparent',
+                      color: isActive
+                        ? 'var(--color-primary, #4f8ef7)'
+                        : 'var(--text-muted, #888)',
+                      fontWeight: isActive ? 600 : 400,
+                    }}
+                  >
+                    <span>{chip.emoji}</span>
+                    <span>{chip.label}</span>
+                    <span style={{ opacity: 0.75 }}>&middot; {chip.note}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {nextTimeWindow === 'custom' && (
           <div className="form-field">

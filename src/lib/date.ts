@@ -53,3 +53,22 @@ export function getLocalMonthKey(isoString: string, timeZone: string): string {
 export function getDateOnlyMonthKey(dateStr: string): string {
   return dateStr.slice(0, 7)
 }
+
+const WEEKDAY_INDEX: Record<string, number> = {
+  sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
+  thursday: 4, friday: 5, saturday: 6,
+}
+
+// Returns the nearest occurrence of `weekday` at or after `startDate`.
+// If weekday is unrecognized, empty, or 'any', returns startDate unchanged.
+// Uses UTC date math consistent with addDays.
+export function getNearestWeekday(startDate: string, weekday: string): string {
+  const target = WEEKDAY_INDEX[weekday.toLowerCase()]
+  if (target === undefined) return startDate
+  const [y, m, d] = startDate.split('-').map(Number)
+  const date = new Date(Date.UTC(y, m - 1, d))
+  const current = date.getUTCDay()
+  const diff = (target - current + 7) % 7
+  date.setUTCDate(date.getUTCDate() + diff)
+  return date.toISOString().slice(0, 10)
+}
