@@ -9,11 +9,13 @@ import { Toast } from '@/components/Toast'
 export function ScheduleFollowUpCard({
   jobId,
   scheduledDate,
+  completedDate,
   serviceFrequency,
   jobType,
 }: {
   jobId: string
   scheduledDate: string | null
+  completedDate?: string | null
   serviceFrequency: string | null
   jobType?: string | null
 }) {
@@ -23,11 +25,16 @@ export function ScheduleFollowUpCard({
   )
   const [nextTimeWindow, setNextTimeWindow] = useState('')
 
-  const suggestedDate = scheduledDate
+  // Anchor from actual completion date when available; fall back to scheduled date.
+  // This prevents follow-up drift when a job is completed early or late.
+  // Future: may also snap to preferred_service_day / route-balanced weekday.
+  const anchorDate = completedDate ?? scheduledDate
+
+  const suggestedDate = anchorDate
     ? (serviceFrequency === 'weekly'
-      ? addDays(scheduledDate, 7)
+      ? addDays(anchorDate, 7)
       : serviceFrequency === 'biweekly'
-        ? addDays(scheduledDate, 14)
+        ? addDays(anchorDate, 14)
         : '')
     : ''
 

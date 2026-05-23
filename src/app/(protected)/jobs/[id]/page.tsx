@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { formatDateOnly, formatTimestampDate, resolveTimeZone } from '@/lib/date'
+import { formatDateOnly, formatTimestampDate, resolveTimeZone, getLocalDateStr } from '@/lib/date'
 import { JobActions } from '@/components/JobActions'
 import { JobPhotos } from '@/components/JobPhotos'
 import { DownloadInvoiceButton } from '@/components/DownloadInvoiceButton'
@@ -80,6 +80,12 @@ export default async function JobDetailPage({
     .maybeSingle()
   const venmoHandle = (settings?.venmo_handle as string | null) ?? null
   const timeZone = resolveTimeZone(settings?.time_zone ?? null)
+  // Convert completed_at ISO timestamp to the business's local YYYY-MM-DD date.
+  // Used as the anchor for the follow-up suggested date so cadence resets from
+  // the real service date rather than the original scheduled date.
+  const completedDateLocal = job.completed_at
+    ? getLocalDateStr(timeZone, new Date(job.completed_at))
+    : null
   const rawBusinessPhone = business?.phone ?? profile?.business_phone ?? null
   const businessPhone = rawBusinessPhone ? formatPhoneInput(rawBusinessPhone) : null
   const businessName  = (business?.name as string | null) ?? (profile?.business_name as string | null) ?? null
@@ -325,6 +331,7 @@ export default async function JobDetailPage({
         <ScheduleFollowUpCard
           jobId={job.id}
           scheduledDate={job.scheduled_date}
+          completedDate={completedDateLocal}
           serviceFrequency={property.service_frequency}
           jobType={job.job_type}
         />
