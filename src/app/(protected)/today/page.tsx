@@ -63,6 +63,12 @@ export default async function TodayPage() {
   const sixtyDaysAgoStr = addDays(today, -60)
   const twoYearsAgoStr = addDays(today, -730)
 
+  // Week range (Sunday-start, matching jobs/page.tsx pattern)
+  const [ty, tm, td] = today.split('-').map(Number)
+  const todayWeekday = new Date(Date.UTC(ty, tm - 1, td)).getUTCDay()
+  const weekStartStr = addDays(today, -todayWeekday)
+  const weekEndStr   = addDays(weekStartStr, 6)
+
   const [
     approvalNotificationsResult,
     todayJobsResult,
@@ -75,6 +81,7 @@ export default async function TodayPage() {
     recentCompletedJobsResult,
     websiteLeadsCountResult,
     manualLeadsCountResult,
+    weekJobsResult,
   ] = await Promise.all([
     supabase
       .from('app_notifications')
@@ -181,6 +188,14 @@ export default async function TodayPage() {
     supabase.from('leads').select('id', { count: 'exact', head: true }).eq('business_id', businessId).eq('status', 'new'),
     // New leads count (manual)
     supabase.from('customers').select('id', { count: 'exact', head: true }).eq('business_id', businessId).eq('status', 'lead'),
+    // This week's scheduled jobs — lightweight count + price sum
+    supabase
+      .from('jobs')
+      .select('id, price', { count: 'exact' })
+      .eq('business_id', businessId)
+      .in('status', ['scheduled', 'in_progress', 'needs_reschedule'])
+      .gte('scheduled_date', weekStartStr)
+      .lte('scheduled_date', weekEndStr),
   ])
 
   // Exclude notifications whose linked estimate has already been converted to a job.
@@ -200,6 +215,8 @@ export default async function TodayPage() {
   const recentCompletedJobs = recentCompletedJobsResult.data
   const websiteLeadsCount = websiteLeadsCountResult.count
   const manualLeadsCount = manualLeadsCountResult.count
+  const weekJobsCount = weekJobsResult.count ?? 0
+  const weekJobRows = weekJobsResult.data ?? []
 
   // Fetch weather for unique property coordinates
   const coords: Array<{ lat: number; lon: number }> = []
@@ -262,6 +279,10 @@ export default async function TodayPage() {
 
   const todayTotal = (todayJobs ?? []).reduce((s, j) => s + (j.price ?? 0), 0)
   const unpaidTotal = (unpaidJobs ?? []).reduce((s, j) => s + Math.max(0, (j.price ?? 0) - (j.amount_paid ?? 0)), 0)
+  // Collected today: sum amount_paid from completed-today jobs (not_billable contributes 0 naturally)
+  const collectedTodayRevenue = (completedTodayJobs ?? []).reduce((s, j) => s + Number(j.amount_paid ?? 0), 0)
+  // This week expected revenue: sum price from scheduled/in-progress/needs-reschedule jobs this week
+  const expectedWeekRevenue = weekJobRows.reduce((s, j) => s + Number((j as { price?: number | null }).price ?? 0), 0)
 
   const newLeadsCount = (websiteLeadsCount ?? 0) + (manualLeadsCount ?? 0)
 
@@ -360,6 +381,22 @@ export default async function TodayPage() {
             {completedTodayJobs?.length ?? 0}
           </div>
           <div className="stat-label">Completed today</div>
+        </Link>
+        {collectedTodayRevenue > 0 && (
+          <Link href="/jobs?view=completed&filter=today&page=1" className="stat-card" style={{ textDecoration: 'none' }}>
+            <div className="stat-value" style={{ color: 'var(--color-primary)', fontSize: '1rem' }}>
+              ${collectedTodayRevenue.toFixed(0)}
+            </div>
+            <div className="stat-label">Collected today</div>
+          </Link>
+        )}
+        <Link href="/jobs?filter=week" className="stat-card" style={{ textDecoration: 'none' }}>
+          <div className="stat-value" style={{ fontSize: '1rem' }}>
+            {weekJobsCount}
+          </div>
+          <div className="stat-label">
+            This week{expectedWeekRevenue > 0 ? ` · $${expectedWeekRevenue.toFixed(0)}` : ''}
+          </div>
         </Link>
         <Link href="/jobs?view=completed&filter=unpaid&page=1" className="stat-card" style={{ textDecoration: 'none' }}>
           <div className="stat-value" style={{ color: unpaidTotal > 0 ? 'var(--color-unpaid)' : undefined }}>
