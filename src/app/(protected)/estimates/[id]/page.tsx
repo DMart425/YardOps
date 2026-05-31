@@ -185,11 +185,15 @@ export default async function EstimateDetailPage({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div className="card-row">
             <span className="text-small text-muted">Customer</span>
-            <span className="text-small">{customerName}</span>
+            <Link href={`/customers/${estimate.customer_id}`} className="text-small" style={{ color: 'var(--color-primary)' }}>
+              {customerName}
+            </Link>
           </div>
           <div className="card-row">
             <span className="text-small text-muted">Property</span>
-            <span className="text-small">{address}</span>
+            <Link href={`/properties/${estimate.property_id}`} className="text-small" style={{ color: 'var(--color-primary)' }}>
+              {address}
+            </Link>
           </div>
           <div className="card-row">
             <span className="text-small text-muted">Status</span>
@@ -361,8 +365,8 @@ export default async function EstimateDetailPage({
           {estimate.status === 'converted' && convertedJobId && (
             <Link href={`/jobs/${convertedJobId}`} className="btn btn-sm btn-primary">View Job →</Link>
           )}
-          <Link href={'/customers/' + estimate.customer_id} className="btn btn-sm btn-secondary">Customer</Link>
-          <Link href={'/properties/' + estimate.property_id} className="btn btn-sm btn-secondary">Property</Link>
+          <Link href={'/customers/' + estimate.customer_id} className="btn btn-sm btn-secondary">View Customer</Link>
+          <Link href={'/properties/' + estimate.property_id} className="btn btn-sm btn-secondary">View Property</Link>
         </div>
       </div>
 

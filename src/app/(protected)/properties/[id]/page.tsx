@@ -170,9 +170,15 @@ export default async function PropertyDetailPage({
           <h1 className="page-title">{p.property_name ?? p.service_address}</h1>
           <span className={`pill pill-${p.status}`}>{p.status}</span>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <Link href={`/jobs?property_id=${p.id}`} className="btn btn-header btn-sm">
             Jobs
+          </Link>
+          <Link
+            href={`/estimates/new?customer_id=${p.customer_id}&property_id=${p.id}`}
+            className="btn btn-header btn-sm"
+          >
+            + New Estimate
           </Link>
           <Link
             href={`/jobs/new?customer_id=${p.customer_id}&property_id=${p.id}`}
@@ -229,6 +235,12 @@ export default async function PropertyDetailPage({
         <div className="card-meta">{p.service_address}{p.city ? `, ${p.city}` : ''}{p.state ? `, ${p.state}` : ''}{p.postal_code ? ` ${p.postal_code}` : ''}</div>
         {p.county && <div className="card-meta">{p.county} County</div>}
         <div className="divider" />
+        <div className="card-row">
+          <span className="text-small text-muted">Customer</span>
+          <Link href={`/customers/${p.customer_id}`} className="text-small" style={{ color: 'var(--color-primary)' }}>
+            {currentCustomerName}
+          </Link>
+        </div>
         <div className="card-row">
           <span className="text-small text-muted">Frequency</span>
           <span className={`pill pill-${p.service_frequency}`}>{formatFrequencyLabel(p.service_frequency)}</span>

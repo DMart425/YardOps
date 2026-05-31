@@ -257,6 +257,14 @@ export default async function JobDetailPage({
             <span className="text-small text-muted">🔄 Type</span>
             <span className="text-small">{JOB_TYPE_LABELS[job.job_type ?? ''] ?? job.job_type}</span>
           </div>
+          {job.estimate_id && (
+            <div className="card-row">
+              <span className="text-small text-muted">📋 Estimate</span>
+              <Link href={`/estimates/${job.estimate_id}`} className="text-small" style={{ color: 'var(--color-primary)' }}>
+                View Estimate →
+              </Link>
+            </div>
+          )}
           {showPaymentRow && (
             <div className="card-row">
               <span className="text-small text-muted">{paymentRowLabel}</span>

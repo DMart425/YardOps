@@ -166,9 +166,14 @@ export default async function CustomerDetailPage({
             ))}
           </div>
         </div>
-        <Link href={`/jobs/new?customer_id=${id}`} className="btn btn-header btn-sm">
-          + New Job
-        </Link>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <Link href={`/estimates/new?customer_id=${id}`} className="btn btn-header btn-sm">
+            + New Estimate
+          </Link>
+          <Link href={`/jobs/new?customer_id=${id}`} className="btn btn-header btn-sm">
+            + New Job
+          </Link>
+        </div>
       </div>
 
       {customerRow.status === 'lead' && (
@@ -342,7 +347,7 @@ export default async function CustomerDetailPage({
                   <span className={`pill pill-${p.status}`}>{p.status}</span>
                 </div>
                 <div className="card-actions">
-                  <Link href={`/properties/${p.id}`} className="btn btn-sm btn-secondary">Edit Property</Link>
+                  <Link href={`/properties/${p.id}`} className="btn btn-sm btn-secondary">View Property</Link>
                 </div>
               </div>
             )
@@ -393,7 +398,7 @@ export default async function CustomerDetailPage({
                     <span className={`pill pill-${p.status}`}>{p.status}</span>
                   </div>
                   <div className="card-actions">
-                    <Link href={`/properties/${p.id}`} className="btn btn-sm btn-secondary">Edit Property</Link>
+                    <Link href={`/properties/${p.id}`} className="btn btn-sm btn-secondary">View Property</Link>
                   </div>
                 </div>
               )
