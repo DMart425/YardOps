@@ -13,6 +13,10 @@ interface PropertyOption {
   service_address: string; city: string | null
   default_price: number | null; default_service_package: string | null
   service_frequency: string; auto_schedule_next: boolean
+  default_mowing_enabled?: boolean | null
+  default_weed_eating_enabled?: boolean | null
+  default_edging_enabled?: boolean | null
+  default_blow_off_enabled?: boolean | null
 }
 interface JobFormProps {
   action: (prevState: FormState, formData: FormData) => Promise<FormState>
@@ -24,6 +28,24 @@ interface JobFormProps {
   defaultPropertyId?: string
   localToday: string
   defaultValues?: Record<string, string | number | boolean | null>
+}
+
+function deriveServicePackageFromBooleans(p: PropertyOption | null): string {
+  if (!p) return ''
+  const hasMow  = Boolean(p.default_mowing_enabled)
+  const hasWeed = Boolean(p.default_weed_eating_enabled)
+  const hasEdge = Boolean(p.default_edging_enabled)
+  const hasBlow = Boolean(p.default_blow_off_enabled)
+  if (!hasMow && !hasWeed && !hasEdge && !hasBlow) return ''
+  if (hasMow && !hasWeed && !hasEdge && !hasBlow)  return 'mow_only'
+  if (hasMow && hasWeed && !hasEdge && hasBlow)    return 'mow_trim_blow'
+  if (!hasMow && (hasWeed || hasEdge || hasBlow))  return 'trim_cleanup'
+  if (hasMow && (hasWeed || hasEdge || hasBlow))   return 'full_service'
+  return ''
+}
+
+function deriveJobTypeFromFrequency(frequency?: string | null): string {
+  return frequency === 'weekly' || frequency === 'biweekly' ? 'recurring' : 'one_time'
 }
 
 function getPropertyDefaults(properties: PropertyOption[], propertyId?: string) {
@@ -47,7 +69,15 @@ export function JobForm({
   })
   const [servicePackage, setServicePackage] = useState(() => {
     if (typeof defaultValues?.service_package === 'string') return defaultValues.service_package
-    return initialProperty?.default_service_package ?? ''
+    if (initialProperty) {
+      return deriveServicePackageFromBooleans(initialProperty) || initialProperty.default_service_package || ''
+    }
+    return ''
+  })
+  const [jobType, setJobType] = useState(() => {
+    if (defaultValues?.job_type) return String(defaultValues.job_type)
+    if (initialProperty) return deriveJobTypeFromFrequency(initialProperty.service_frequency)
+    return 'recurring'
   })
 
   const filteredProperties = selectedCustomerId
@@ -67,8 +97,13 @@ export function JobForm({
     setSelectedPropertyId(propertyId)
     const property = getPropertyDefaults(properties, propertyId)
     if (!property) return
+    // Price: only prefill if a default exists; leave operator input untouched otherwise
     if (property.default_price != null) setPrice(String(property.default_price))
-    if (property.default_service_package) setServicePackage(property.default_service_package)
+    // Package: prefer boolean source-of-truth, fallback to legacy default_service_package
+    const pkgFromBooleans = deriveServicePackageFromBooleans(property)
+    setServicePackage(pkgFromBooleans || property.default_service_package || '')
+    // Job type: derive from property frequency
+    setJobType(deriveJobTypeFromFrequency(property.service_frequency))
   }
 
   const today = localToday
@@ -145,7 +180,8 @@ export function JobForm({
       <div className="form-row">
         <div className="form-field">
           <label className="form-label" htmlFor="jf_type">Job Type</label>
-          <select id="jf_type" name="job_type" className="form-select" defaultValue={(defaultValues?.job_type as string) ?? 'recurring'}>
+          <select id="jf_type" name="job_type" className="form-select"
+            value={jobType} onChange={e => setJobType(e.target.value)}>
             <option value="recurring">Recurring</option>
             <option value="one_time">One-time</option>
           </select>
@@ -183,6 +219,11 @@ export function JobForm({
             value={price}
             onChange={e => setPrice(e.target.value)}
           />
+          {selectedPropertyId && price === '' && (
+            <p className="text-small text-muted" style={{ marginTop: '4px' }}>
+              No default price set — enter price before completing this job.
+            </p>
+          )}
         </div>
         <div className="form-field">
           <label className="form-label" htmlFor="jf_payment">Payment</label>

@@ -30,7 +30,7 @@ export default async function NewJobPage({
       .order('first_name'),
     supabase
       .from('properties')
-      .select('id, customer_id, property_name, service_address, city, default_price, default_service_package, service_frequency, auto_schedule_next')
+      .select('id, customer_id, property_name, service_address, city, default_price, default_service_package, service_frequency, auto_schedule_next, default_mowing_enabled, default_weed_eating_enabled, default_edging_enabled, default_blow_off_enabled')
       .eq('business_id', businessId)
       .eq('status', 'active')
       .order('service_address'),
