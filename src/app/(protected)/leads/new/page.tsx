@@ -229,20 +229,40 @@ export default function NewLeadPage() {
             </div>
           </div>
 
-          <div className="form-field">
-            <label className="form-label" htmlFor="service_frequency">Requested Frequency *</label>
-            <select
-              id="service_frequency"
-              name="service_frequency"
-              className="form-select"
-              defaultValue="one_time"
-            >
-              <option value="weekly">Weekly</option>
-              <option value="biweekly">Bi-Weekly</option>
-              <option value="one_time">One-Time</option>
-              <option value="custom">Custom</option>
-              <option value="paused">Paused</option>
-            </select>
+          <div className="form-row">
+            <div className="form-field">
+              <label className="form-label" htmlFor="service_frequency">Requested Frequency *</label>
+              <select
+                id="service_frequency"
+                name="service_frequency"
+                className="form-select"
+                defaultValue="one_time"
+              >
+                <option value="weekly">Weekly</option>
+                <option value="biweekly">Bi-Weekly</option>
+                <option value="one_time">One-Time</option>
+                <option value="custom">Custom</option>
+                <option value="paused">Paused</option>
+              </select>
+            </div>
+            <div className="form-field">
+              <label className="form-label" htmlFor="preferred_service_day">Preferred Service Day</label>
+              <select
+                id="preferred_service_day"
+                name="preferred_service_day"
+                className="form-select"
+                defaultValue=""
+              >
+                <option value="">Any day</option>
+                <option value="monday">Monday</option>
+                <option value="tuesday">Tuesday</option>
+                <option value="wednesday">Wednesday</option>
+                <option value="thursday">Thursday</option>
+                <option value="friday">Friday</option>
+                <option value="saturday">Saturday</option>
+              </select>
+              <span className="form-hint">Optional — helps YardOps suggest follow-up dates. You can still schedule any day.</span>
+            </div>
           </div>
 
           <div className="form-field">

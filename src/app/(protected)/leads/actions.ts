@@ -142,6 +142,7 @@ export async function createLead(
       default_edging_enabled: svcEdging,
       default_blow_off_enabled: svcBlowOff,
       service_frequency: serviceFrequency,
+      preferred_service_day: str(formData, 'preferred_service_day'),
       access_notes: str(formData, 'access_notes'),
       obstacle_notes: str(formData, 'obstacle_notes'),
       parking_notes: str(formData, 'parking_notes'),
