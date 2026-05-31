@@ -638,7 +638,9 @@ export default async function TodayPage() {
           {completedTodayJobs!.map((job) => {
             const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null } | null
             const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
-            const balance = Math.max(0, (job.price ?? 0) - (job.amount_paid ?? 0))
+            const balance = job.price != null
+              ? Math.max(0, Number(job.price) - Number(job.amount_paid ?? 0))
+              : null
             return (
               <Link key={job.id} href={`/jobs/${job.id}`} style={{ display: 'block' }}>
                 <div className="card">
@@ -654,7 +656,7 @@ export default async function TodayPage() {
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       {job.price != null && <div style={{ fontWeight: 700 }}>${Number(job.price).toFixed(0)}</div>}
                       <span className={`pill pill-${job.payment_status}`}>{statusLabel(job.payment_status)}</span>
-                      {balance > 0 && job.payment_status !== 'not_billable' && <div className="text-small" style={{ color: 'var(--color-unpaid)', marginTop: '4px' }}>${balance.toFixed(0)} owed</div>}
+                      {balance != null && balance > 0 && job.payment_status !== 'not_billable' && <div className="text-small" style={{ color: 'var(--color-unpaid)', marginTop: '4px' }}>${balance.toFixed(0)} owed</div>}
                     </div>
                   </div>
                 </div>

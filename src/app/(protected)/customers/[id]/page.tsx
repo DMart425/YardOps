@@ -106,6 +106,10 @@ export default async function CustomerDetailPage({
       if (!b.completed_at) return -1
       return b.completed_at.localeCompare(a.completed_at)
     })
+  // Unpaid/partial jobs with no price set — cannot calculate a balance, shown separately as a note.
+  const noPriceUnpaidJobs = completedStatsRows.filter(
+    j => (j.payment_status === 'unpaid' || j.payment_status === 'partial') && j.price == null
+  )
   // Fetch portal token only when the SMS button will actually render
   let portalUrl: string | null = null
   if (outstandingJobs.length > 0 && customerRow.phone) {
@@ -244,13 +248,15 @@ export default async function CustomerDetailPage({
       </div>
 
       {/* Outstanding Balance */}
-      {outstandingJobs.length > 0 && (
+      {(outstandingJobs.length > 0 || noPriceUnpaidJobs.length > 0) && (
         <div className="detail-section">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
             <div className="section-heading" style={{ marginBottom: 0 }}>Outstanding Balance</div>
-            <span style={{ fontWeight: 700, color: 'var(--color-unpaid)', fontSize: '0.875rem' }}>
-              ${totalUnpaid.toFixed(2)} across {outstandingJobs.length} job{outstandingJobs.length !== 1 ? 's' : ''}
-            </span>
+            {outstandingJobs.length > 0 && (
+              <span style={{ fontWeight: 700, color: 'var(--color-unpaid)', fontSize: '0.875rem' }}>
+                ${totalUnpaid.toFixed(2)} across {outstandingJobs.length} job{outstandingJobs.length !== 1 ? 's' : ''}
+              </span>
+            )}
           </div>
           {outstandingJobs.map((j) => {
             const balance = Math.max(0, Number(j.price ?? 0) - Number(j.amount_paid ?? 0))
@@ -279,7 +285,12 @@ export default async function CustomerDetailPage({
               </Link>
             )
           })}
-          {customerRow.phone && (
+          {noPriceUnpaidJobs.length > 0 && (
+            <p className="text-small text-muted" style={{ marginTop: '8px' }}>
+              + {noPriceUnpaidJobs.length} unpaid job{noPriceUnpaidJobs.length !== 1 ? 's' : ''} with no price set — set a price to include in the balance.
+            </p>
+          )}
+          {outstandingJobs.length > 0 && customerRow.phone && (
             <div style={{ marginTop: '12px' }}>
               <a
                 href={`sms:${customerRow.phone}?body=${encodeURIComponent(balanceSmsBody)}`}
