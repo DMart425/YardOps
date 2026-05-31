@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-31 (2ca5a86)
+Last updated: 2026-05-31 (08608eb)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-05-31 (2ca5a86)
 
 ## Current Checkpoint
 
-- **Latest commit:** `2ca5a86` — Fix today date conversion crash (Phase 5I)
+- **Latest commit:** `08608eb` — Fix estimate default price label spacing (Phase 5K)
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -534,6 +534,66 @@ No migration. No RLS changes. No env changes.
 
 ---
 
+### Phase 5J — Payment Summary Polish ✅
+
+**Commits:** `041f355` (payment summary card), `389fd88` (remove duplicate partial status text)
+
+#### Payment Summary card (`041f355`)
+
+- `jobs/[id]/page.tsx` — new **Payment Summary** card shown on completed jobs (above `JobActions`). Aggregate-only display — no payment event table. Do NOT call this "payment history."
+- Computes three variables server-side: `payPrice = job.price != null ? Number(job.price) : null`, `payAmtPaid = Number(job.amount_paid ?? 0)`, `payBalance = payPrice != null ? Math.max(0, payPrice - payAmtPaid) : null`
+- Explicit per-status display branches:
+  - `not_billable` → status pill ("No payment due") only — no price, no balance
+  - `partial` → Price · Amount paid (always) · Balance due (when `payBalance != null`) · Status pill · Method
+  - `paid` → Price · Amount paid (when > 0) · Status pill · Method
+  - `unpaid` → Price · Balance due (when `payBalance != null`) · Status pill
+- `PAYMENT_METHOD_LABELS` map + `formatPaymentMethod()` helper — human-readable method names (`cash → 'Cash'`, `venmo → 'Venmo'`, etc.); unknown codes fall back to title-cased string
+- `payment_method` is a last-write-wins field — not a payment event log
+
+**Phase 5J follow-up fix also in `041f355`:** Partial job Payment Summary was showing only Amount paid / Status / Method — Price and Balance due were missing. Root cause: shared `(ps === 'paid' || ps === 'partial') && payAmtPaid > 0` guard filtered out Amount paid for partial when `payAmtPaid` was 0; `payBalance > 0` guard hid Balance due. Fix: split Amount paid into explicit `ps === 'partial'` (unconditional) and `ps === 'paid' && payAmtPaid > 0` branches; dropped `> 0` guard for Balance due on partial/unpaid (show whenever `payBalance != null`).
+
+#### Duplicate partial status text removal (`389fd88`)
+
+- `JobActions.tsx` — removed duplicate orange inline partial status text that appeared above the Venmo payment SMS section. The Payment Summary card already displays this information. The Venmo SMS section was preserved.
+
+No migrations. No schema changes. No RLS changes. No env var changes.
+
+---
+
+### Phase 5K — New Job Prefill Polish ✅
+
+**Commits:** `a3d990b` (New Job property prefill), `b9fa8db` (save estimate price as property default), `08608eb` (checkbox label spacing fix)
+
+#### New Job property prefill (`a3d990b`)
+
+On property selection in the New Job form, three fields now prefill from property defaults:
+
+**Price:** Only `property.default_price` is a permitted prefill source. If the property has no default price, the field is left empty with a hint: "No default price set — enter price before completing this job." No acreage-based pricing or other heuristics.
+
+**Service package:** New `deriveServicePackageFromBooleans()` helper in `JobForm.tsx` maps the four property boolean columns to a `service_package` code. Booleans take precedence over legacy `property.default_service_package`. `default_service_package` used as fallback only when all four booleans are null.
+
+**Job type:** New `deriveJobTypeFromFrequency()` helper in `JobForm.tsx`: `weekly`/`biweekly` → `'recurring'`; everything else → `'one_time'`. Matches estimate conversion logic. `job_type` select converted from uncontrolled (`defaultValue`) to controlled (`value={jobType}`) — `defaultValue` does not update after initial render.
+
+**Files changed:**
+- `src/components/forms/JobForm.tsx` — `PropertyOption` interface extended with four boolean columns; `deriveServicePackageFromBooleans()` and `deriveJobTypeFromFrequency()` helpers added; `jobType` state added; `job_type` select converted to controlled; price hint added when no default price
+- `src/app/(protected)/jobs/new/page.tsx` — extended Supabase query to include four boolean columns
+
+#### Save estimate price as property default (`b9fa8db` + `08608eb`)
+
+**UI — `EstimateStatusActions.tsx`:** "Save as default price" opt-in checkbox in the convert panel.
+- `defaultChecked={propertyDefaultPrice == null}` — pre-checked when property has no default price
+- When a default exists: muted note "(currently $X.XX)" shown beside label
+- `08608eb` spacing fix: `{' '}` explicit space token between `$X.XX` expression and "as this property's..." text to prevent JSX whitespace collapse
+- `propertyDefaultPrice` prop added to component (`number | null`, default `null`)
+
+**Data — `estimates/[id]/page.tsx`:** fetches `default_price` from properties join; passes `propertyDefaultPrice={property.default_price ?? null}` to component.
+
+**Action — `convertToJob()` in `estimates/actions.ts`:** after successful job insert, reads `save_as_default_price` from formData. If `'on'` and `estimate.property_id` is set and `estimate.total > 0`, performs best-effort `properties.update({ default_price: estimate.total })` scoped by `property_id + business_id`. Never blocks conversion. Calls `revalidatePath('/properties/[id]')` on success.
+
+No migrations. No schema changes. No RLS changes. No env var changes.
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -555,6 +615,11 @@ No migration. No RLS changes. No env changes.
 
 | Hash | Description |
 |------|-------------|
+| `08608eb` | Fix estimate default price label spacing (Phase 5K) |
+| `b9fa8db` | Save estimate price as property default on convert (Phase 5K) |
+| `a3d990b` | Polish new job property prefill (Phase 5K) |
+| `389fd88` | Remove duplicate partial status text from JobActions (Phase 5J) |
+| `041f355` | Add job detail payment summary card (Phase 5J) |
 | `2ca5a86` | Fix today date conversion crash (Phase 5I hotfix) |
 | `4af55db` | Fix needs follow-up day count (Phase 5I) |
 | `f1d77a6` | Fix estimate conversion job type and time window (Phase 5I) |
@@ -821,6 +886,18 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ Estimate conversion panel includes Time Window select (Any time / Morning / Afternoon / Evening); selection saves to `job.scheduled_time_window` (`f1d77a6`)
 - ✅ Needs Follow-up days-since uses local date-only comparison — completed-today jobs show "today" instead of negative day counts (`4af55db` + `2ca5a86`)
 - ✅ `/today` runtime crash from passing raw ISO string to `getLocalDateStr(timeZone, date: Date)` fixed — `new Date(job.completed_at)` wraps correctly; page loads (`2ca5a86`)
+- ✅ Completed job detail shows Payment Summary card — aggregate-only display (not a payment log); explicit per-status branches: `not_billable` shows status only; `partial` shows Price + Amount paid + Balance due + Status + Method; `paid` shows Price + Amount paid + Status + Method; `unpaid` shows Price + Balance due + Status (`041f355`)
+- ✅ `not_billable` jobs show only "No payment due" status in Payment Summary — no price, no balance, no owed amount (`041f355`)
+- ✅ Payment method displayed as human-readable label (Cash / Venmo / Card / Check / CashApp / Zelle / Other) in Payment Summary (`041f355`)
+- ✅ Partial job Payment Summary shows correct Price and Balance due rows — explicit `ps === 'partial'` branch, no `> 0` guard on Balance due (`041f355`)
+- ✅ Duplicate orange partial status text removed from `JobActions.tsx` — Payment Summary card provides the same information without duplication (`389fd88`)
+- ✅ New Job form auto-prefills price from `property.default_price` on property selection; if no default exists, field is left empty with a hint ("No default price set — enter price before completing this job.") (`a3d990b`)
+- ✅ New Job form auto-prefills service package from property boolean columns (`default_mowing_enabled`, `default_weed_eating_enabled`, `default_edging_enabled`, `default_blow_off_enabled`) first; `default_service_package` is fallback only (`a3d990b`)
+- ✅ New Job form auto-prefills job type from `property.service_frequency` — `weekly`/`biweekly` → Recurring; everything else → One-time; updates dynamically on property change (`a3d990b`)
+- ✅ New Job `job_type` select is controlled (`value={jobType}`) so it updates correctly when a new property is selected (`a3d990b`)
+- ✅ Estimate conversion "Save as default price" checkbox — pre-checked when property has no default price; shows current default when one exists; opt-in only; best-effort update does not block conversion (`b9fa8db`)
+- ✅ Estimate conversion saves `estimate.total` as `property.default_price` when operator checks the box and estimate total > 0; scoped by `property_id + business_id`; calls `revalidatePath('/properties/[id]')` (`b9fa8db`)
+- ✅ Checkbox label displays correctly with space: "Save $X.XX as this property's default price for future jobs" — `{' '}` explicit space token prevents JSX whitespace collapse (`08608eb`)
 
 ---
 
@@ -849,6 +926,8 @@ All of the following were user-tested and confirmed working as of `289b732`:
 | Phase 5G — Today operations brief | ✅ Complete | `0a4ce23` + `74b8a90` — stat cards (Collected today, This week) + action sections (Needs Follow-up, Approved Estimates Waiting); no migration |
 | Phase 5H — Today visual polish + follow-up fix | ✅ Complete | `ee7f75b` + `3865e0d` + `b908ac7` — compact stat cards, section reorder, helper text, false-positive suppression in Needs Follow-up; no migration |
 | Phase 5I — Estimate conversion job type + day-count fix | ✅ Complete | `f1d77a6` + `4af55db` + `2ca5a86` — `job_type` derives from frequency, time window in convert panel, day-count local date fix, hotfix for runtime crash; no migration |
+| Phase 5J — Payment Summary polish | ✅ Complete | `041f355` + `389fd88` — Payment Summary card on completed job detail; explicit per-status branches; `not_billable` safe; human-readable payment method; duplicate partial text removed from `JobActions.tsx`; no migration |
+| Phase 5K — New Job prefill + estimate price default | ✅ Complete | `a3d990b` + `b9fa8db` + `08608eb` — price/package/job_type prefill from property; controlled `job_type` select; estimate→property default price opt-in checkbox; label spacing fix; no migration |
 | Route balancing / auto-scheduling follow-up | ⏸ Future | `Property.schedule_anchor_date` reserved; do not implement until explicitly asked |
 | `schedule_anchor_date` — no UI yet | ⏸ Future | Column exists in schema; no read or write path built |
 | Weather/rain-day shifting for scheduling | ⏸ Future | Not planned |
@@ -873,7 +952,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
 | 3 | Public intake and lead workflow improvements | ✅ Complete — all listed tasks done through `ec48565`; payment bugfixes continued in Phase 4 |
 | 4 | Operations UX / workflow polish | ✅ Substantially complete — 4A–4D + cleanup batch done (`463e762`) |
-| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A ✅, 5B ✅, 5C ✅, 5D ✅, 5E ✅, 5F ✅, 5G ✅, 5H ✅, 5I ✅ complete (`2ca5a86`); next TBD |
+| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A ✅, 5B ✅, 5C ✅, 5D ✅, 5E ✅, 5F ✅, 5G ✅, 5H ✅, 5I ✅, 5J ✅, 5K ✅ complete (`08608eb`); next TBD |
 
 **Permanent Future-Handoff Requirements** (mandatory — see Architecture.md §16):
 Every future handoff must instruct the next chat to read ARCHITECTURE.md and HANDOFF.md first, remind it to update those docs after any verified/committed change, state the latest commit, current phase status, open items, workflow guardrails, and known security follow-ups (no secret values).
@@ -882,11 +961,11 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Phase 5J planning — next area TBD**
+**Phase 5L planning — next area TBD**
 
-Phase 5A–5I are all production-verified and complete as of `2ca5a86`.
+Phase 5A–5K are all production-verified and complete as of `08608eb`.
 
-**Completed Phase 5A–5I work:**
+**Completed Phase 5A–5K work:**
 - ✅ Customers list unpaid balance badges
 - ✅ Customer detail Outstanding Balance section
 - ✅ Balance reminder SMS with portal link
@@ -915,13 +994,19 @@ Phase 5A–5I are all production-verified and complete as of `2ca5a86`.
 - ✅ Estimate convert panel includes Time Window select; saves to `job.scheduled_time_window`
 - ✅ Needs Follow-up days-since uses local date-only comparison; completed-today shows "today"
 - ✅ `/today` runtime crash from raw ISO string to `getLocalDateStr` hotfixed
+- ✅ Completed job detail Payment Summary card — aggregate-only, explicit per-status branches, `not_billable` safe, human-readable method labels
+- ✅ Duplicate partial status text removed from `JobActions.tsx`
+- ✅ New Job form prefills price / service package / job type from property defaults
+- ✅ New Job `job_type` select is controlled — updates dynamically on property change
+- ✅ Estimate conversion opt-in "Save as default price" checkbox with current-value hint
 
-**Next Phase 5J candidates:**
+**Next Phase 5L candidates:**
 1. `JobActions` SMS business phone — wire `businessPhone` into on-my-way / day-before / job-complete SMS
 2. Portal enhancements — customer-facing UX improvements
 3. Revenue/expense reporting — more useful Finances page analytics
 4. Bulk job actions — mark multiple jobs paid, batch scheduling
 5. Printable portal invoice PDF — web-only currently
+6. Job detail → View Estimate link when `job.estimate_id` exists
 
 **Phase 3 completed tasks (all user-tested in production — historical record):**
 1. ~~Frequency display — website lead detail page~~ ✅ (`0589026`)

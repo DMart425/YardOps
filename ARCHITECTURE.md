@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-31
-Current checkpoint commit: `2ca5a86` (Fix today date conversion crash — Phase 5I)
+Current checkpoint commit: `08608eb` (Fix estimate default price label spacing — Phase 5K)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -491,6 +491,9 @@ Website/manual intake address, frequency, and service interests are written into
 | Needs Follow-up day-count fix | ✅ Phase 5I | `4af55db` + `2ca5a86` — days-since now compares local date-only values; `getLocalDateStr(timeZone, new Date(completed_at))` → `dateOnlyToUtcMs()` → integer days; 0 shows "today"; hotfix wrapped raw string in `new Date()` to prevent runtime crash |
 | Route balancing / auto-scheduling for follow-up | ⏸ Future | Distributing customers evenly across the week is a larger feature; auto-scheduling on completion is not built; `Property.schedule_anchor_date` reserved for this; do not implement until explicitly asked |
 | Printable/downloadable portal invoice PDF | ⏸ Future | Portal invoice page is web-only; PDF export not yet added |
+| Job detail Payment Summary polish | ✅ Phase 5J | `041f355` + `389fd88` — aggregate-only display; explicit per-status branches; partial shows Price + Amount paid + Balance due; `payment_method` human-readable via `PAYMENT_METHOD_LABELS`; removed duplicate partial inline text from `JobActions.tsx` |
+| New Job property prefill polish | ✅ Phase 5K | `a3d990b` — `property.default_price` → price; property boolean columns → `service_package` (via `deriveServicePackageFromBooleans`); `service_frequency` → `job_type` (via `deriveJobTypeFromFrequency`); `job_type` select converted to controlled |
+| Save estimate price as property default on convert | ✅ Phase 5K | `b9fa8db` + `08608eb` — opt-in checkbox in convert panel; `defaultChecked` when no existing default; best-effort `properties.update` in `convertToJob()`; shows current value when one exists |
 
 ### RLS Hardening Checklist (future — not yet applied)
 
@@ -1117,6 +1120,84 @@ Display: `daysSince === 0` → `"today"`; `>= 1` → `"Xd ago"`.
 #### No route/nav/schema changes
 
 No new routes. No nav items. No schema migrations. No RLS changes. No env var changes.
+
+---
+
+### Phase 5J — Payment Summary Polish ✅
+
+**Commits:** `041f355` (payment summary card + partial row fix), `389fd88` (remove duplicate partial status text)
+
+#### Payment Summary card (`041f355`)
+
+`jobs/[id]/page.tsx` — completed job detail now shows a **Payment Summary** card (above `JobActions`) when `job.status === 'completed'`. Implemented as aggregate-only display. No payment event table exists — do NOT call this "payment history."
+
+**Fields used:**
+- `job.price` — the price set at job creation or update
+- `job.amount_paid` — cumulative amount collected (last-write-wins for paid/partial via `markPaid()`/`markPartial()`)
+- `job.payment_status` — `'unpaid'` | `'partial'` | `'paid'` | `'not_billable'`
+- `job.payment_method` — last method recorded; displayed via `PAYMENT_METHOD_LABELS` map for human-readable labels
+
+**Display branches:**
+
+| Status | Rows shown |
+|--------|-----------|
+| `not_billable` | Status pill only ("No payment due") — no Price, no Amount paid, no Balance due |
+| `partial` | Price · Amount paid (always) · Balance due (when `payBalance != null`) · Status · Method (if set) |
+| `paid` | Price · Amount paid (when > 0) · Status · Method (if set) |
+| `unpaid` | Price · Balance due (when `payBalance != null`) · Status |
+
+`payBalance = Math.max(0, payPrice - payAmtPaid)` — never negative.
+
+**`payment_method` display:** `PAYMENT_METHOD_LABELS` maps `cash`, `venmo`, `card`, `check`, `cashapp`, `zelle`, `other` to human-readable strings. Unknown codes fall back to title-cased code via `formatPaymentMethod()`. `payment_method` is a last-write-wins field — not a payment log.
+
+**`not_billable` invariant:** Never show owed amount, balance due, or invoice/payment SMS for `not_billable` jobs. Enforced here and in `JobActions`.
+
+#### Duplicate partial status text removal (`389fd88`)
+
+`JobActions.tsx` — removed duplicate orange inline partial status text (`"Partial: $X of $Y paid — $Z remaining"`) that appeared above the Venmo payment SMS section. The Payment Summary card (added in `041f355`) already shows the same information in a cleaner format. The Venmo SMS section itself was preserved.
+
+No new routes. No nav items. No schema migrations. No RLS changes. No env var changes.
+
+---
+
+### Phase 5K — New Job Prefill Polish ✅
+
+**Commits:** `a3d990b` (New Job property prefill), `b9fa8db` (save estimate price as property default), `08608eb` (checkbox label spacing fix)
+
+#### New Job property prefill (`a3d990b`)
+
+When the operator selects a property in the New Job form, the form now auto-populates three fields from property defaults:
+
+**Price:** `property.default_price` → price field. Prefilled on initial load when `defaultPropertyId` is passed. Prefilled dynamically on property change. If the property has no `default_price`, the price field is left empty with a hint ("No default price set — enter price before completing this job."). **No parcel-acreage pricing or other heuristics.** Only `property.default_price` is permitted as a prefill source.
+
+**Service package:** `deriveServicePackageFromBooleans()` in `JobForm.tsx` maps the four boolean columns to a `service_package` code:
+- All false/null → `''`
+- mow only → `'mow_only'`
+- mow + weed eating + blow off → `'mow_trim_blow'`
+- no mow + any of weed eating/edging/blow off → `'trim_cleanup'`
+- mow + any of weed eating/edging/blow off → `'full_service'`
+
+Booleans are preferred over legacy `property.default_service_package`; `default_service_package` is fallback only.
+
+**Job type:** `deriveJobTypeFromFrequency()` in `JobForm.tsx` maps `property.service_frequency` to `job_type`: `weekly`/`biweekly` → `'recurring'`; everything else → `'one_time'`. This matches the estimate conversion rule. The `job_type` select was **converted from uncontrolled (`defaultValue`) to controlled (`value={jobType}`)** so it updates on property change.
+
+**Files changed:**
+- `src/components/forms/JobForm.tsx` — added `deriveServicePackageFromBooleans()`, `deriveJobTypeFromFrequency()`, extended `PropertyOption` interface with boolean columns, added `jobType` state, converted `job_type` select to controlled, added price hint
+- `src/app/(protected)/jobs/new/page.tsx` — extended properties query to include four boolean columns
+
+No schema migrations. No RLS changes. No env var changes.
+
+#### Save estimate price as property default on convert (`b9fa8db` + `08608eb`)
+
+**Goal:** When converting an approved estimate to a job, give the operator an easy way to save the estimate total as the property's default price for future jobs.
+
+**UI:** `EstimateStatusActions.tsx` — "Save as default price" checkbox in the convert panel. `defaultChecked={propertyDefaultPrice == null}` (checked by default when no default exists). When a default exists, the current value is shown as a muted note `"(currently $X.XX)"`. Label has an explicit `{' '}` space token to prevent JSX whitespace collapse between the `$X.XX` expression and the following text. `08608eb` fixed this spacing issue.
+
+**Server action:** `convertToJob()` in `estimates/actions.ts` — after the job insert succeeds, reads `save_as_default_price` from `formData`. If `'on'` and `estimate.property_id` exists and `estimate.total > 0`, performs a best-effort `properties.update({ default_price: estimate.total })` scoped by `property_id` + `business_id`. Does not block conversion if the update fails. Calls `revalidatePath('/properties/[id]')` on success.
+
+**Data flow:** `estimates/[id]/page.tsx` fetches `properties(... default_price)` in the join and passes `propertyDefaultPrice={property.default_price ?? null}` to `EstimateStatusActions`.
+
+No schema migrations. No RLS changes. No env var changes.
 
 ---
 

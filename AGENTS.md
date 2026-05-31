@@ -8,7 +8,7 @@ YardOps is the private operations app for Wicksburg Lawn Service.
 
 Current verified YardOps checkpoint commit:
 
-`2ca5a86` (Fix today date conversion crash — Phase 5I)
+`08608eb` (Fix estimate default price label spacing — Phase 5K)
 
 The public website repo is separate:
 
@@ -168,3 +168,9 @@ These rules were learned from production bugs and must be preserved across refac
 * Converted recurring jobs must remain eligible for the normal follow-up scheduling flow (`ScheduleFollowUpCard`, Needs Follow-up on Today). Do not gate follow-up scheduling on how a job was created (manual vs. estimate conversion).
 * When calling date helpers such as `getLocalDateStr(timeZone, date)`, always pass a `Date` object as the second argument — not a raw string. Dynamic Supabase `.select()` calls often return fields typed as `any`, which means TypeScript will not catch type mismatches at build time. These bugs surface only at runtime as `RangeError: Invalid time value`. Always wrap ISO timestamp strings with `new Date()` before passing to date helpers.
 * `/today` runtime crashes are production hotfixes. Keep fixes minimal and targeted — change only the broken expression, run lint and build, and push immediately after approval. Do not bundle unrelated changes into a hotfix commit.
+* Do not call the aggregate payment state "payment history." `jobs.amount_paid`, `jobs.payment_status`, and `jobs.payment_method` are aggregate fields — last-write-wins. No payment event table exists. Using "history" implies an event log that is not present. If a payment event table is added in the future, update this rule.
+* Payment Summary on job detail must never show owed amounts or balance-due rows for `not_billable` jobs. `not_billable` means no charge. No price row, no balance row, no owed display — only a "No payment due" status indicator.
+* New Job price must not be invented or calculated. The only permitted prefill source is `property.default_price`. If the property has no default price, leave the price field empty with a hint. Do not add a parcel-acreage-based price calculation or any other heuristic price derivation without explicit approval.
+* New Job `job_type` should derive from the selected property's `service_frequency` when a property is known: `weekly`/`biweekly` → `'recurring'`; everything else → `'one_time'`. This matches the estimate conversion rule in `convertToJob()`. Use a controlled React select (`value={jobType}`) so it updates dynamically on property change — `defaultValue` (uncontrolled) will not update after initial render.
+* Service package prefill in New Job and Job editing must prefer property boolean columns (`default_mowing_enabled`, `default_weed_eating_enabled`, `default_edging_enabled`, `default_blow_off_enabled`) over the legacy `default_service_package` string. Property booleans are the source of truth after property save. `default_service_package` is a fallback only when all four booleans are null.
+* Estimate conversion may update `property.default_price` only when the operator explicitly checks the "Save as default price" checkbox in the convert panel. Never silently update the property default price on conversion. The update is best-effort (does not block conversion if it fails) and is scoped by both `property_id` and `business_id`.
