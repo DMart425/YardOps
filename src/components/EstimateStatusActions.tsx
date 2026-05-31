@@ -128,7 +128,7 @@ export function EstimateStatusActions({
                   style={{ marginTop: '2px', flexShrink: 0 }}
                 />
                 <span className="text-small">
-                  Save ${Number(estimate.total).toFixed(2)} as this property&apos;s default price for future jobs
+                  Save ${Number(estimate.total).toFixed(2)}{' '}as this property&apos;s default price for future jobs
                   {propertyDefaultPrice != null && (
                     <span className="text-muted"> (currently ${Number(propertyDefaultPrice).toFixed(2)})</span>
                   )}
