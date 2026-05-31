@@ -821,7 +821,9 @@ export default async function TodayPage() {
           </div>
           {unpaidJobs!.map((job) => {
             const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null; phone: string | null } | null
-            const balance = (job.price ?? 0) - (job.amount_paid ?? 0)
+            const balance = job.price != null
+              ? Math.max(0, Number(job.price) - Number(job.amount_paid ?? 0))
+              : null
             return (
               <div key={job.id} className="card">
                 <div className="card-row">
@@ -829,7 +831,7 @@ export default async function TodayPage() {
                     <div className="card-title">{job.title}</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
                       <div className="card-meta">👤 {customer?.first_name} {customer?.last_name}</div>
-                      <div className="card-meta">💵 ${balance.toFixed(0)} due</div>
+                      <div className="card-meta">💵 {balance != null ? `$${balance.toFixed(0)} due` : 'No price set'}</div>
                       {job.completed_at && <div className="card-meta">🗓 {formatTimestampDate(job.completed_at, timeZone, { month: 'short', day: 'numeric', year: 'numeric' })}</div>}
                     </div>
                   </div>
@@ -838,7 +840,7 @@ export default async function TodayPage() {
                   </div>
                 </div>
                 <div className="card-actions">
-                  {customer?.phone && (
+                  {customer?.phone && balance != null && (
                     <a
                       href={`sms:${customer.phone}?body=${encodeURIComponent(`Hey ${customer.first_name}, just a quick reminder that your lawn service balance of $${balance.toFixed(0)} is still open. Thanks`)}`}
                       className="btn btn-sm btn-secondary"

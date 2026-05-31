@@ -352,7 +352,7 @@ export async function markPaid(
     .update({
       payment_status: 'paid',
       payment_method: (formData.get('payment_method') as string) || null,
-      amount_paid: job?.price ?? null,
+      amount_paid: job?.price ?? 0,
     })
     .eq('id', id)
     .eq('business_id', businessId)

@@ -162,6 +162,9 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
                         defaultValue={job.price ?? ''}
                         placeholder="0.00"
                       />
+                      <p className="text-small text-muted" style={{ marginTop: '4px' }}>
+                        Enter a price to record the correct payment amount and generate an invoice.
+                      </p>
                     </div>
                     <div className="form-field">
                       <label className="form-label">Minutes Worked</label>

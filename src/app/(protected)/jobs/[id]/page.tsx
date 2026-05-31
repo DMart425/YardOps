@@ -332,10 +332,15 @@ export default async function JobDetailPage({
               </div>
             ) : (
               <>
-                {payPrice != null && (
+                {payPrice != null ? (
                   <div className="card-row">
                     <span className="text-small text-muted">Price</span>
                     <span className="text-small">${payPrice.toFixed(2)}</span>
+                  </div>
+                ) : (
+                  <div className="card-row">
+                    <span className="text-small text-muted">Price</span>
+                    <span className="text-small text-muted">Not set</span>
                   </div>
                 )}
                 {/* Amount paid: always show for partial; guard > 0 for paid only */}
