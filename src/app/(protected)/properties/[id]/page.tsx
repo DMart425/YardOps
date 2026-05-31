@@ -233,6 +233,14 @@ export default async function PropertyDetailPage({
           <span className="text-small text-muted">Frequency</span>
           <span className={`pill pill-${p.service_frequency}`}>{formatFrequencyLabel(p.service_frequency)}</span>
         </div>
+        <div className="card-row" style={{ marginTop: '8px' }}>
+          <span className="text-small text-muted">Preferred day</span>
+          <span className="text-small">
+            {p.preferred_service_day
+              ? p.preferred_service_day.replace(/\b\w/g, l => l.toUpperCase())
+              : 'Any day'}
+          </span>
+        </div>
         {(p.default_mowing_enabled != null || p.default_weed_eating_enabled != null || p.default_edging_enabled != null || p.default_blow_off_enabled != null) ? (
           <div className="card-row" style={{ marginTop: '8px' }}>
             <span className="text-small text-muted">Default services</span>
