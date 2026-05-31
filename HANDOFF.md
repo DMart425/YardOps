@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-23 (b985bb3)
+Last updated: 2026-05-31 (49c051f)
 
 ---
 
@@ -21,13 +21,13 @@ Last updated: 2026-05-23 (b985bb3)
 
 ## Current Checkpoint
 
-- **Latest commit:** `b985bb3` — Anchor follow-up date to completion
+- **Latest commit:** `49c051f` — Fix preferred weekday closest-date logic (Phase 5E)
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
 - **Production URL:** https://app.wicksburglawnservice.com
 
-> **Vercel note:** `b985bb3` did not appear to trigger an immediate Vercel auto-deploy after push. The docs checkpoint push may retrigger the deploy. Not confirmed resolved — check Vercel dashboard if production behavior appears stale.
+> **Vercel note:** Vercel auto-deploy has silently failed twice in this session (`b985bb3` and `49c051f`). If production behavior appears stale, check Vercel Settings → Git → GitHub integration and reinstall the Vercel app on the repo if needed.
 
 > **Note:** The Supabase DB password was exposed in a prior session and needs rotation. User has asked
 > not to interrupt active work repeatedly for this. Rotate at a safe pause point.
@@ -413,6 +413,28 @@ Key commits: `fbe63c0`, `3f5645c`, `b93e836`, `406f727`, `dd7dbb6`, `30df416`, `
 
 ---
 
+### Phase 5E — Optional Scheduling Helper ✅
+
+**Commits:** `315268c` (V1 implementation), `49c051f` (preferred weekday closest-date fix)
+
+`ScheduleFollowUpCard` extended with up to three optional suggestion chips. Chips fill the date field only — manual entry remains the authority.
+
+**Files changed:**
+- `src/lib/date.ts` — added `WEEKDAY_INDEX` and `getClosestWeekdayNearDate` (bidirectional weekday snap)
+- `src/components/ScheduleFollowUpCard.tsx` — converted date input to controlled; added `preferredServiceDay` and `scheduledJobDates` props; chip rendering logic
+- `src/app/(protected)/jobs/[id]/page.tsx` — added `preferred_service_day` to properties join; added conditional `scheduledJobDates` query; passed both new props to `ScheduleFollowUpCard`
+
+**Chip types:**
+- 📅 Cadence — always shown when frequency is weekly/biweekly; anchors from `completedDate ?? scheduledDate`
+- 💡 Preferred day — shown when `Property.preferred_service_day` is set; snaps to closest matching weekday within ±4 days of cadence date (backward AND forward); suppressed when no valid candidate or cadence date is already on preferred day
+- ⚡ Lighter workload — shown when a date within +1–+6 days of cadence has ≥2 fewer scheduled jobs; forward-only scan
+
+**Bug fixed in `49c051f`:** V1 preferred-day chip was forward-only (`getNearestWeekday`). Replaced with `getClosestWeekdayNearDate` that computes both backward and forward distance and picks the closer one, excluding past dates via `minDate`.
+
+**No migration required** — `preferred_service_day` already existed in schema and `PropertyForm`.
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -434,6 +456,9 @@ Key commits: `fbe63c0`, `3f5645c`, `b93e836`, `406f727`, `dd7dbb6`, `30df416`, `
 
 | Hash | Description |
 |------|-------------|
+| `49c051f` | Fix preferred weekday closest-date logic (Phase 5E) |
+| `315268c` | Add optional scheduling helper chips (Phase 5E V1) |
+| `0a3816e` | Docs checkpoint — Phase 5C/5D (no code changes) |
 | `b985bb3` | Anchor follow-up date to completion (Phase 5D) |
 | `7c5280a` | Fix partial payment FormData submission (Phase 5C) |
 | `ba85520` | Stabilize repeated partial payments (Phase 5C — superseded by 7c5280a) |
@@ -658,6 +683,10 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ `not_billable` jobs show no owed balance and no invoice/payment SMS prompts (`0351ab6`)
 - ✅ Multiple partial payment submissions work reliably — `markPartial()` receives `FormData` each submission; form input clears after success (`7c5280a`)
 - ✅ `ScheduleFollowUpCard` anchors suggested follow-up date from `completed_at` (local date) when available, falling back to `scheduled_date` — no drift when jobs complete early or late (`b985bb3`)
+- ✅ `ScheduleFollowUpCard` shows optional suggestion chips (📅 cadence, 💡 preferred day, ⚡ lighter workload) when applicable; chips fill the date field only, do not auto-submit (`315268c`)
+- ✅ Preferred-day chip snaps to the closest matching weekday (backward OR forward) within ±4 days of cadence date; past dates excluded; chip suppressed when no valid candidate or cadence date is already on preferred day (`49c051f`)
+- ✅ Lighter-workload chip shown only when a date within +1–+6 days of cadence has ≥2 fewer scheduled jobs; suppressed otherwise (`315268c`)
+- ✅ Active chip (date matches current input value) highlighted with primary border/color; clicking an already-active chip is a no-op to the form (`315268c`)
 
 ---
 
@@ -681,6 +710,11 @@ All of the following were user-tested and confirmed working as of `289b732`:
 | Phase 5B — Estimate conversion + business phone | ✅ Complete | Duplicate guard, View Job link, businesses.name SMS, businesses.phone setting + formatting — all production-verified |
 | Phase 5C — Portal invoices, receipt SMS, partial payment stability | ✅ Complete | Portal invoice page, portal service history links, completion SMS invoice URL, receipt SMS, not_billable guard, FormData fix — production-verified |
 | Phase 5D — Follow-up completion-date anchor | ✅ Complete | `b985bb3` — `ScheduleFollowUpCard` anchors from `completed_at`; no migration |
+| Phase 5E — Optional scheduling helper chips | ✅ Complete | `315268c` + `49c051f` — cadence, preferred-day, lighter-workload chips; no migration |
+| Route balancing / auto-scheduling follow-up | ⏸ Future | `Property.schedule_anchor_date` reserved; do not implement until explicitly asked |
+| `preferred_service_day` on leads/new fast-entry | ⏸ Future | Acceptable V1 gap; property detail `PropertyForm` already has it |
+| `schedule_anchor_date` — no UI yet | ⏸ Future | Column exists in schema; no read or write path built |
+| Weather/rain-day shifting for scheduling | ⏸ Future | Not planned |
 | Printable/downloadable portal invoice PDF | ⏸ Future | Portal invoice page is web-only; PDF export not yet added |
 | Job detail View Estimate link | ⏸ Future | When `job.estimate_id` exists — not yet added |
 | Convert-to-job date/time pre-fill polish | ⏸ Future | Deferred — Phase 5 candidate |
@@ -702,7 +736,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
 | 3 | Public intake and lead workflow improvements | ✅ Complete — all listed tasks done through `ec48565`; payment bugfixes continued in Phase 4 |
 | 4 | Operations UX / workflow polish | ✅ Substantially complete — 4A–4D + cleanup batch done (`463e762`) |
-| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A ✅, 5B ✅, 5C ✅ complete; Phase 5D follow-up anchor ✅ complete (`b985bb3`) |
+| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A ✅, 5B ✅, 5C ✅, 5D ✅, 5E ✅ complete (`49c051f`); 5F TBD |
 
 **Permanent Future-Handoff Requirements** (mandatory — see Architecture.md §16):
 Every future handoff must instruct the next chat to read ARCHITECTURE.md and HANDOFF.md first, remind it to update those docs after any verified/committed change, state the latest commit, current phase status, open items, workflow guardrails, and known security follow-ups (no secret values).
@@ -711,11 +745,11 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Phase 5E planning — next area TBD**
+**Phase 5F planning — next area TBD**
 
-Phase 5A–5C (customer collections, estimate conversion + business phone, portal invoices + receipt SMS + payment stability) and Phase 5D (follow-up completion-date anchor) are all production-verified and complete as of `b985bb3`.
+Phase 5A–5E are all production-verified and complete as of `49c051f`.
 
-**Completed Phase 5A–5D work:**
+**Completed Phase 5A–5E work:**
 - ✅ Customers list unpaid balance badges
 - ✅ Customer detail Outstanding Balance section
 - ✅ Balance reminder SMS with portal link
@@ -730,6 +764,8 @@ Phase 5A–5C (customer collections, estimate conversion + business phone, porta
 - ✅ `not_billable` suppresses owed display and SMS
 - ✅ Repeated partial payment FormData submission fixed (permanent `useActionState` invariant)
 - ✅ Follow-up date anchored from `completed_at` (prevents drift on early/late completions)
+- ✅ Optional scheduling helper chips — cadence, preferred day (bidirectional snap), lighter workload
+- ✅ `getClosestWeekdayNearDate` — correct backward+forward preferred-day logic in `src/lib/date.ts`
 
 **Next Phase 5 candidates:**
 1. Job detail View Estimate link — add back-link from job to its source estimate

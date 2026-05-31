@@ -2,7 +2,7 @@
 
 Private operations app for Wicksburg Lawn Service.
 
-Verified checkpoint commit: `b985bb3` (Anchor follow-up date to completion).
+Verified checkpoint commit: `49c051f` (Fix preferred weekday closest-date logic — Phase 5E).
 
 ## Read First
 

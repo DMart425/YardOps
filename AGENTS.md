@@ -8,7 +8,7 @@ YardOps is the private operations app for Wicksburg Lawn Service.
 
 Current verified YardOps checkpoint commit:
 
-`b985bb3` (Anchor follow-up date to completion)
+`49c051f` (Fix preferred weekday closest-date logic — Phase 5E)
 
 The public website repo is separate:
 
@@ -151,4 +151,8 @@ These rules were learned from production bugs and must be preserved across refac
 * Keep portal invoice access token-scoped (`/portal/[token]/invoice/[jobId]`) and job double-scoped to both `customer_id` and `business_id`. Do not weaken this without explicit approval.
 * Do not clear, close, key-remount, or otherwise unmount a `useActionState` form in a submit button `onClick` handler. React flushes batched state updates before the native `submit` event fires — unmounting the form in `onClick` prevents the server action from receiving FormData. The only safe thing to do in a submit `onClick` is prepare side-effect state (e.g., SMS body for a receipt button) that does not affect the form's DOM presence.
 * Follow-up default dates must anchor from `completed_at` (converted to local date with the business timezone) when available, not from `scheduled_date`. Stale scheduled dates drift the follow-up cadence when jobs are completed early or late. `scheduled_date` is the fallback only if `completed_at` is absent.
-* Do not add preferred weekday snapping or route balancing to `ScheduleFollowUpCard` until explicitly asked. Those features are planned but deferred. `Property.preferred_service_day` and `Property.schedule_anchor_date` exist in the schema for that future use.
+* `ScheduleFollowUpCard` optional scheduling helper (Phase 5E) — implemented as suggestion chips only. Manual date entry remains the authority; chips fill the field but never submit. Do not convert chips into auto-submit or forced behavior without explicit approval.
+* Preferred weekday suggestions must snap to the closest matching weekday (backward OR forward) within ±4 days of the cadence target — not forward-only. Use `getClosestWeekdayNearDate` from `src/lib/date.ts`. Do not replace it with a forward-only scan.
+* Do not force the preferred weekday — if no valid candidate falls within the ±maxDays window (or all candidates are in the past), suppress the chip silently.
+* Suggestion chips must explain why they suggest a date (note: "7-day cadence", "Preferred day", "Lighter day (N jobs)"). Do not show a chip without a note.
+* Do not add route balancing, weather-based shifting, or auto-scheduling to `ScheduleFollowUpCard` until explicitly asked. Those remain deferred. `Property.schedule_anchor_date` exists in the schema for future use and must not be dropped.

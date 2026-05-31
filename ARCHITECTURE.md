@@ -4,8 +4,8 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-23
-Current checkpoint commit: `b985bb3` (Anchor follow-up date to completion)
+Last updated: 2026-05-31
+Current checkpoint commit: `49c051f` (Fix preferred weekday closest-date logic — Phase 5E)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -477,7 +477,8 @@ Website/manual intake address, frequency, and service interests are written into
 | B.7a website frequency/service intake | ⏸ Pending | WicksburgLawnService `6c8bada` |
 | B.7b YardOps consumption of B.7a leads | ⏸ Pending | |
 | RLS hardening checklist (from prior review) | ℹ️ Future | See below |
-| Preferred weekday / route balancing for follow-up scheduling | ⏸ Future | `Property.preferred_service_day` and `Property.schedule_anchor_date` exist in schema; UI plumbing and snap logic not yet built; route balancing (distributing customers across the week) is a larger feature; do not implement until explicitly asked |
+| Preferred weekday snapping — V1 suggestion chip | ✅ Phase 5E | Optional 💡 chip in `ScheduleFollowUpCard`; uses `getClosestWeekdayNearDate` (±4 days, backward+forward, min=today); chip suppressed when no valid candidate |
+| Route balancing / auto-scheduling for follow-up | ⏸ Future | Distributing customers evenly across the week is a larger feature; auto-scheduling on completion is not built; `Property.schedule_anchor_date` reserved for this; do not implement until explicitly asked |
 | Printable/downloadable portal invoice PDF | ⏸ Future | Portal invoice page is web-only; PDF export not yet added |
 
 ### RLS Hardening Checklist (future — not yet applied)
@@ -801,6 +802,79 @@ All 13 business-owned tables verified via live DB query against `lewzqavgvltzwfe
 
 ---
 
+### Phase 5D — Follow-up Completion-Date Anchor
+
+**Goal:** Prevent follow-up date drift when jobs complete early or late relative to their scheduled date.
+
+**Status:** ✅ Complete (2026-05-23)
+
+**Commit:** `b985bb3`
+
+- `jobs/[id]/page.tsx` — computes `completedDateLocal = getLocalDateStr(timeZone, new Date(job.completed_at))` server-side when `completed_at` is present; passes as `completedDate` prop to `ScheduleFollowUpCard`
+- `ScheduleFollowUpCard.tsx` — added `completedDate?: string | null` prop; anchors `suggestedDate` from `completedDate ?? scheduledDate`
+- No migration. No behavior change for jobs without `completed_at`.
+
+---
+
+### Phase 5E — Optional Scheduling Helper (Follow-up Suggestion Chips)
+
+**Goal:** Surface optional date suggestions on the `ScheduleFollowUpCard` to help the operator pick a good follow-up date faster — without removing manual control.
+
+**Status:** ✅ Complete (2026-05-31)
+
+**Commits:** `315268c` (V1 implementation), `49c051f` (preferred weekday closest-date fix)
+
+#### What was built
+
+`ScheduleFollowUpCard` was extended with up to three optional suggestion chips shown above the date input. Clicking a chip fills the date field; it does not submit. Manual date entry is always the authority. Chips are suppressed entirely when not applicable.
+
+**Chip 1 — Cadence 📅**
+
+- Always shown when cadence date is known (weekly +7 / biweekly +14 from anchor)
+- Note: "7-day cadence" or "14-day cadence"
+
+**Chip 2 — Preferred day 💡**
+
+- Shown when `Property.preferred_service_day` is set AND a cadence date is known
+- Uses `getClosestWeekdayNearDate(suggestedDate, preferredServiceDay, { minDate: todayLocal, maxDays: 4 })`
+- Searches both backward AND forward from the cadence date within ±4 days; closer candidate wins; ties prefer future
+- Excludes candidates before today (`minDate`)
+- Suppressed when the cadence date is already on the preferred weekday, or when no candidate falls within ±4 days
+- Note: "Preferred day"
+
+**Chip 3 — Lighter workload ⚡**
+
+- Shown when `scheduledJobDates` is populated and at least one of chips 1–2 is shown (max 3 chips total)
+- Forward-only scan (+1 to +6 days from cadence date); first date with ≥2 fewer jobs than cadence date wins
+- Note: "Lighter day (N jobs)"
+
+#### Server-side data fetching
+
+- `preferred_service_day` added to the `properties` join in `jobs/[id]/page.tsx`
+- `scheduledJobDates` query runs only when `job.status === 'completed' && !job.next_job_created_id`; fetches `scheduled_date` for all non-cancelled/skipped jobs in the next 21 days for the same business
+- No migration required — `preferred_service_day` already existed in the schema and `PropertyForm`
+
+#### `getClosestWeekdayNearDate` algorithm (`src/lib/date.ts`)
+
+```
+backDays = (currentDay - target + 7) % 7   // days to go backward
+fwdDays  = 7 - backDays                     // days to go forward (always backDays + fwdDays = 7)
+```
+- If `backDays > maxDays` → backward candidate excluded
+- If `fwdDays > maxDays` → forward candidate excluded
+- Backward candidate also excluded when it falls before `minDate`
+- Both valid → smaller distance wins; ties prefer future
+- Neither valid → returns `startDate` unchanged (caller suppresses chip)
+
+#### What remains deferred
+
+- Route balancing (distributing customers evenly across days of the week) — `Property.schedule_anchor_date` reserved for this
+- Auto-scheduling (completing a job auto-creates the follow-up) — not built; `property.auto_schedule_next` reserved
+- Preferred service day capture on `leads/new` fast-entry form — acceptable gap for V1
+- Weather/rain-day shifting — not planned
+
+---
+
 ### Permanent Future-Handoff Requirements
 
 Every future handoff to a new chat MUST include:
@@ -966,4 +1040,6 @@ The `setTimeout(..., 0)` defers the state update to avoid the `react-hooks/set-s
 
 This prevents cumulative follow-up date drift when jobs are completed early or late relative to their scheduled date. `scheduled_date` is a planning artifact; `completed_at` is ground truth.
 
-`Property.preferred_service_day` and `Property.schedule_anchor_date` exist in the schema for future preferred weekday snapping and route balancing — not yet implemented. Do not add that logic until explicitly asked.
+`Property.preferred_service_day` is used in Phase 5E: the optional 💡 chip in `ScheduleFollowUpCard` snaps to the nearest matching weekday within ±4 days of the cadence target using `getClosestWeekdayNearDate`. This is a suggestion chip only — it does not force the date.
+
+`Property.schedule_anchor_date` remains in the schema for future route balancing and auto-scheduling — not yet implemented. Do not add that logic until explicitly asked.
