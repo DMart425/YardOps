@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-31
-Current checkpoint commit: `74b8a90` (Add today action brief sections — Phase 5G)
+Current checkpoint commit: `b908ac7` (Fix today follow-up filtering and week stat — Phase 5H)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -483,6 +483,9 @@ Website/manual intake address, frequency, and service interests are written into
 | Today page Collected today + This week stat cards | ✅ Phase 5G | `0a4ce23` — Collected today sums `amount_paid` from completed-today jobs (hides when zero); This week shows scheduled job count + expected revenue for current Sunday–Saturday window |
 | Today page Needs Follow-up section | ✅ Phase 5G | `74b8a90` — recurring completed jobs with `next_job_created_id IS NULL` in last 30 days; limit 10; CTA links to `/jobs/[id]`; hides when empty |
 | Today page Approved Estimates Waiting section | ✅ Phase 5G | `74b8a90` — approved estimates pending scheduling; limit 5; CTA links to `/estimates/[id]`; hides when empty |
+| Today page visual polish | ✅ Phase 5H | `ee7f75b` — stat grid cleanup; Overdue moved before Completed Today; Needs Follow-up helper text, days-since, formatted frequency; Approved Estimates Waiting date label fixed to "Created" |
+| Today page compact stat cards | ✅ Phase 5H | `3865e0d` + `b908ac7` — Jobs Today and This Week both use `count · $amount` single-card format |
+| Today Needs Follow-up false-positive fix | ✅ Phase 5H | `b908ac7` — suppresses completed recurring jobs when same property has upcoming active recurring job; filter by `property_id` first, `customer_id` fallback; suppression scoped only to Needs Follow-up display |
 | Route balancing / auto-scheduling for follow-up | ⏸ Future | Distributing customers evenly across the week is a larger feature; auto-scheduling on completion is not built; `Property.schedule_anchor_date` reserved for this; do not implement until explicitly asked |
 | Printable/downloadable portal invoice PDF | ⏸ Future | Portal invoice page is web-only; PDF export not yet added |
 
@@ -959,6 +962,74 @@ Both sections are hidden when empty — no visual noise on a clean dashboard.
 #### No route/nav/schema changes
 
 No new routes added. No nav items added. No schema migrations. No env var changes.
+
+---
+
+### Phase 5H — Today Operations Brief Visual Polish
+
+**Goal:** Reduce visual clutter on `/today` and fix a false-positive in Needs Follow-up without adding new features.
+
+**Status:** ✅ Complete (2026-05-31)
+
+**Commits:** `ee7f75b` (visual polish), `3865e0d` (compact stat cards), `b908ac7` (week stat + follow-up filter fix)
+
+#### Stat card format (current)
+
+All stat cards that pair a count with an amount use a single compact card:
+
+| Card | Value format | Label | Link |
+|------|-------------|-------|------|
+| Jobs today | `{count} · ${amount}` | Jobs today | `/jobs?view=scheduled&filter=today` |
+| This week | `{count} · ${amount}` | This week | `/jobs?filter=week` |
+| Collected today | `${amount}` (hidden when 0) | Collected today | `/jobs?view=completed&filter=today` |
+| Completed today | `{count}` | Completed today | `/jobs?view=completed&filter=today` |
+| Overdue | `{count}` (colored) | Overdue | `/jobs?view=scheduled&filter=overdue` |
+| Unpaid balance | `${amount}` (colored) | Unpaid balance | `/jobs?view=completed&filter=unpaid` |
+| New leads | `{count}` (colored) | New leads | `/leads` |
+
+#### Section order (current)
+
+1. Page header
+2. EstimateApprovalNotifications
+3. Rain warning banner
+4. Recurring gap alert
+5. Dormant/retention alert
+6. Stat grid
+7. Today's Jobs (always — has empty state)
+8. Estimate Visits (conditional)
+9. **Overdue** (conditional) — moved before Completed Today in Phase 5H
+10. **Completed Today** (conditional)
+11. Tomorrow's Jobs (conditional)
+12. Needs Follow-up (conditional)
+13. Approved Estimates Waiting (conditional)
+14. Unpaid (conditional)
+
+#### Needs Follow-up — query and filtering
+
+**Base query** (unchanged from Phase 5G): `jobs` where `status=completed`, `job_type=recurring`, `next_job_created_id IS NULL`, `completed_at >= 30 days ago`; selects `id, title, completed_at, property_id, customer_id` + customer/property joins; limit 10.
+
+**Suppression query** (added Phase 5H `b908ac7`): `jobs` where `business_id`, `job_type=recurring`, `status` in `scheduled/in_progress/needs_reschedule`, `scheduled_date >= today`; selects `id, property_id, customer_id, scheduled_date`. No limit — used only for Set membership lookup.
+
+**Filter logic** (applied after Promise.all — no DB round-trip):
+1. Build `upcomingPropertyIds` Set from suppression query results where `property_id != null`
+2. Build `upcomingCustomerIds` Set from suppression query results where `customer_id != null` (fallback only)
+3. For each candidate follow-up job:
+   - If `property_id` non-null → exclude if `upcomingPropertyIds.has(property_id)`
+   - If `property_id` null and `customer_id` non-null → exclude if `upcomingCustomerIds.has(customer_id)`
+   - Otherwise → keep
+
+**Scope:** suppression affects only the Needs Follow-up section display. The suppression query result is not used anywhere else. Future jobs remain fully visible on Jobs page, Tomorrow section, This Week stat, and all other views.
+
+#### Other Phase 5H polish
+
+- Estimate Visits heading: `📋` emoji removed (consistent with all other section headings)
+- Estimate Visits card: redundant raw phone number row removed (Remind button is the action surface)
+- Needs Follow-up: helper text added; `formatFrequencyLabel()` applied to raw frequency value; days-since computed from `todayStartMs - new Date(completed_at).getTime()` (same pattern as Overdue's `daysLate`)
+- Approved Estimates Waiting: helper text added; date label changed from "Approved" to "Created" (field is `created_at`, not `accepted_at`/`manually_approved_at`)
+
+#### No route/nav/schema changes
+
+No new routes. No nav items. No schema migrations. No env var changes.
 
 ---
 

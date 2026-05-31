@@ -8,7 +8,7 @@ YardOps is the private operations app for Wicksburg Lawn Service.
 
 Current verified YardOps checkpoint commit:
 
-`74b8a90` (Add today action brief sections — Phase 5G)
+`b908ac7` (Fix today follow-up filtering and week stat — Phase 5H)
 
 The public website repo is separate:
 
@@ -160,3 +160,7 @@ These rules were learned from production bugs and must be preserved across refac
 * `/today` is the operator operations brief surface — the home dashboard that root redirects to. All additions to `/today` must be actionable and lightweight. Prefer links to existing action pages (e.g., `/jobs/[id]`, `/estimates/[id]`) over hidden automation or background side effects.
 * `not_billable` jobs must never inflate owed balances or collected revenue metrics. `not_billable` contributes 0 to `amount_paid` sums naturally — do not add special-case overrides that change this.
 * Do not add auto-scheduling, auto-follow-up creation, or any operator-bypassing automation to the Today dashboard without explicit approval. Today sections are read-only/action-link surfaces only.
+* Today dashboard polish should reduce visual clutter without hiding action items. Prefer compact single-card formats over separate cards that carry the same navigational destination (e.g., count + amount on one card rather than two cards linking to the same page).
+* Stat cards should be deduplicated when one compact card can carry the same meaning. Do not split count and amount into separate cards if they link to the same URL.
+* The Needs Follow-up section must suppress false positives: if the same property already has an upcoming active recurring job (`scheduled_date >= today`, `status` in `scheduled`/`in_progress`/`needs_reschedule`), the old completed job must not appear in Needs Follow-up. Filter by `property_id` first; fall back to `customer_id` only when `property_id` is null. This filtering must never remove future jobs from the normal schedule, Jobs page, Tomorrow, or This Week views.
+* Do not combine Needs Follow-up filter suppression with any other section. The upcoming-recurring-jobs suppression query is scoped only to the Needs Follow-up display filter.

@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-31 (74b8a90)
+Last updated: 2026-05-31 (b908ac7)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-05-31 (74b8a90)
 
 ## Current Checkpoint
 
-- **Latest commit:** `74b8a90` — Add today action brief sections (Phase 5G)
+- **Latest commit:** `b908ac7` — Fix today follow-up filtering and week stat (Phase 5H)
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -481,6 +481,36 @@ No migration. No new routes. No nav changes. No RLS changes.
 
 ---
 
+### Phase 5H — Today Operations Brief Visual Polish ✅
+
+**Commits:** `ee7f75b` (visual polish), `3865e0d` (compact stat cards), `b908ac7` (week stat + follow-up filter fix)
+
+#### Phase 5H-A — Visual polish (`ee7f75b`)
+
+- Stat grid: "Expected today" stat card made clickable; "This week" muted sub-label cleaned up
+- Section order: Overdue moved before Completed Today — urgent work before informational record
+- Estimate Visits: `📋` emoji removed from section heading; raw phone number row removed from cards
+- Needs Follow-up: helper text added ("Recurring jobs completed without a next visit scheduled."); days-since computed inline from `todayStartMs` and appended to completed date; `formatFrequencyLabel()` applied to raw `service_frequency`
+- Approved Estimates Waiting: helper text added; date label changed from "Approved" to "Created" (`created_at` is not the approval timestamp)
+
+No query changes. No new fields.
+
+#### Phase 5H-B — Compact stat cards (`3865e0d`)
+
+- "Jobs today" and "Expected today" combined into one card: `{count} · ${amount}` / Jobs today
+- Both cards previously linked to the same URL — no navigational information lost
+
+#### Phase 5H-C — Week stat + Needs Follow-up filter fix (`b908ac7`)
+
+- "This week" stat reformatted to match Jobs today: `{count} · ${amount}` / This week
+- Needs Follow-up false-positive fix:
+  - Added `property_id, customer_id` to Needs Follow-up query select
+  - Added lightweight suppression query: upcoming active recurring jobs (`scheduled_date >= today`, active statuses)
+  - Post-Promise.all filter: excludes completed job from Needs Follow-up if same property (or customer, as fallback) already has an upcoming active recurring job
+  - Suppression scoped only to Needs Follow-up display — future jobs remain visible on all other views
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -502,6 +532,10 @@ No migration. No new routes. No nav changes. No RLS changes.
 
 | Hash | Description |
 |------|-------------|
+| `b908ac7` | Fix today follow-up filtering and week stat (Phase 5H) |
+| `3865e0d` | Combine today job and expected stats (Phase 5H) |
+| `ee7f75b` | Polish today operations brief (Phase 5H) |
+| `69571b1` | Docs checkpoint — Phase 5G (no code changes) |
 | `74b8a90` | Add today action brief sections (Phase 5G) |
 | `0a4ce23` | Add today revenue and week summary (Phase 5G) |
 | `c97cfef` | Docs checkpoint — Phase 5F (no code changes) |
@@ -747,6 +781,14 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ Today page shows **Collected today** stat card when amount_paid from completed-today jobs is > 0 — uses `amount_paid` not `price`; `not_billable` contributes 0 naturally; hidden when zero (`0a4ce23`)
 - ✅ Today page **Needs Follow-up** section shows completed recurring jobs from the last 30 days where no follow-up has been created (`next_job_created_id IS NULL`); section hidden when empty; CTA links to job detail to schedule follow-up; disappears after follow-up is scheduled (`74b8a90`)
 - ✅ Today page **Approved Estimates Waiting** section shows approved estimates pending scheduling (limit 5); section hidden when empty; `pill-approved` badge shown; CTA links to estimate detail to convert to job; disappears after estimate leaves approved status (`74b8a90`)
+- ✅ Today stat grid is cleaner — no duplicate stat cards linking to the same destination (`ee7f75b`, `3865e0d`, `b908ac7`)
+- ✅ Jobs Today card shows count and expected amount in one card: `1 · $65` / Jobs today; links to today's scheduled jobs (`3865e0d`)
+- ✅ This Week card uses the same compact format: `5 · $420` / This week; links to `/jobs?filter=week` (`b908ac7`)
+- ✅ Overdue section appears above Completed Today — urgent unresolved work surfaces before informational completion record (`ee7f75b`)
+- ✅ Needs Follow-up section shows formatted service frequency (e.g., "Bi-weekly" not "biweekly") and days-since completed (e.g., "Completed May 28 · 3d ago") (`ee7f75b`)
+- ✅ Needs Follow-up suppresses completed recurring jobs when the same property already has an upcoming active recurring job — false positives eliminated (`b908ac7`)
+- ✅ Needs Follow-up filter does not remove future jobs from Tomorrow, This Week, Jobs page, or any other view (`b908ac7`)
+- ✅ Approved Estimates Waiting shows "Created" date label (field is `created_at`) instead of "Approved" (`ee7f75b`)
 
 ---
 
@@ -773,6 +815,7 @@ All of the following were user-tested and confirmed working as of `289b732`:
 | Phase 5E — Optional scheduling helper chips | ✅ Complete | `315268c` + `49c051f` — cadence, preferred-day, lighter-workload chips; no migration |
 | Phase 5F — Manual lead preferred service day | ✅ Complete | `b90d0c3` + `fd5ecd3` — capture in `/leads/new`, display on property detail; no migration |
 | Phase 5G — Today operations brief | ✅ Complete | `0a4ce23` + `74b8a90` — stat cards (Collected today, This week) + action sections (Needs Follow-up, Approved Estimates Waiting); no migration |
+| Phase 5H — Today visual polish + follow-up fix | ✅ Complete | `ee7f75b` + `3865e0d` + `b908ac7` — compact stat cards, section reorder, helper text, false-positive suppression in Needs Follow-up; no migration |
 | Route balancing / auto-scheduling follow-up | ⏸ Future | `Property.schedule_anchor_date` reserved; do not implement until explicitly asked |
 | `schedule_anchor_date` — no UI yet | ⏸ Future | Column exists in schema; no read or write path built |
 | Weather/rain-day shifting for scheduling | ⏸ Future | Not planned |
@@ -797,7 +840,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
 | 3 | Public intake and lead workflow improvements | ✅ Complete — all listed tasks done through `ec48565`; payment bugfixes continued in Phase 4 |
 | 4 | Operations UX / workflow polish | ✅ Substantially complete — 4A–4D + cleanup batch done (`463e762`) |
-| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A ✅, 5B ✅, 5C ✅, 5D ✅, 5E ✅, 5F ✅, 5G ✅ complete (`74b8a90`); next TBD |
+| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A ✅, 5B ✅, 5C ✅, 5D ✅, 5E ✅, 5F ✅, 5G ✅, 5H ✅ complete (`b908ac7`); next TBD |
 
 **Permanent Future-Handoff Requirements** (mandatory — see Architecture.md §16):
 Every future handoff must instruct the next chat to read ARCHITECTURE.md and HANDOFF.md first, remind it to update those docs after any verified/committed change, state the latest commit, current phase status, open items, workflow guardrails, and known security follow-ups (no secret values).
@@ -806,11 +849,11 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Phase 5H planning — next area TBD**
+**Phase 5I planning — next area TBD**
 
-Phase 5A–5G are all production-verified and complete as of `74b8a90`.
+Phase 5A–5H are all production-verified and complete as of `b908ac7`.
 
-**Completed Phase 5A–5G work:**
+**Completed Phase 5A–5H work:**
 - ✅ Customers list unpaid balance badges
 - ✅ Customer detail Outstanding Balance section
 - ✅ Balance reminder SMS with portal link
@@ -832,8 +875,11 @@ Phase 5A–5G are all production-verified and complete as of `74b8a90`.
 - ✅ Today dashboard Collected today + This week stat cards
 - ✅ Today dashboard Needs Follow-up action section
 - ✅ Today dashboard Approved Estimates Waiting action section
+- ✅ Today stat grid compact format — `count · $amount` for Jobs today and This week; no duplicate cards
+- ✅ Section reorder — Overdue before Completed Today; helper text on Needs Follow-up and Approved Estimates Waiting
+- ✅ Needs Follow-up false-positive suppression — completed recurring jobs hidden when same property already has an upcoming active recurring job
 
-**Next Phase 5 candidates:**
+**Next Phase 5I candidates:**
 1. Job detail View Estimate link — add back-link from job to its source estimate
 2. `JobActions` SMS business phone — wire `businessPhone` into on-my-way / day-before / job-complete SMS
 3. Portal enhancements — customer-facing UX improvements
