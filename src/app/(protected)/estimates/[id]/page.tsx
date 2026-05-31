@@ -356,7 +356,7 @@ export default async function EstimateDetailPage({
 
       {/* Status actions */}
       <div className="card" style={{ marginBottom: '1rem' }}>
-        <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Actions</div>
+        <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Manage Estimate</div>
         <EstimateStatusActions estimate={estimate} localToday={localToday} propertyDefaultPrice={property.default_price ?? null} />
         <div style={{ display: 'flex', gap: '8px', marginTop: '0.75rem', flexWrap: 'wrap' }}>
           {estimate.status !== 'converted' && (
