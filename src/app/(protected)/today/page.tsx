@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { getTodayForecastForCoords, coordKey } from '@/lib/weather'
 import { EstimateApprovalNotifications } from '@/components/EstimateApprovalNotifications'
 import { addDays, formatDateOnly, formatTimestampDate, getLocalDateStr, resolveTimeZone } from '@/lib/date'
+import { formatFrequencyLabel } from '@/lib/frequency'
 import { requireBusinessContext } from '@/lib/business/context'
 
 function dateOnlyToUtcMs(dateStr: string) {
@@ -384,10 +385,10 @@ export default async function TodayPage() {
           <div className="stat-value">{todayJobs?.length ?? 0}</div>
           <div className="stat-label">Jobs today</div>
         </Link>
-        <div className="stat-card">
+        <Link href="/jobs?view=scheduled&filter=today" className="stat-card" style={{ textDecoration: 'none' }}>
           <div className="stat-value">${todayTotal.toFixed(0)}</div>
           <div className="stat-label">Expected today</div>
-        </div>
+        </Link>
         <Link href="/leads" className="stat-card" style={{ textDecoration: 'none' }}>
           <div className="stat-value" style={{ color: (newLeadsCount > 0) ? 'var(--color-lead)' : undefined }}>
             {newLeadsCount}
@@ -408,19 +409,20 @@ export default async function TodayPage() {
         </Link>
         {collectedTodayRevenue > 0 && (
           <Link href="/jobs?view=completed&filter=today&page=1" className="stat-card" style={{ textDecoration: 'none' }}>
-            <div className="stat-value" style={{ color: 'var(--color-primary)', fontSize: '1rem' }}>
+            <div className="stat-value" style={{ color: 'var(--color-primary)' }}>
               ${collectedTodayRevenue.toFixed(0)}
             </div>
             <div className="stat-label">Collected today</div>
           </Link>
         )}
         <Link href="/jobs?filter=week" className="stat-card" style={{ textDecoration: 'none' }}>
-          <div className="stat-value" style={{ fontSize: '1rem' }}>
+          <div className="stat-value">
             {weekJobsCount}
           </div>
-          <div className="stat-label">
-            This week{expectedWeekRevenue > 0 ? ` · $${expectedWeekRevenue.toFixed(0)}` : ''}
-          </div>
+          <div className="stat-label">This week</div>
+          {expectedWeekRevenue > 0 && (
+            <div className="text-small text-muted">${expectedWeekRevenue.toFixed(0)} est.</div>
+          )}
         </Link>
         <Link href="/jobs?view=completed&filter=unpaid&page=1" className="stat-card" style={{ textDecoration: 'none' }}>
           <div className="stat-value" style={{ color: unpaidTotal > 0 ? 'var(--color-unpaid)' : undefined }}>
@@ -519,7 +521,7 @@ export default async function TodayPage() {
       {/* Estimate Visits */}
       {(estimateVisits?.length ?? 0) > 0 && (
         <div className="detail-section">
-          <div className="section-heading">📋 Estimate Visits ({estimateVisits!.length})</div>
+          <div className="section-heading">Estimate Visits ({estimateVisits!.length})</div>
           {estimateVisits!.map((visit) => {
             const customer = (Array.isArray(visit.customers) ? visit.customers[0] : visit.customers) as { first_name: string; last_name: string | null; phone: string | null } | null
             const property = (Array.isArray(visit.properties) ? visit.properties[0] : visit.properties) as { service_address: string; city: string | null } | null
@@ -532,7 +534,6 @@ export default async function TodayPage() {
                       <div className="card-meta">📍 {property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
                       {visit.visit_scheduled_time && <div className="card-meta">🕐 {visit.visit_scheduled_time}</div>}
                       {visit.total != null && <div className="card-meta">💵 ~${Number(visit.total).toFixed(0)}</div>}
-                      {customer?.phone && <div className="card-meta">📞 {customer.phone}</div>}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -561,41 +562,6 @@ export default async function TodayPage() {
                   <Link href={`/estimates/${visit.id}`} className="btn btn-sm btn-primary">View Estimate</Link>
                 </div>
               </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Completed Today */}
-      {(completedTodayJobs?.length ?? 0) > 0 && (
-        <div className="detail-section" id="completed-today">
-          <div className="section-heading" style={{ color: 'var(--color-primary)' }}>
-            Completed Today ({completedTodayJobs!.length})
-          </div>
-          {completedTodayJobs!.map((job) => {
-            const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null } | null
-            const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
-            const balance = Math.max(0, (job.price ?? 0) - (job.amount_paid ?? 0))
-            return (
-              <Link key={job.id} href={`/jobs/${job.id}`} style={{ display: 'block' }}>
-                <div className="card">
-                  <div className="card-row">
-                    <div>
-                      <div className="card-title">{job.title}</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
-                        <div className="card-meta">👤 {customer?.first_name} {customer?.last_name}</div>
-                        <div className="card-meta">📍 {property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
-                        {job.completed_at && <div className="card-meta">✅ {formatTimestampDate(job.completed_at, timeZone, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      {job.price != null && <div style={{ fontWeight: 700 }}>${Number(job.price).toFixed(0)}</div>}
-                      <span className={`pill pill-${job.payment_status}`}>{statusLabel(job.payment_status)}</span>
-                      {balance > 0 && job.payment_status !== 'not_billable' && <div className="text-small" style={{ color: 'var(--color-unpaid)', marginTop: '4px' }}>${balance.toFixed(0)} owed</div>}
-                    </div>
-                  </div>
-                </div>
-              </Link>
             )
           })}
         </div>
@@ -639,6 +605,41 @@ export default async function TodayPage() {
               <Link href="/jobs?view=scheduled&filter=overdue">Open Jobs</Link> to see the full list.
             </p>
           )}
+        </div>
+      )}
+
+      {/* Completed Today */}
+      {(completedTodayJobs?.length ?? 0) > 0 && (
+        <div className="detail-section" id="completed-today">
+          <div className="section-heading" style={{ color: 'var(--color-primary)' }}>
+            Completed Today ({completedTodayJobs!.length})
+          </div>
+          {completedTodayJobs!.map((job) => {
+            const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null } | null
+            const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
+            const balance = Math.max(0, (job.price ?? 0) - (job.amount_paid ?? 0))
+            return (
+              <Link key={job.id} href={`/jobs/${job.id}`} style={{ display: 'block' }}>
+                <div className="card">
+                  <div className="card-row">
+                    <div>
+                      <div className="card-title">{job.title}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
+                        <div className="card-meta">👤 {customer?.first_name} {customer?.last_name}</div>
+                        <div className="card-meta">📍 {property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
+                        {job.completed_at && <div className="card-meta">✅ {formatTimestampDate(job.completed_at, timeZone, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      {job.price != null && <div style={{ fontWeight: 700 }}>${Number(job.price).toFixed(0)}</div>}
+                      <span className={`pill pill-${job.payment_status}`}>{statusLabel(job.payment_status)}</span>
+                      {balance > 0 && job.payment_status !== 'not_billable' && <div className="text-small" style={{ color: 'var(--color-unpaid)', marginTop: '4px' }}>${balance.toFixed(0)} owed</div>}
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            )
+          })}
         </div>
       )}
 
@@ -703,9 +704,15 @@ export default async function TodayPage() {
           <div className="section-heading">
             Needs Follow-up ({needsFollowUpJobs.length})
           </div>
+          <p className="text-small text-muted" style={{ marginBottom: '8px' }}>
+            Recurring jobs completed without a next visit scheduled.
+          </p>
           {needsFollowUpJobs.map((job) => {
             const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null } | null
             const prop = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string | null; city: string | null; service_frequency: string | null } | null
+            const daysSince = job.completed_at
+              ? Math.floor((todayStartMs - new Date(job.completed_at).getTime()) / 86400000)
+              : null
             return (
               <div key={job.id} className="card">
                 <div className="card-row">
@@ -717,10 +724,13 @@ export default async function TodayPage() {
                         <div className="card-meta">📍 {prop.service_address}{prop.city ? `, ${prop.city}` : ''}</div>
                       )}
                       {job.completed_at && (
-                        <div className="card-meta">✅ Completed {formatTimestampDate(job.completed_at, timeZone, { month: 'short', day: 'numeric' })}</div>
+                        <div className="card-meta">
+                          ✅ Completed {formatTimestampDate(job.completed_at, timeZone, { month: 'short', day: 'numeric' })}
+                          {daysSince !== null && <span className="text-muted"> · {daysSince}d ago</span>}
+                        </div>
                       )}
                       {prop?.service_frequency && (
-                        <div className="card-meta">🔁 {prop.service_frequency}</div>
+                        <div className="card-meta">🔁 {formatFrequencyLabel(prop.service_frequency)}</div>
                       )}
                     </div>
                   </div>
@@ -742,6 +752,9 @@ export default async function TodayPage() {
           <div className="section-heading">
             Approved Estimates Waiting ({approvedEstimates.length})
           </div>
+          <p className="text-small text-muted" style={{ marginBottom: '8px' }}>
+            Customer-approved estimates ready to convert to a job.
+          </p>
           {approvedEstimates.map((est) => {
             const customer = (Array.isArray(est.customers) ? est.customers[0] : est.customers) as { first_name: string; last_name: string | null } | null
             const prop = (Array.isArray(est.properties) ? est.properties[0] : est.properties) as { service_address: string | null; city: string | null } | null
@@ -760,7 +773,7 @@ export default async function TodayPage() {
                         <div className="card-meta">💵 ${Number(est.total).toFixed(0)} estimate</div>
                       )}
                       {est.created_at && (
-                        <div className="card-meta">🗓 Approved {formatTimestampDate(est.created_at, timeZone, { month: 'short', day: 'numeric' })}</div>
+                        <div className="card-meta">🗓 Created {formatTimestampDate(est.created_at, timeZone, { month: 'short', day: 'numeric' })}</div>
                       )}
                     </div>
                   </div>
