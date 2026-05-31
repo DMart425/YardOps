@@ -382,12 +382,8 @@ export default async function TodayPage() {
       {/* Stats */}
       <div className="stat-grid" style={{ marginBottom: '1.5rem' }}>
         <Link href="/jobs?view=scheduled&filter=today" className="stat-card" style={{ textDecoration: 'none' }}>
-          <div className="stat-value">{todayJobs?.length ?? 0}</div>
+          <div className="stat-value">{todayJobs?.length ?? 0} · ${todayTotal.toFixed(0)}</div>
           <div className="stat-label">Jobs today</div>
-        </Link>
-        <Link href="/jobs?view=scheduled&filter=today" className="stat-card" style={{ textDecoration: 'none' }}>
-          <div className="stat-value">${todayTotal.toFixed(0)}</div>
-          <div className="stat-label">Expected today</div>
         </Link>
         <Link href="/leads" className="stat-card" style={{ textDecoration: 'none' }}>
           <div className="stat-value" style={{ color: (newLeadsCount > 0) ? 'var(--color-lead)' : undefined }}>
