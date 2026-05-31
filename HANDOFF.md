@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-31 (49c051f)
+Last updated: 2026-05-31 (fd5ecd3)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-05-31 (49c051f)
 
 ## Current Checkpoint
 
-- **Latest commit:** `49c051f` — Fix preferred weekday closest-date logic (Phase 5E)
+- **Latest commit:** `fd5ecd3` — Show preferred day on property detail (Phase 5F)
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -435,6 +435,17 @@ Key commits: `fbe63c0`, `3f5645c`, `b93e836`, `406f727`, `dd7dbb6`, `30df416`, `
 
 ---
 
+### Phase 5F — Manual Lead Preferred Service Day ✅
+
+**Commits:** `b90d0c3` (capture in `/leads/new`), `fd5ecd3` (display on property detail)
+
+- `/leads/new/page.tsx` — added Preferred Service Day dropdown beside Requested Frequency (`form-row` pair); values `''`…`saturday` match `PropertyForm` exactly; helper text explains optional purpose
+- `leads/actions.ts` — `createLead()` passes `preferred_service_day: str(formData, 'preferred_service_day')` into the property insert; empty string → `null` via `str()`
+- `properties/[id]/page.tsx` — Preferred day row added to address + service info card below Frequency; `null` displays "Any day"; set value displays title-cased (e.g. `thursday` → "Thursday")
+- No migration. No scheduling logic changed. `preferred_service_day` remains optional/hint-only.
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -456,6 +467,9 @@ Key commits: `fbe63c0`, `3f5645c`, `b93e836`, `406f727`, `dd7dbb6`, `30df416`, `
 
 | Hash | Description |
 |------|-------------|
+| `fd5ecd3` | Show preferred day on property detail (Phase 5F) |
+| `b90d0c3` | Add preferred service day to manual leads (Phase 5F) |
+| `12edbd6` | Docs checkpoint — Phase 5E (no code changes) |
 | `49c051f` | Fix preferred weekday closest-date logic (Phase 5E) |
 | `315268c` | Add optional scheduling helper chips (Phase 5E V1) |
 | `0a3816e` | Docs checkpoint — Phase 5C/5D (no code changes) |
@@ -687,6 +701,10 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ Preferred-day chip snaps to the closest matching weekday (backward OR forward) within ±4 days of cadence date; past dates excluded; chip suppressed when no valid candidate or cadence date is already on preferred day (`49c051f`)
 - ✅ Lighter-workload chip shown only when a date within +1–+6 days of cadence has ≥2 fewer scheduled jobs; suppressed otherwise (`315268c`)
 - ✅ Active chip (date matches current input value) highlighted with primary border/color; clicking an already-active chip is a no-op to the form (`315268c`)
+- ✅ `/leads/new` manual lead form captures optional Preferred Service Day beside Requested Frequency; saved directly to `properties.preferred_service_day` via `createLead()` (`b90d0c3`)
+- ✅ "Any day" (empty selection) saves as `null` via `str()` helper; weekday values save as lowercase string (e.g. `thursday`) (`b90d0c3`)
+- ✅ Property detail summary card displays Preferred day row below Frequency; null shows "Any day"; set values show title-cased weekday (e.g. Thursday) (`fd5ecd3`)
+- ✅ Scheduling helper 💡 chip now usable immediately for properties created through `/leads/new` — no additional setup needed (`b90d0c3` + Phase 5E)
 
 ---
 
@@ -711,8 +729,8 @@ All of the following were user-tested and confirmed working as of `289b732`:
 | Phase 5C — Portal invoices, receipt SMS, partial payment stability | ✅ Complete | Portal invoice page, portal service history links, completion SMS invoice URL, receipt SMS, not_billable guard, FormData fix — production-verified |
 | Phase 5D — Follow-up completion-date anchor | ✅ Complete | `b985bb3` — `ScheduleFollowUpCard` anchors from `completed_at`; no migration |
 | Phase 5E — Optional scheduling helper chips | ✅ Complete | `315268c` + `49c051f` — cadence, preferred-day, lighter-workload chips; no migration |
+| Phase 5F — Manual lead preferred service day | ✅ Complete | `b90d0c3` + `fd5ecd3` — capture in `/leads/new`, display on property detail; no migration |
 | Route balancing / auto-scheduling follow-up | ⏸ Future | `Property.schedule_anchor_date` reserved; do not implement until explicitly asked |
-| `preferred_service_day` on leads/new fast-entry | ⏸ Future | Acceptable V1 gap; property detail `PropertyForm` already has it |
 | `schedule_anchor_date` — no UI yet | ⏸ Future | Column exists in schema; no read or write path built |
 | Weather/rain-day shifting for scheduling | ⏸ Future | Not planned |
 | Printable/downloadable portal invoice PDF | ⏸ Future | Portal invoice page is web-only; PDF export not yet added |
@@ -736,7 +754,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
 | 3 | Public intake and lead workflow improvements | ✅ Complete — all listed tasks done through `ec48565`; payment bugfixes continued in Phase 4 |
 | 4 | Operations UX / workflow polish | ✅ Substantially complete — 4A–4D + cleanup batch done (`463e762`) |
-| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A ✅, 5B ✅, 5C ✅, 5D ✅, 5E ✅ complete (`49c051f`); 5F TBD |
+| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A ✅, 5B ✅, 5C ✅, 5D ✅, 5E ✅, 5F ✅ complete (`fd5ecd3`); 5G TBD |
 
 **Permanent Future-Handoff Requirements** (mandatory — see Architecture.md §16):
 Every future handoff must instruct the next chat to read ARCHITECTURE.md and HANDOFF.md first, remind it to update those docs after any verified/committed change, state the latest commit, current phase status, open items, workflow guardrails, and known security follow-ups (no secret values).
@@ -745,11 +763,11 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Phase 5F planning — next area TBD**
+**Phase 5G planning — next area TBD**
 
-Phase 5A–5E are all production-verified and complete as of `49c051f`.
+Phase 5A–5F are all production-verified and complete as of `fd5ecd3`.
 
-**Completed Phase 5A–5E work:**
+**Completed Phase 5A–5F work:**
 - ✅ Customers list unpaid balance badges
 - ✅ Customer detail Outstanding Balance section
 - ✅ Balance reminder SMS with portal link
@@ -766,6 +784,8 @@ Phase 5A–5E are all production-verified and complete as of `49c051f`.
 - ✅ Follow-up date anchored from `completed_at` (prevents drift on early/late completions)
 - ✅ Optional scheduling helper chips — cadence, preferred day (bidirectional snap), lighter workload
 - ✅ `getClosestWeekdayNearDate` — correct backward+forward preferred-day logic in `src/lib/date.ts`
+- ✅ `/leads/new` captures Preferred Service Day; `createLead()` saves it to property
+- ✅ Property detail summary card displays Preferred day (null → "Any day"; set → title-cased)
 
 **Next Phase 5 candidates:**
 1. Job detail View Estimate link — add back-link from job to its source estimate

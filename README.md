@@ -2,7 +2,7 @@
 
 Private operations app for Wicksburg Lawn Service.
 
-Verified checkpoint commit: `49c051f` (Fix preferred weekday closest-date logic — Phase 5E).
+Verified checkpoint commit: `fd5ecd3` (Show preferred day on property detail — Phase 5F).
 
 ## Read First
 

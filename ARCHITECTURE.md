@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-31
-Current checkpoint commit: `49c051f` (Fix preferred weekday closest-date logic — Phase 5E)
+Current checkpoint commit: `fd5ecd3` (Show preferred day on property detail — Phase 5F)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -478,6 +478,8 @@ Website/manual intake address, frequency, and service interests are written into
 | B.7b YardOps consumption of B.7a leads | ⏸ Pending | |
 | RLS hardening checklist (from prior review) | ℹ️ Future | See below |
 | Preferred weekday snapping — V1 suggestion chip | ✅ Phase 5E | Optional 💡 chip in `ScheduleFollowUpCard`; uses `getClosestWeekdayNearDate` (±4 days, backward+forward, min=today); chip suppressed when no valid candidate |
+| `preferred_service_day` capture in `/leads/new` | ✅ Phase 5F | `b90d0c3` — dropdown beside Requested Frequency; empty saves as null; no migration |
+| `preferred_service_day` display on property detail | ✅ Phase 5F | `fd5ecd3` — Preferred day row in address + service info card; null shows "Any day" |
 | Route balancing / auto-scheduling for follow-up | ⏸ Future | Distributing customers evenly across the week is a larger feature; auto-scheduling on completion is not built; `Property.schedule_anchor_date` reserved for this; do not implement until explicitly asked |
 | Printable/downloadable portal invoice PDF | ⏸ Future | Portal invoice page is web-only; PDF export not yet added |
 
@@ -870,8 +872,45 @@ fwdDays  = 7 - backDays                     // days to go forward (always backDa
 
 - Route balancing (distributing customers evenly across days of the week) — `Property.schedule_anchor_date` reserved for this
 - Auto-scheduling (completing a job auto-creates the follow-up) — not built; `property.auto_schedule_next` reserved
-- Preferred service day capture on `leads/new` fast-entry form — acceptable gap for V1
+- ~~Preferred service day capture on `leads/new` fast-entry form~~ ✅ complete in Phase 5F (`b90d0c3`)
 - Weather/rain-day shifting — not planned
+
+---
+
+### Phase 5F — Manual Lead Preferred Service Day
+
+**Goal:** Close the gap from Phase 5E — `preferred_service_day` was capturable in `PropertyForm` but not in the manual lead fast-entry flow (`/leads/new`), and was not visible on the property detail page.
+
+**Status:** ✅ Complete (2026-05-31)
+
+**Commits:** `b90d0c3` (capture in `/leads/new`), `fd5ecd3` (display on property detail)
+
+#### Changes
+
+**`/leads/new` form capture (`b90d0c3`):**
+- Added optional Preferred Service Day dropdown beside Requested Frequency in a `form-row` pair
+- Values match `PropertyForm` exactly: `''` (Any day → `null`), `monday` … `saturday`
+- Helper text: "Optional — helps YardOps suggest follow-up dates. You can still schedule any day."
+- `createLead()` in `leads/actions.ts` passes `preferred_service_day: str(formData, 'preferred_service_day')` into the property insert
+- Empty `''` → `str()` returns `null` → DB column receives `NULL`
+- No migration — column already existed
+
+**Property detail display (`fd5ecd3`):**
+- Preferred day row added to the address + service info card on `/properties/[id]`, directly below Frequency
+- `null` → displays "Any day"
+- Set value → title-cased, e.g. `thursday` → "Thursday"
+- Read-only display only; no edit behavior changed
+
+#### `preferred_service_day` coverage (complete after Phase 5F)
+
+| Surface | Read | Write |
+|---------|------|-------|
+| `/leads/new` fast-entry | — | ✅ `b90d0c3` |
+| `PropertyForm` (create/edit via `/properties/new`, `/properties/[id]`) | — | ✅ Pre-existing |
+| `properties/[id]` detail card | ✅ `fd5ecd3` | — |
+| `ScheduleFollowUpCard` 💡 chip | ✅ Phase 5E | — |
+| `jobs/[id]/page.tsx` join | ✅ Phase 5E | — |
+| `customers/[id]/page.tsx` | ✅ Pre-existing | — |
 
 ---
 
@@ -1041,5 +1080,7 @@ The `setTimeout(..., 0)` defers the state update to avoid the `react-hooks/set-s
 This prevents cumulative follow-up date drift when jobs are completed early or late relative to their scheduled date. `scheduled_date` is a planning artifact; `completed_at` is ground truth.
 
 `Property.preferred_service_day` is used in Phase 5E: the optional 💡 chip in `ScheduleFollowUpCard` snaps to the nearest matching weekday within ±4 days of the cadence target using `getClosestWeekdayNearDate`. This is a suggestion chip only — it does not force the date.
+
+Phase 5F completed the capture loop: `/leads/new` now writes `preferred_service_day` into manually-created properties (`b90d0c3`), and the property detail summary card displays it (`fd5ecd3`). All entry paths — `/leads/new`, `PropertyForm` (create/edit) — now write the field. All read surfaces — property detail, customer detail, job detail (via chip), `ScheduleFollowUpCard` — now consume it.
 
 `Property.schedule_anchor_date` remains in the schema for future route balancing and auto-scheduling — not yet implemented. Do not add that logic until explicitly asked.
