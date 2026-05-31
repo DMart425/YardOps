@@ -374,6 +374,18 @@ export async function convertToJob(
 
   if (error) return { error: error.message }
 
+  // Best-effort: save estimate total as property default price if operator checked the box.
+  // Does not block conversion if this update fails.
+  const saveAsDefault = formData.get('save_as_default_price') === 'on'
+  if (saveAsDefault && estimate.property_id && estimate.total != null && Number(estimate.total) > 0) {
+    await supabase
+      .from('properties')
+      .update({ default_price: estimate.total })
+      .eq('id', estimate.property_id)
+      .eq('business_id', businessId)
+    revalidatePath(`/properties/${estimate.property_id}`)
+  }
+
   // Mark estimate converted
   await supabase
     .from('estimates')
