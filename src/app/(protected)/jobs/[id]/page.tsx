@@ -338,13 +338,21 @@ export default async function JobDetailPage({
                     <span className="text-small">${payPrice.toFixed(2)}</span>
                   </div>
                 )}
-                {(ps === 'paid' || ps === 'partial') && payAmtPaid > 0 && (
+                {/* Amount paid: always show for partial; guard > 0 for paid only */}
+                {ps === 'partial' && (
                   <div className="card-row">
                     <span className="text-small text-muted">Amount paid</span>
                     <span className="text-small">${payAmtPaid.toFixed(2)}</span>
                   </div>
                 )}
-                {(ps === 'partial' || ps === 'unpaid') && payBalance != null && payBalance > 0 && (
+                {ps === 'paid' && payAmtPaid > 0 && (
+                  <div className="card-row">
+                    <span className="text-small text-muted">Amount paid</span>
+                    <span className="text-small">${payAmtPaid.toFixed(2)}</span>
+                  </div>
+                )}
+                {/* Balance due: show for partial/unpaid whenever payBalance is known (drop > 0 guard) */}
+                {(ps === 'partial' || ps === 'unpaid') && payBalance != null && (
                   <div className="card-row">
                     <span className="text-small text-muted">Balance due</span>
                     <span className="text-small font-bold" style={{ color: 'var(--color-warning)' }}>${payBalance.toFixed(2)}</span>
