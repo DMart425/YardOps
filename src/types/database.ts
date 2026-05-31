@@ -123,6 +123,7 @@ export interface Job {
   job_type: JobType
   title: string
   service_package: string | null
+  job_inputs: Record<string, unknown> | null
   scheduled_date: string | null
   scheduled_time_window: string | null
   status: JobStatus
