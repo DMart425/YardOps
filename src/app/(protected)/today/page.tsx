@@ -62,6 +62,7 @@ export default async function TodayPage() {
   const twoWeeksStr = addDays(today, 14)
   const sixtyDaysAgoStr = addDays(today, -60)
   const twoYearsAgoStr = addDays(today, -730)
+  const thirtyDaysAgoStr = addDays(today, -30)
 
   // Week range (Sunday-start, matching jobs/page.tsx pattern)
   const [ty, tm, td] = today.split('-').map(Number)
@@ -82,6 +83,8 @@ export default async function TodayPage() {
     websiteLeadsCountResult,
     manualLeadsCountResult,
     weekJobsResult,
+    needsFollowUpResult,
+    approvedEstimatesResult,
   ] = await Promise.all([
     supabase
       .from('app_notifications')
@@ -196,6 +199,25 @@ export default async function TodayPage() {
       .in('status', ['scheduled', 'in_progress', 'needs_reschedule'])
       .gte('scheduled_date', weekStartStr)
       .lte('scheduled_date', weekEndStr),
+    // Recurring jobs completed in the last 30 days with no follow-up scheduled
+    supabase
+      .from('jobs')
+      .select('id, title, completed_at, customers(first_name, last_name), properties(service_address, city, service_frequency)')
+      .eq('business_id', businessId)
+      .eq('status', 'completed')
+      .eq('job_type', 'recurring')
+      .is('next_job_created_id', null)
+      .gte('completed_at', `${thirtyDaysAgoStr}T00:00:00`)
+      .order('completed_at', { ascending: false })
+      .limit(10),
+    // Approved estimates waiting to be scheduled
+    supabase
+      .from('estimates')
+      .select('id, total, created_at, customers(first_name, last_name), properties(service_address, city)')
+      .eq('business_id', businessId)
+      .eq('status', 'approved')
+      .order('created_at', { ascending: false })
+      .limit(5),
   ])
 
   // Exclude notifications whose linked estimate has already been converted to a job.
@@ -217,6 +239,8 @@ export default async function TodayPage() {
   const manualLeadsCount = manualLeadsCountResult.count
   const weekJobsCount = weekJobsResult.count ?? 0
   const weekJobRows = weekJobsResult.data ?? []
+  const needsFollowUpJobs = needsFollowUpResult.data ?? []
+  const approvedEstimates = approvedEstimatesResult.data ?? []
 
   // Fetch weather for unique property coordinates
   const coords: Array<{ lat: number; lon: number }> = []
@@ -666,6 +690,88 @@ export default async function TodayPage() {
                   >
                     View Job
                   </a>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Needs Follow-up */}
+      {needsFollowUpJobs.length > 0 && (
+        <div className="detail-section">
+          <div className="section-heading">
+            Needs Follow-up ({needsFollowUpJobs.length})
+          </div>
+          {needsFollowUpJobs.map((job) => {
+            const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null } | null
+            const prop = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string | null; city: string | null; service_frequency: string | null } | null
+            return (
+              <div key={job.id} className="card">
+                <div className="card-row">
+                  <div>
+                    <div className="card-title">{job.title}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
+                      <div className="card-meta">👤 {customer?.first_name} {customer?.last_name}</div>
+                      {prop?.service_address && (
+                        <div className="card-meta">📍 {prop.service_address}{prop.city ? `, ${prop.city}` : ''}</div>
+                      )}
+                      {job.completed_at && (
+                        <div className="card-meta">✅ Completed {formatTimestampDate(job.completed_at, timeZone, { month: 'short', day: 'numeric' })}</div>
+                      )}
+                      {prop?.service_frequency && (
+                        <div className="card-meta">🔁 {prop.service_frequency}</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="card-actions">
+                  <Link href={`/jobs/${job.id}`} className="btn btn-sm btn-primary">
+                    Schedule Follow-up
+                  </Link>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Approved Estimates Waiting */}
+      {approvedEstimates.length > 0 && (
+        <div className="detail-section">
+          <div className="section-heading">
+            Approved Estimates Waiting ({approvedEstimates.length})
+          </div>
+          {approvedEstimates.map((est) => {
+            const customer = (Array.isArray(est.customers) ? est.customers[0] : est.customers) as { first_name: string; last_name: string | null } | null
+            const prop = (Array.isArray(est.properties) ? est.properties[0] : est.properties) as { service_address: string | null; city: string | null } | null
+            return (
+              <div key={est.id} className="card">
+                <div className="card-row">
+                  <div>
+                    <div className="card-title">
+                      {customer?.first_name} {customer?.last_name}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
+                      {prop?.service_address && (
+                        <div className="card-meta">📍 {prop.service_address}{prop.city ? `, ${prop.city}` : ''}</div>
+                      )}
+                      {est.total != null && (
+                        <div className="card-meta">💵 ${Number(est.total).toFixed(0)} estimate</div>
+                      )}
+                      {est.created_at && (
+                        <div className="card-meta">🗓 Approved {formatTimestampDate(est.created_at, timeZone, { month: 'short', day: 'numeric' })}</div>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ flexShrink: 0 }}>
+                    <span className="pill pill-approved">Approved</span>
+                  </div>
+                </div>
+                <div className="card-actions">
+                  <Link href={`/estimates/${est.id}`} className="btn btn-sm btn-primary">
+                    Schedule Job
+                  </Link>
                 </div>
               </div>
             )
