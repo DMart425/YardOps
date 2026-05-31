@@ -38,6 +38,7 @@ export default async function CustomerDetailPage({
     { count: completedJobsCount },
     { data: completedJobsStats },
     { data: lastCompletedJob },
+    { data: businessRow },
   ] = await Promise.all([
     supabase.from('customers').select('*').eq('id', id).eq('business_id', businessId).single(),
     supabase
@@ -83,6 +84,12 @@ export default async function CustomerDetailPage({
       .order('completed_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
+    // Business name for SMS body — avoids hardcoding the tenant name.
+    supabase
+      .from('businesses')
+      .select('name')
+      .eq('id', businessId)
+      .maybeSingle(),
   ])
 
   if (!customer) notFound()
@@ -120,13 +127,15 @@ export default async function CustomerDetailPage({
     }
   }
 
+  const businessName = (businessRow as { name?: string | null } | null)?.name ?? 'your lawn service'
+
   // Build balance reminder SMS body (computed server-side; only meaningful when outstandingJobs > 0)
   const balanceSmsBody = (() => {
     if (!outstandingJobs.length) return ''
     const firstName = customerRow.first_name
     const totalStr = `$${totalUnpaid % 1 === 0 ? totalUnpaid.toFixed(0) : totalUnpaid.toFixed(2)}`
     const lines = [
-      `Hi ${firstName}, this is Wicksburg Lawn Service. Your current outstanding balance is ${totalStr}.`,
+      `Hi ${firstName}, this is ${businessName}. Your current outstanding balance is ${totalStr}.`,
       '',
       'Balance details:',
       ...outstandingJobs.slice(0, 5).map(j => {

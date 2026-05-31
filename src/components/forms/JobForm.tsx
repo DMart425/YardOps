@@ -77,7 +77,7 @@ export function JobForm({
   const [jobType, setJobType] = useState(() => {
     if (defaultValues?.job_type) return String(defaultValues.job_type)
     if (initialProperty) return deriveJobTypeFromFrequency(initialProperty.service_frequency)
-    return 'recurring'
+    return 'one_time'
   })
 
   const filteredProperties = selectedCustomerId
