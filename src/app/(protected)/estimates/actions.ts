@@ -49,6 +49,11 @@ type JobScope = {
   internalNotes: string
 }
 
+function deriveJobTypeFromFrequency(frequency: string | null): 'one_time' | 'recurring' {
+  if (frequency === 'weekly' || frequency === 'biweekly') return 'recurring'
+  return 'one_time'
+}
+
 function deriveJobScopeFromEstimate(estimate: { estimate_inputs: Record<string, unknown> | null; estimated_minutes: number | null }): JobScope {
   const rawInputs = estimate.estimate_inputs
   if (!rawInputs) {
@@ -352,10 +357,11 @@ export async function convertToJob(
       customer_id:     estimate.customer_id,
       property_id:     estimate.property_id,
       estimate_id:     estimateId,
-      title:           scope.title,
-      service_package: scope.servicePackage,
-      job_type:        'one_time',
-      scheduled_date:  str(formData, 'scheduled_date'),
+      title:              scope.title,
+      service_package:    scope.servicePackage,
+      job_type:           deriveJobTypeFromFrequency(estimate.frequency),
+      scheduled_date:     str(formData, 'scheduled_date'),
+      scheduled_time_window: str(formData, 'scheduled_time_window'),
       quoted_total:    estimate.total,
       price:           estimate.total,
       payment_status:  'unpaid',

@@ -98,9 +98,20 @@ export function EstimateStatusActions({
 
           {panel === 'convert' && (
             <form action={convertAction} className="form action-panel">
-              <div className="form-field">
-                <label className="form-label">Scheduled Date</label>
-                <input name="scheduled_date" type="date" className="form-input" defaultValue={today} />
+              <div className="form-row">
+                <div className="form-field">
+                  <label className="form-label">Scheduled Date</label>
+                  <input name="scheduled_date" type="date" className="form-input" defaultValue={today} />
+                </div>
+                <div className="form-field">
+                  <label className="form-label">Time Window</label>
+                  <select name="scheduled_time_window" className="form-select" defaultValue="">
+                    <option value="">Any time</option>
+                    <option value="morning">Morning</option>
+                    <option value="afternoon">Afternoon</option>
+                    <option value="evening">Evening</option>
+                  </select>
+                </div>
               </div>
               <div className="card-row">
                 <span className="text-small text-muted">Price from estimate</span>
