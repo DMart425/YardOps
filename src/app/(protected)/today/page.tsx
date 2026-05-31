@@ -86,6 +86,7 @@ export default async function TodayPage() {
     weekJobsResult,
     needsFollowUpResult,
     approvedEstimatesResult,
+    upcomingRecurringJobsResult,
   ] = await Promise.all([
     supabase
       .from('app_notifications')
@@ -203,7 +204,7 @@ export default async function TodayPage() {
     // Recurring jobs completed in the last 30 days with no follow-up scheduled
     supabase
       .from('jobs')
-      .select('id, title, completed_at, customers(first_name, last_name), properties(service_address, city, service_frequency)')
+      .select('id, title, completed_at, property_id, customer_id, customers(first_name, last_name), properties(service_address, city, service_frequency)')
       .eq('business_id', businessId)
       .eq('status', 'completed')
       .eq('job_type', 'recurring')
@@ -219,6 +220,14 @@ export default async function TodayPage() {
       .eq('status', 'approved')
       .order('created_at', { ascending: false })
       .limit(5),
+    // Upcoming active recurring jobs — used to filter false positives from Needs Follow-up
+    supabase
+      .from('jobs')
+      .select('id, property_id, customer_id, scheduled_date')
+      .eq('business_id', businessId)
+      .eq('job_type', 'recurring')
+      .in('status', ['scheduled', 'in_progress', 'needs_reschedule'])
+      .gte('scheduled_date', today),
   ])
 
   // Exclude notifications whose linked estimate has already been converted to a job.
@@ -240,8 +249,29 @@ export default async function TodayPage() {
   const manualLeadsCount = manualLeadsCountResult.count
   const weekJobsCount = weekJobsResult.count ?? 0
   const weekJobRows = weekJobsResult.data ?? []
-  const needsFollowUpJobs = needsFollowUpResult.data ?? []
   const approvedEstimates = approvedEstimatesResult.data ?? []
+  // Build sets of property/customer IDs that already have an upcoming active recurring job.
+  // Used to suppress false positives in Needs Follow-up when the old completed job's
+  // next_job_created_id was not set but a future job already exists for the same property.
+  const upcomingRecurringJobs = upcomingRecurringJobsResult.data ?? []
+  const upcomingPropertyIds = new Set(
+    upcomingRecurringJobs
+      .filter(j => j.property_id != null)
+      .map(j => j.property_id as string)
+  )
+  const upcomingCustomerIds = new Set(
+    upcomingRecurringJobs
+      .filter(j => j.customer_id != null)
+      .map(j => j.customer_id as string)
+  )
+  const needsFollowUpJobs = (needsFollowUpResult.data ?? []).filter(job => {
+    const propId = (job as { property_id?: string | null }).property_id ?? null
+    const custId = (job as { customer_id?: string | null }).customer_id ?? null
+    // Prefer property-level match; fall back to customer-level for jobs without a property
+    if (propId != null) return !upcomingPropertyIds.has(propId)
+    if (custId != null) return !upcomingCustomerIds.has(custId)
+    return true
+  })
 
   // Fetch weather for unique property coordinates
   const coords: Array<{ lat: number; lon: number }> = []
@@ -412,13 +442,8 @@ export default async function TodayPage() {
           </Link>
         )}
         <Link href="/jobs?filter=week" className="stat-card" style={{ textDecoration: 'none' }}>
-          <div className="stat-value">
-            {weekJobsCount}
-          </div>
+          <div className="stat-value">{weekJobsCount} · ${expectedWeekRevenue.toFixed(0)}</div>
           <div className="stat-label">This week</div>
-          {expectedWeekRevenue > 0 && (
-            <div className="text-small text-muted">${expectedWeekRevenue.toFixed(0)} est.</div>
-          )}
         </Link>
         <Link href="/jobs?view=completed&filter=unpaid&page=1" className="stat-card" style={{ textDecoration: 'none' }}>
           <div className="stat-value" style={{ color: unpaidTotal > 0 ? 'var(--color-unpaid)' : undefined }}>
