@@ -732,7 +732,7 @@ export default async function TodayPage() {
             const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null } | null
             const prop = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string | null; city: string | null; service_frequency: string | null } | null
             const daysSince = job.completed_at
-              ? Math.floor((todayStartMs - new Date(job.completed_at).getTime()) / 86400000)
+              ? Math.max(0, Math.floor((todayStartMs - dateOnlyToUtcMs(getLocalDateStr(timeZone, job.completed_at))) / 86400000))
               : null
             return (
               <div key={job.id} className="card">
@@ -747,7 +747,7 @@ export default async function TodayPage() {
                       {job.completed_at && (
                         <div className="card-meta">
                           ✅ Completed {formatTimestampDate(job.completed_at, timeZone, { month: 'short', day: 'numeric' })}
-                          {daysSince !== null && <span className="text-muted"> · {daysSince}d ago</span>}
+                          {daysSince !== null && <span className="text-muted"> · {daysSince === 0 ? 'today' : `${daysSince}d ago`}</span>}
                         </div>
                       )}
                       {prop?.service_frequency && (
