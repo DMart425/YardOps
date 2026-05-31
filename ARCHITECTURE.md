@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-31
-Current checkpoint commit: `67b9e80` (Rename estimate actions card — Phase 5M)
+Current checkpoint commit: `e2d42a1` (Polish estimate detail states — Phase 5N)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -496,6 +496,7 @@ Website/manual intake address, frequency, and service interests are written into
 | Save estimate price as property default on convert | ✅ Phase 5K | `b9fa8db` + `08608eb` — opt-in checkbox in convert panel; `defaultChecked` when no existing default; best-effort `properties.update` in `convertToJob()`; shows current value when one exists |
 | Missing price guardrails V1 | ✅ Phase 5L | `a28e3d1` — `markPaid()` stores `amount_paid=0` when price null; Today Unpaid shows "No price set"; Pay Reminder SMS suppressed; Complete Job panel price hint; Payment Summary "Price · Not set" |
 | Customer/property navigation polish | ✅ Phase 5M | `b8444dd` + `67b9e80` — contextual `+ New Estimate` buttons on customer and property detail; `View Customer` linked row in property info card; `View Estimate →` link on job detail; clickable Customer/Property rows in estimate summary; `View Customer`/`View Property` action buttons; `Manage Estimate` card heading |
+| Estimate detail state polish | ✅ Phase 5N | `e2d42a1` — per-status top banners; Schedule Visit and Send to Customer hidden for `converted`/`declined`; no action/SMS/schema changes |
 
 ### RLS Hardening Checklist (future — not yet applied)
 
@@ -1289,6 +1290,37 @@ UI/nav-only phase. No new routes, no server action changes, no schema changes, n
 #### File changed (`67b9e80`)
 
 - `src/app/(protected)/estimates/[id]/page.tsx` — inner card heading renamed from "Actions" to "Manage Estimate"
+
+---
+
+### Phase 5N — Estimate Detail State Polish ✅
+
+**Commit:** `e2d42a1` (Polish estimate detail states)
+
+UI/conditional-rendering-only phase. No server actions changed. No SMS behavior changed. No schema changes. No RLS changes. No route changes.
+
+#### Per-status banner behavior
+
+| Status | Top banner | Schedule Visit card | Send to Customer card |
+|--------|-----------|--------------------|-----------------------|
+| `draft` rev 1 | 📝 "Draft — not sent yet" · Send via text or mark approved if verbally confirmed | ✅ shown | ✅ shown |
+| `draft` rev > 1 | ⚠️ existing revised-draft warning (unchanged) | ✅ shown | ✅ shown |
+| `sent` | 📤 "Sent — waiting on customer" · Mark approved once confirmed | ✅ shown | ✅ shown |
+| `approved` | ✅ existing "Customer approved — ready to schedule" banner (unchanged) | ✅ shown | ✅ shown |
+| `converted` | 📋 "Converted to job" · inline `View Job →` link when `convertedJobId` exists | ❌ hidden | ❌ hidden |
+| `declined` | ❌ "Declined" (danger left border) · Edit to revise and resend if needed | ❌ hidden | ❌ hidden |
+
+#### Implementation (`e2d42a1`)
+
+**File:** `src/app/(protected)/estimates/[id]/page.tsx`
+
+- Six banner blocks added between the page header and Estimate Summary card, each gated by a single `estimate.status` (and `revision_number === 1` for the draft case).
+- Schedule Visit card wrapped in `{estimate.status !== 'converted' && estimate.status !== 'declined' && (...)}`.
+- Send to Customer card gate updated from `estimate.status !== 'converted'` to `estimate.status !== 'converted' && estimate.status !== 'declined'`.
+- `convertedJobId` (fetched at page level when `status === 'converted'`) passed inline into the converted banner — no new query.
+- `EstimateStatusActions.tsx`, `ScheduleVisitForm.tsx`, `SendSmsButton.tsx`, `EstimateDangerZone.tsx`, and all server actions untouched.
+
+No new routes. No nav items. No schema migrations. No RLS changes. No env var changes.
 
 ---
 

@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-31 (67b9e80)
+Last updated: 2026-05-31 (e2d42a1)
 
 ---
 
@@ -659,6 +659,36 @@ UI/nav-only phase. No new routes, no server action changes, no schema changes, n
 
 ---
 
+### Phase 5N — Estimate Detail State Polish ✅
+
+**Commit:** `e2d42a1` (Polish estimate detail states)
+
+UI/conditional-rendering-only phase. Single file changed: `src/app/(protected)/estimates/[id]/page.tsx`. No server actions, SMS, schema, migration, RLS, route, or env changes.
+
+#### Changes
+
+- Added **draft rev 1 banner**: "📝 Draft — not sent yet" with send/approve guidance. Not shown for revised drafts (existing revised-draft warning handles those).
+- Added **sent banner**: "📤 Sent — waiting on customer" with confirm/decline guidance.
+- **Approved banner** (`estimate.status === 'approved'`) unchanged.
+- Added **converted banner**: "📋 Converted to job" with inline "View Job →" link when `convertedJobId` exists.
+- Added **declined banner**: "❌ Declined" (danger left border) with edit-to-revise guidance.
+- **Schedule Visit card** hidden for `converted` and `declined` — wrapped in `status !== 'converted' && status !== 'declined'` conditional.
+- **Send to Customer card** hidden for `converted` and `declined` — gate updated from `status !== 'converted'` to `status !== 'converted' && status !== 'declined'`.
+- `EstimateStatusActions`, `ScheduleVisitForm`, `SendSmsButton`, `EstimateDangerZone`, and all server actions untouched.
+
+**Verified behaviors (`e2d42a1`):**
+- ✅ Draft estimates (rev 1) show "Draft — not sent yet" banner at top of page
+- ✅ Revised draft estimates (rev > 1) show existing revised-draft warning; new draft banner does not appear
+- ✅ Sent estimates show "Sent — waiting on customer" banner
+- ✅ Approved estimates still show "Customer approved — ready to schedule" banner and Convert to Job action
+- ✅ Converted estimates show "Converted to job" banner with inline View Job → link when job exists
+- ✅ Converted estimates no longer show Schedule Visit or Send to Customer cards
+- ✅ Declined estimates show "Declined" banner with danger left border
+- ✅ Declined estimates no longer show Schedule Visit or Send to Customer cards
+- ✅ Estimate conversion, SendSmsButton behavior, and all SMS bodies work normally — unchanged
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -680,6 +710,7 @@ UI/nav-only phase. No new routes, no server action changes, no schema changes, n
 
 | Hash | Description |
 |------|-------------|
+| `e2d42a1` | Polish estimate detail states (Phase 5N) |
 | `67b9e80` | Rename estimate actions card (Phase 5M) |
 | `b8444dd` | Polish customer property navigation (Phase 5M) |
 | `a28e3d1` | Add missing price guardrails (Phase 5L) |
@@ -998,6 +1029,7 @@ All of the following were user-tested and confirmed working as of `289b732`:
 | Phase 5K — New Job prefill + estimate price default | ✅ Complete | `a3d990b` + `b9fa8db` + `08608eb` — price/package/job_type prefill from property; controlled `job_type` select; estimate→property default price opt-in checkbox; label spacing fix; no migration |
 | Phase 5L — Data integrity guardrails V1 | ✅ Complete | `a28e3d1` — `markPaid()` stores `amount_paid=0` when price null; Today Unpaid "No price set"; Pay Reminder SMS gated on known balance; Complete Job price hint; Payment Summary "Price · Not set"; no migration |
 | Phase 5M — Customer/property navigation polish | ✅ Complete | `b8444dd` + `67b9e80` — contextual `+ New Estimate` buttons; `View Customer` linked row; `View Estimate →` on job detail; clickable estimate summary rows; renamed action buttons; `Manage Estimate` card heading; no migration |
+| Phase 5N — Estimate detail state polish | ✅ Complete | `e2d42a1` — per-status banners (draft/sent/converted/declined); Schedule Visit and Send to Customer hidden for converted/declined; no action/SMS/schema changes |
 | Route balancing / auto-scheduling follow-up | ⏸ Future | `Property.schedule_anchor_date` reserved; do not implement until explicitly asked |
 | `schedule_anchor_date` — no UI yet | ⏸ Future | Column exists in schema; no read or write path built |
 | Weather/rain-day shifting for scheduling | ⏸ Future | Not planned |
@@ -1022,7 +1054,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
 | 3 | Public intake and lead workflow improvements | ✅ Complete — all listed tasks done through `ec48565`; payment bugfixes continued in Phase 4 |
 | 4 | Operations UX / workflow polish | ✅ Substantially complete — 4A–4D + cleanup batch done (`463e762`) |
-| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A ✅, 5B ✅, 5C ✅, 5D ✅, 5E ✅, 5F ✅, 5G ✅, 5H ✅, 5I ✅, 5J ✅, 5K ✅, 5L ✅, 5M ✅ complete (`67b9e80`); next TBD |
+| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A ✅, 5B ✅, 5C ✅, 5D ✅, 5E ✅, 5F ✅, 5G ✅, 5H ✅, 5I ✅, 5J ✅, 5K ✅, 5L ✅, 5M ✅, 5N ✅ complete (`e2d42a1`); next TBD |
 
 **Permanent Future-Handoff Requirements** (mandatory — see Architecture.md §16):
 Every future handoff must instruct the next chat to read ARCHITECTURE.md and HANDOFF.md first, remind it to update those docs after any verified/committed change, state the latest commit, current phase status, open items, workflow guardrails, and known security follow-ups (no secret values).
@@ -1031,11 +1063,11 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Phase 5N planning — next area TBD**
+**Phase 5O planning — next area TBD**
 
-Phase 5A–5M are all production-verified and complete as of `67b9e80`.
+Phase 5A–5N are all production-verified and complete as of `e2d42a1`.
 
-**Completed Phase 5A–5M work:**
+**Completed Phase 5A–5N work:**
 - ✅ Customers list unpaid balance badges
 - ✅ Customer detail Outstanding Balance section
 - ✅ Balance reminder SMS with portal link
@@ -1078,8 +1110,11 @@ Phase 5A–5M are all production-verified and complete as of `67b9e80`.
 - ✅ Job detail shows conditional `View Estimate →` row when `job.estimate_id` is set — no new query
 - ✅ Estimate summary card Customer and Property rows are clickable links
 - ✅ Estimate action buttons labeled "View Customer" / "View Property"; inner card heading "Manage Estimate"
+- ✅ Estimate detail shows per-status banners: draft, sent, approved (existing), converted, declined
+- ✅ Converted estimate banner includes inline View Job → link
+- ✅ Schedule Visit and Send to Customer cards hidden for converted and declined estimates
 
-**Next Phase 5N candidates:**
+**Next Phase 5O candidates:**
 1. `JobActions` SMS business phone — wire `businessPhone` into on-my-way / day-before / job-complete SMS
 2. Portal enhancements — customer-facing UX improvements
 3. Revenue/expense reporting — more useful Finances page analytics

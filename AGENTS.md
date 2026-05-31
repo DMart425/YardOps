@@ -8,7 +8,7 @@ YardOps is the private operations app for Wicksburg Lawn Service.
 
 Current verified YardOps checkpoint commit:
 
-`67b9e80` (Rename estimate actions card — Phase 5M)
+`e2d42a1` (Polish estimate detail states — Phase 5N)
 
 The public website repo is separate:
 
@@ -183,3 +183,7 @@ These rules were learned from production bugs and must be preserved across refac
 * Use clear navigation labels with action verbs: `View Customer`, `View Property`, `View Estimate`. Do not use bare nouns ("Customer", "Property") as button labels when the button navigates to that entity's detail page.
 * Avoid redundant nested section labels. If a page section is already titled "Action Center", the inner card should not also be titled "Actions". Use a descriptive label like "Manage Estimate" instead.
 * Do not add navigation polish by changing business logic, server actions, or routes unless explicitly approved. Navigation improvements are link additions and label changes only.
+* Estimate detail pages must clearly communicate the estimate's current state and the correct next action. Each status (`draft`, `sent`, `approved`, `converted`, `declined`) should have a visible top-of-page banner or notice that orients the operator.
+* Converted estimates should direct the operator to the job. Do not show Schedule Visit or Send to Customer cards on converted estimates — the job is the relevant record after conversion.
+* Declined estimates are closed. Do not show Schedule Visit or Send to Customer cards on declined estimates. The page should be visually quiet with a clear "declined" indicator.
+* Do not change estimate status-transition logic, `convertToJob()`, or SMS behavior during UI state polish phases without explicit approval. State polish is conditional rendering only.

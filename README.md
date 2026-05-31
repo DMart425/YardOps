@@ -2,7 +2,7 @@
 
 Private operations app for Wicksburg Lawn Service.
 
-Verified checkpoint commit: `67b9e80` (Rename estimate actions card — Phase 5M).
+Verified checkpoint commit: `e2d42a1` (Polish estimate detail states — Phase 5N).
 
 ## Read First
 
