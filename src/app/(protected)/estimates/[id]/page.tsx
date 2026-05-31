@@ -166,6 +166,19 @@ export default async function EstimateDetailPage({
         </div>
       )}
 
+      {/* Draft — first revision, not yet sent */}
+      {estimate.status === 'draft' && estimate.revision_number === 1 && (
+        <div className="card" style={{ marginBottom: '1rem', borderLeft: '3px solid var(--color-border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '1.25rem' }}>📝</span>
+            <div>
+              <div className="font-bold">Draft — not sent yet</div>
+              <div className="text-small text-muted">Send via text to share with the customer, or mark as approved if verbally confirmed.</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Approved — needs scheduling */}
       {estimate.status === 'approved' && (
         <div className="card" style={{ marginBottom: '1rem', borderLeft: '3px solid var(--color-primary)', background: 'rgba(16,185,129,0.07)' }}>
@@ -174,6 +187,49 @@ export default async function EstimateDetailPage({
             <div>
               <div className="font-bold">Customer approved — ready to schedule</div>
               <div className="text-small text-muted">Use Convert to Job below to create a scheduled job for this estimate.</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sent — waiting on customer */}
+      {estimate.status === 'sent' && (
+        <div className="card" style={{ marginBottom: '1rem', borderLeft: '3px solid var(--color-border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '1.25rem' }}>📤</span>
+            <div>
+              <div className="font-bold">Sent — waiting on customer</div>
+              <div className="text-small text-muted">Mark as Approved once the customer confirms, or mark declined if they pass.</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Converted — job created */}
+      {estimate.status === 'converted' && (
+        <div className="card" style={{ marginBottom: '1rem', borderLeft: '3px solid var(--color-primary)', background: 'rgba(16,185,129,0.07)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '1.25rem' }}>📋</span>
+            <div>
+              <div className="font-bold">Converted to job</div>
+              <div className="text-small text-muted">
+                This estimate has been converted.{convertedJobId && (
+                  <>{' '}<Link href={`/jobs/${convertedJobId}`} style={{ color: 'var(--color-primary)' }}>View Job →</Link></>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Declined */}
+      {estimate.status === 'declined' && (
+        <div className="card" style={{ marginBottom: '1rem', borderLeft: '3px solid var(--color-danger)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '1.25rem' }}>❌</span>
+            <div>
+              <div className="font-bold">Declined</div>
+              <div className="text-small text-muted">No active follow-up. Edit to revise and resend if needed.</div>
             </div>
           </div>
         </div>
@@ -313,30 +369,32 @@ export default async function EstimateDetailPage({
         <div className="section-heading">Action Center</div>
       </div>
 
-      {/* Schedule Visit */}
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <div className="section-heading" style={{ marginBottom: '0.75rem' }}>
-          {estimate.visit_scheduled_date ? '📅 Visit Scheduled' : '📅 Schedule Visit'}
-        </div>
-        {estimate.visit_scheduled_date && (
-          <div style={{ marginBottom: '10px', padding: '8px 10px', background: 'var(--color-success-bg, #f0fdf4)', borderRadius: '8px', border: '1px solid var(--color-success-border, #bbf7d0)' }}>
-            <span className="text-small" style={{ fontWeight: 600 }}>{formatDateOnly(estimate.visit_scheduled_date, {
-              weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
-            })}</span>
-            {estimate.visit_scheduled_time && (
-              <span className="text-small text-muted"> · {estimate.visit_scheduled_time}</span>
-            )}
+      {/* Schedule Visit — hidden for converted and declined estimates */}
+      {estimate.status !== 'converted' && estimate.status !== 'declined' && (
+        <div className="card" style={{ marginBottom: '1rem' }}>
+          <div className="section-heading" style={{ marginBottom: '0.75rem' }}>
+            {estimate.visit_scheduled_date ? '📅 Visit Scheduled' : '📅 Schedule Visit'}
           </div>
-        )}
-        <ScheduleVisitForm
-          estimateId={estimate.id}
-          currentDate={estimate.visit_scheduled_date ?? null}
-          currentTime={estimate.visit_scheduled_time ?? null}
-        />
-      </div>
+          {estimate.visit_scheduled_date && (
+            <div style={{ marginBottom: '10px', padding: '8px 10px', background: 'var(--color-success-bg, #f0fdf4)', borderRadius: '8px', border: '1px solid var(--color-success-border, #bbf7d0)' }}>
+              <span className="text-small" style={{ fontWeight: 600 }}>{formatDateOnly(estimate.visit_scheduled_date, {
+                weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+              })}</span>
+              {estimate.visit_scheduled_time && (
+                <span className="text-small text-muted"> · {estimate.visit_scheduled_time}</span>
+              )}
+            </div>
+          )}
+          <ScheduleVisitForm
+            estimateId={estimate.id}
+            currentDate={estimate.visit_scheduled_date ?? null}
+            currentTime={estimate.visit_scheduled_time ?? null}
+          />
+        </div>
+      )}
 
-      {/* SMS preview */}
-      {customer.phone && estimate.status !== 'converted' && (
+      {/* SMS preview — hidden for converted and declined estimates */}
+      {customer.phone && estimate.status !== 'converted' && estimate.status !== 'declined' && (
         <div className="card" style={{ marginBottom: '1rem' }}>
           <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Send to Customer</div>
           <pre style={{
