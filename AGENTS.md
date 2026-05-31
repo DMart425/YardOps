@@ -8,7 +8,7 @@ YardOps is the private operations app for Wicksburg Lawn Service.
 
 Current verified YardOps checkpoint commit:
 
-`b908ac7` (Fix today follow-up filtering and week stat — Phase 5H)
+`2ca5a86` (Fix today date conversion crash — Phase 5I)
 
 The public website repo is separate:
 
@@ -164,3 +164,7 @@ These rules were learned from production bugs and must be preserved across refac
 * Stat cards should be deduplicated when one compact card can carry the same meaning. Do not split count and amount into separate cards if they link to the same URL.
 * The Needs Follow-up section must suppress false positives: if the same property already has an upcoming active recurring job (`scheduled_date >= today`, `status` in `scheduled`/`in_progress`/`needs_reschedule`), the old completed job must not appear in Needs Follow-up. Filter by `property_id` first; fall back to `customer_id` only when `property_id` is null. This filtering must never remove future jobs from the normal schedule, Jobs page, Tomorrow, or This Week views.
 * Do not combine Needs Follow-up filter suppression with any other section. The upcoming-recurring-jobs suppression query is scoped only to the Needs Follow-up display filter.
+* Estimate conversion must preserve recurring intent from `estimate.frequency`. `weekly` and `biweekly` estimates must convert to `job_type = 'recurring'` so the converted job is eligible for follow-up scheduling after completion. `one_time`, `null`, or unknown frequencies convert to `job_type = 'one_time'`. Do not hardcode `job_type = 'one_time'` in `convertToJob()`.
+* Converted recurring jobs must remain eligible for the normal follow-up scheduling flow (`ScheduleFollowUpCard`, Needs Follow-up on Today). Do not gate follow-up scheduling on how a job was created (manual vs. estimate conversion).
+* When calling date helpers such as `getLocalDateStr(timeZone, date)`, always pass a `Date` object as the second argument — not a raw string. Dynamic Supabase `.select()` calls often return fields typed as `any`, which means TypeScript will not catch type mismatches at build time. These bugs surface only at runtime as `RangeError: Invalid time value`. Always wrap ISO timestamp strings with `new Date()` before passing to date helpers.
+* `/today` runtime crashes are production hotfixes. Keep fixes minimal and targeted — change only the broken expression, run lint and build, and push immediately after approval. Do not bundle unrelated changes into a hotfix commit.

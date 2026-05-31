@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-31 (b908ac7)
+Last updated: 2026-05-31 (2ca5a86)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-05-31 (b908ac7)
 
 ## Current Checkpoint
 
-- **Latest commit:** `b908ac7` — Fix today follow-up filtering and week stat (Phase 5H)
+- **Latest commit:** `2ca5a86` — Fix today date conversion crash (Phase 5I)
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -511,6 +511,29 @@ No query changes. No new fields.
 
 ---
 
+### Phase 5I — Approved Estimate to Job Flow Fix ✅
+
+**Commits:** `f1d77a6` (conversion fixes), `4af55db` (day-count fix), `2ca5a86` (runtime hotfix)
+
+#### Estimate conversion `job_type` derivation (`f1d77a6`)
+
+- `convertToJob()` previously hardcoded `job_type: 'one_time'` for all conversions — silently broke follow-up scheduling for recurring-service customers
+- Added `deriveJobTypeFromFrequency()` helper: `weekly`/`biweekly` → `'recurring'`; everything else → `'one_time'`
+- `estimate.frequency` is a top-level column already fetched in `select('*')`; no join needed
+- `scheduled_time_window` select (Any time / Morning / Afternoon / Evening) added to convert panel in `EstimateStatusActions.tsx`; passes through `str()` helper (empty → null)
+- All other conversion fields unchanged: `customer_id`, `property_id`, `estimate_id`, `price`, `quoted_total`, derived title/service_package/internal_notes, `customer_notes`, duplicate guard, lead-promotion, notification clear, redirect
+
+No migration. No RLS changes. No env changes.
+
+#### Needs Follow-up day-count + hotfix (`4af55db` + `2ca5a86`)
+
+- `4af55db`: Days-since now uses local date-only comparison — `getLocalDateStr(timeZone, new Date(completed_at))` → `dateOnlyToUtcMs()` → integer days. Clamped at 0. Display: 0 → `"today"`, ≥1 → `"Xd ago"`.
+- `2ca5a86` **hotfix**: The first fix passed the raw `job.completed_at` string directly to `getLocalDateStr(timeZone, date: Date)`. Dynamic Supabase `.select()` types the field as `any`, bypassing TypeScript's check. At runtime, `Intl.DateTimeFormat.format(someString)` threw `RangeError: Invalid time value`, crashing `/today`. Fix: wrap with `new Date(job.completed_at)`. Build clean. No query or data changes.
+
+**Lesson documented in AGENTS.md:** Always wrap ISO timestamp strings in `new Date()` before passing to helpers typed as `(date: Date)`. Dynamic Supabase selects return `any` and will not catch this at build time.
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -532,6 +555,10 @@ No query changes. No new fields.
 
 | Hash | Description |
 |------|-------------|
+| `2ca5a86` | Fix today date conversion crash (Phase 5I hotfix) |
+| `4af55db` | Fix needs follow-up day count (Phase 5I) |
+| `f1d77a6` | Fix estimate conversion job type and time window (Phase 5I) |
+| `ec618b9` | Update docs through Phase 5H today polish |
 | `b908ac7` | Fix today follow-up filtering and week stat (Phase 5H) |
 | `3865e0d` | Combine today job and expected stats (Phase 5H) |
 | `ee7f75b` | Polish today operations brief (Phase 5H) |
@@ -789,6 +816,11 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ Needs Follow-up suppresses completed recurring jobs when the same property already has an upcoming active recurring job — false positives eliminated (`b908ac7`)
 - ✅ Needs Follow-up filter does not remove future jobs from Tomorrow, This Week, Jobs page, or any other view (`b908ac7`)
 - ✅ Approved Estimates Waiting shows "Created" date label (field is `created_at`) instead of "Approved" (`ee7f75b`)
+- ✅ Estimate conversion now derives `job_type` from `estimate.frequency` — `weekly`/`biweekly` estimates produce `recurring` jobs; `one_time`/null/other produce `one_time` jobs (`f1d77a6`)
+- ✅ Converted recurring jobs are eligible for follow-up scheduling via `ScheduleFollowUpCard` after completion — follow-up card now appears correctly (`f1d77a6`)
+- ✅ Estimate conversion panel includes Time Window select (Any time / Morning / Afternoon / Evening); selection saves to `job.scheduled_time_window` (`f1d77a6`)
+- ✅ Needs Follow-up days-since uses local date-only comparison — completed-today jobs show "today" instead of negative day counts (`4af55db` + `2ca5a86`)
+- ✅ `/today` runtime crash from passing raw ISO string to `getLocalDateStr(timeZone, date: Date)` fixed — `new Date(job.completed_at)` wraps correctly; page loads (`2ca5a86`)
 
 ---
 
@@ -816,6 +848,7 @@ All of the following were user-tested and confirmed working as of `289b732`:
 | Phase 5F — Manual lead preferred service day | ✅ Complete | `b90d0c3` + `fd5ecd3` — capture in `/leads/new`, display on property detail; no migration |
 | Phase 5G — Today operations brief | ✅ Complete | `0a4ce23` + `74b8a90` — stat cards (Collected today, This week) + action sections (Needs Follow-up, Approved Estimates Waiting); no migration |
 | Phase 5H — Today visual polish + follow-up fix | ✅ Complete | `ee7f75b` + `3865e0d` + `b908ac7` — compact stat cards, section reorder, helper text, false-positive suppression in Needs Follow-up; no migration |
+| Phase 5I — Estimate conversion job type + day-count fix | ✅ Complete | `f1d77a6` + `4af55db` + `2ca5a86` — `job_type` derives from frequency, time window in convert panel, day-count local date fix, hotfix for runtime crash; no migration |
 | Route balancing / auto-scheduling follow-up | ⏸ Future | `Property.schedule_anchor_date` reserved; do not implement until explicitly asked |
 | `schedule_anchor_date` — no UI yet | ⏸ Future | Column exists in schema; no read or write path built |
 | Weather/rain-day shifting for scheduling | ⏸ Future | Not planned |
@@ -840,7 +873,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
 | 3 | Public intake and lead workflow improvements | ✅ Complete — all listed tasks done through `ec48565`; payment bugfixes continued in Phase 4 |
 | 4 | Operations UX / workflow polish | ✅ Substantially complete — 4A–4D + cleanup batch done (`463e762`) |
-| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A ✅, 5B ✅, 5C ✅, 5D ✅, 5E ✅, 5F ✅, 5G ✅, 5H ✅ complete (`b908ac7`); next TBD |
+| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A ✅, 5B ✅, 5C ✅, 5D ✅, 5E ✅, 5F ✅, 5G ✅, 5H ✅, 5I ✅ complete (`2ca5a86`); next TBD |
 
 **Permanent Future-Handoff Requirements** (mandatory — see Architecture.md §16):
 Every future handoff must instruct the next chat to read ARCHITECTURE.md and HANDOFF.md first, remind it to update those docs after any verified/committed change, state the latest commit, current phase status, open items, workflow guardrails, and known security follow-ups (no secret values).
@@ -849,11 +882,11 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Phase 5I planning — next area TBD**
+**Phase 5J planning — next area TBD**
 
-Phase 5A–5H are all production-verified and complete as of `b908ac7`.
+Phase 5A–5I are all production-verified and complete as of `2ca5a86`.
 
-**Completed Phase 5A–5H work:**
+**Completed Phase 5A–5I work:**
 - ✅ Customers list unpaid balance badges
 - ✅ Customer detail Outstanding Balance section
 - ✅ Balance reminder SMS with portal link
@@ -878,14 +911,17 @@ Phase 5A–5H are all production-verified and complete as of `b908ac7`.
 - ✅ Today stat grid compact format — `count · $amount` for Jobs today and This week; no duplicate cards
 - ✅ Section reorder — Overdue before Completed Today; helper text on Needs Follow-up and Approved Estimates Waiting
 - ✅ Needs Follow-up false-positive suppression — completed recurring jobs hidden when same property already has an upcoming active recurring job
+- ✅ Estimate conversion `job_type` derived from `estimate.frequency` — weekly/biweekly → recurring; one_time/null/other → one_time
+- ✅ Estimate convert panel includes Time Window select; saves to `job.scheduled_time_window`
+- ✅ Needs Follow-up days-since uses local date-only comparison; completed-today shows "today"
+- ✅ `/today` runtime crash from raw ISO string to `getLocalDateStr` hotfixed
 
-**Next Phase 5I candidates:**
-1. Job detail View Estimate link — add back-link from job to its source estimate
-2. `JobActions` SMS business phone — wire `businessPhone` into on-my-way / day-before / job-complete SMS
-3. Portal enhancements — customer-facing UX improvements
-4. Revenue/expense reporting — more useful Finances page analytics
-5. Bulk job actions — mark multiple jobs paid, batch scheduling
-6. Printable portal invoice PDF — web-only currently
+**Next Phase 5J candidates:**
+1. `JobActions` SMS business phone — wire `businessPhone` into on-my-way / day-before / job-complete SMS
+2. Portal enhancements — customer-facing UX improvements
+3. Revenue/expense reporting — more useful Finances page analytics
+4. Bulk job actions — mark multiple jobs paid, batch scheduling
+5. Printable portal invoice PDF — web-only currently
 
 **Phase 3 completed tasks (all user-tested in production — historical record):**
 1. ~~Frequency display — website lead detail page~~ ✅ (`0589026`)

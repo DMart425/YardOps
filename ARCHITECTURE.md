@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-31
-Current checkpoint commit: `b908ac7` (Fix today follow-up filtering and week stat — Phase 5H)
+Current checkpoint commit: `2ca5a86` (Fix today date conversion crash — Phase 5I)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -486,6 +486,9 @@ Website/manual intake address, frequency, and service interests are written into
 | Today page visual polish | ✅ Phase 5H | `ee7f75b` — stat grid cleanup; Overdue moved before Completed Today; Needs Follow-up helper text, days-since, formatted frequency; Approved Estimates Waiting date label fixed to "Created" |
 | Today page compact stat cards | ✅ Phase 5H | `3865e0d` + `b908ac7` — Jobs Today and This Week both use `count · $amount` single-card format |
 | Today Needs Follow-up false-positive fix | ✅ Phase 5H | `b908ac7` — suppresses completed recurring jobs when same property has upcoming active recurring job; filter by `property_id` first, `customer_id` fallback; suppression scoped only to Needs Follow-up display |
+| Estimate conversion `job_type` derivation | ✅ Phase 5I | `f1d77a6` — `weekly`/`biweekly` estimates → `recurring` job; `one_time`/`null`/other → `one_time` job; helper `deriveJobTypeFromFrequency()` in `estimates/actions.ts` |
+| Estimate conversion `scheduled_time_window` | ✅ Phase 5I | `f1d77a6` — Time Window select added to convert panel in `EstimateStatusActions.tsx`; empty → null; morning/afternoon/evening saved to job |
+| Needs Follow-up day-count fix | ✅ Phase 5I | `4af55db` + `2ca5a86` — days-since now compares local date-only values; `getLocalDateStr(timeZone, new Date(completed_at))` → `dateOnlyToUtcMs()` → integer days; 0 shows "today"; hotfix wrapped raw string in `new Date()` to prevent runtime crash |
 | Route balancing / auto-scheduling for follow-up | ⏸ Future | Distributing customers evenly across the week is a larger feature; auto-scheduling on completion is not built; `Property.schedule_anchor_date` reserved for this; do not implement until explicitly asked |
 | Printable/downloadable portal invoice PDF | ⏸ Future | Portal invoice page is web-only; PDF export not yet added |
 
@@ -1030,6 +1033,90 @@ All stat cards that pair a count with an amount use a single compact card:
 #### No route/nav/schema changes
 
 No new routes. No nav items. No schema migrations. No env var changes.
+
+---
+
+### Phase 5I — Approved Estimate to Job Flow Fix
+
+**Goal:** Ensure estimate → job conversion preserves the recurring intent of the estimate, and fix a runtime crash in `/today`.
+
+**Status:** ✅ Complete (2026-05-31)
+
+**Commits:** `f1d77a6` (conversion fixes), `4af55db` (day-count fix), `2ca5a86` (runtime hotfix)
+
+#### `job_type` derivation from estimate frequency (`f1d77a6`)
+
+`convertToJob()` in `src/app/(protected)/estimates/actions.ts` previously hardcoded `job_type: 'one_time'` for all converted jobs. This silently broke the follow-up scheduling flow for recurring-service customers: after completing a `one_time` job, the `ScheduleFollowUpCard` never appeared and the customer dropped out of Needs Follow-up.
+
+**Fix:** Added `deriveJobTypeFromFrequency(frequency: string | null): 'one_time' | 'recurring'` helper:
+
+```ts
+function deriveJobTypeFromFrequency(frequency: string | null): 'one_time' | 'recurring' {
+  if (frequency === 'weekly' || frequency === 'biweekly') return 'recurring'
+  return 'one_time'
+}
+```
+
+| `estimate.frequency` | `job.job_type` |
+|---------------------|----------------|
+| `'weekly'` | `'recurring'` |
+| `'biweekly'` | `'recurring'` |
+| `'one_time'` | `'one_time'` |
+| `'monthly'` / `null` / other | `'one_time'` |
+
+`estimate.frequency` is a top-level column on the `estimates` table — no join needed; `convertToJob()` already fetches `select('*')`.
+
+**All other conversion fields preserved:**
+
+| Field | Source |
+|-------|--------|
+| `customer_id` | `estimate.customer_id` |
+| `property_id` | `estimate.property_id` |
+| `estimate_id` | estimateId argument |
+| `price` | `estimate.total` |
+| `quoted_total` | `estimate.total` |
+| `title` | `deriveJobScopeFromEstimate()` |
+| `service_package` | `deriveJobScopeFromEstimate()` |
+| `internal_notes` | `deriveJobScopeFromEstimate()` (scope checklist) |
+| `customer_notes` | `estimate.notes` |
+| `scheduled_date` | operator input |
+| `scheduled_time_window` | operator input (new) |
+| `payment_status` | always `'unpaid'` |
+| `status` | always `'scheduled'` |
+
+Post-conversion: estimate → `status = 'converted'`; customer `lead → active`; approval notification cleared; `revalidatePath('/today')`; redirect to `/jobs/[newJobId]`. Duplicate conversion guard unchanged.
+
+#### Time Window capture in convert panel (`f1d77a6`)
+
+`EstimateStatusActions.tsx` convert panel expanded: Scheduled Date and Time Window now appear side-by-side in a `form-row`. Time Window select (`name="scheduled_time_window"`, defaultValue `""`) offers Any time / Morning / Afternoon / Evening. Empty value passes through `str()` helper as `null`; named values save to `job.scheduled_time_window`.
+
+#### Needs Follow-up day-count fix (`4af55db` + `2ca5a86`)
+
+**Original bug:** `daysSince` was computed as `Math.floor((todayStartMs - new Date(job.completed_at).getTime()) / 86400000)`. For a job completed later in the current day, this produced a negative integer (e.g., `-1d ago`).
+
+**Root cause of hotfix crash (`2ca5a86`):** The first fix attempt passed the raw `job.completed_at` string directly to `getLocalDateStr(timeZone, date: Date)`. Dynamic Supabase `.select()` leaves the field typed as `any`, so TypeScript did not catch the type mismatch at build time. At runtime, `Intl.DateTimeFormat.format(someString)` coerced the string to `NaN` and threw `RangeError: Invalid time value`, crashing the entire `/today` server component.
+
+**Correct fix:**
+```ts
+const daysSince = job.completed_at
+  ? Math.max(0, Math.floor((todayStartMs - dateOnlyToUtcMs(getLocalDateStr(timeZone, new Date(job.completed_at)))) / 86400000))
+  : null
+```
+
+Logic:
+1. `new Date(job.completed_at)` — convert ISO string to `Date` (required by `getLocalDateStr`)
+2. `getLocalDateStr(timeZone, date)` — convert to local calendar date string (`YYYY-MM-DD`)
+3. `dateOnlyToUtcMs(dateStr)` — convert to date-only UTC milliseconds
+4. Compare against `todayStartMs` (already date-only UTC ms)
+5. `Math.max(0, ...)` — safety clamp against edge cases
+
+Display: `daysSince === 0` → `"today"`; `>= 1` → `"Xd ago"`.
+
+**Lesson:** Dynamic Supabase selects return `any`-typed fields. Always wrap ISO timestamp strings in `new Date()` before passing to helpers typed as `(date: Date)`.
+
+#### No route/nav/schema changes
+
+No new routes. No nav items. No schema migrations. No RLS changes. No env var changes.
 
 ---
 
