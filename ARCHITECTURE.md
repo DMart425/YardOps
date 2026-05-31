@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-31
-Current checkpoint commit: `08608eb` (Fix estimate default price label spacing — Phase 5K)
+Current checkpoint commit: `a28e3d1` (Add missing price guardrails — Phase 5L)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -494,6 +494,7 @@ Website/manual intake address, frequency, and service interests are written into
 | Job detail Payment Summary polish | ✅ Phase 5J | `041f355` + `389fd88` — aggregate-only display; explicit per-status branches; partial shows Price + Amount paid + Balance due; `payment_method` human-readable via `PAYMENT_METHOD_LABELS`; removed duplicate partial inline text from `JobActions.tsx` |
 | New Job property prefill polish | ✅ Phase 5K | `a3d990b` — `property.default_price` → price; property boolean columns → `service_package` (via `deriveServicePackageFromBooleans`); `service_frequency` → `job_type` (via `deriveJobTypeFromFrequency`); `job_type` select converted to controlled |
 | Save estimate price as property default on convert | ✅ Phase 5K | `b9fa8db` + `08608eb` — opt-in checkbox in convert panel; `defaultChecked` when no existing default; best-effort `properties.update` in `convertToJob()`; shows current value when one exists |
+| Missing price guardrails V1 | ✅ Phase 5L | `a28e3d1` — `markPaid()` stores `amount_paid=0` when price null; Today Unpaid shows "No price set"; Pay Reminder SMS suppressed; Complete Job panel price hint; Payment Summary "Price · Not set" |
 
 ### RLS Hardening Checklist (future — not yet applied)
 
@@ -1198,6 +1199,54 @@ No schema migrations. No RLS changes. No env var changes.
 **Data flow:** `estimates/[id]/page.tsx` fetches `properties(... default_price)` in the join and passes `propertyDefaultPrice={property.default_price ?? null}` to `EstimateStatusActions`.
 
 No schema migrations. No RLS changes. No env var changes.
+
+---
+
+### Phase 5L — Data Integrity Guardrails V1 ✅
+
+**Commit:** `a28e3d1` (Add missing price guardrails)
+
+Job `price` is nullable and intentionally optional in V1. However, null price was causing misleading displays in several places. This phase adds lightweight guardrails without blocking any operator workflows.
+
+**No migration. No schema changes. No RLS changes. No SMS builder changes. Price remains optional.**
+
+#### Task A — `markPaid()` data consistency (`a28e3d1`)
+
+`jobs/actions.ts` `markPaid()` previously stored `amount_paid: job?.price ?? null`. When price is null, this produced `payment_status='paid'` + `amount_paid=null` — inconsistent aggregate state.
+
+Fix: `amount_paid: job?.price ?? 0`. When price is null, `amount_paid = 0` is stored alongside `payment_status='paid'`. Consistent with the `completeJob()` behavior for the same case.
+
+#### Task B — Today Unpaid "No price set" display (`a28e3d1`)
+
+`today/page.tsx` Unpaid section previously computed `balance = (job.price ?? 0) - (job.amount_paid ?? 0)`, causing null-price unpaid jobs to show "$0 due" — misleading.
+
+Fix:
+```ts
+const balance = job.price != null
+  ? Math.max(0, Number(job.price) - Number(job.amount_paid ?? 0))
+  : null
+```
+Display: `balance != null ? `${balance.toFixed(0)} due` : 'No price set'`
+
+Pay Reminder SMS button also gated on `balance != null` — cannot construct a valid "$X balance" SMS without a known price.
+
+Jobs with real prices display exactly as before.
+
+#### Task C — Complete Job panel price hint (`a28e3d1`)
+
+`JobActions.tsx` Complete Job panel: static helper text added below Final Price input:
+
+> "Enter a price to record the correct payment amount and generate an invoice."
+
+Always visible when panel is open. No state. No blocking. Price remains optional.
+
+#### Task D — Payment Summary "Price · Not set" (`a28e3d1`)
+
+`jobs/[id]/page.tsx` Payment Summary: `{payPrice != null && (...)}` changed to a ternary that shows "Price · Not set" (muted) when `payPrice === null` for non-`not_billable` jobs. Previously the payment summary was silently empty for no-price completed jobs.
+
+`not_billable` branch is unaffected — it returns early with "No payment due" only.
+
+No new routes. No nav items. No schema migrations. No RLS changes. No env var changes.
 
 ---
 

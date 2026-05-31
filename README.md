@@ -2,7 +2,7 @@
 
 Private operations app for Wicksburg Lawn Service.
 
-Verified checkpoint commit: `08608eb` (Fix estimate default price label spacing — Phase 5K).
+Verified checkpoint commit: `a28e3d1` (Add missing price guardrails — Phase 5L).
 
 ## Read First
 

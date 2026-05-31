@@ -8,7 +8,7 @@ YardOps is the private operations app for Wicksburg Lawn Service.
 
 Current verified YardOps checkpoint commit:
 
-`08608eb` (Fix estimate default price label spacing — Phase 5K)
+`a28e3d1` (Add missing price guardrails — Phase 5L)
 
 The public website repo is separate:
 
@@ -174,3 +174,8 @@ These rules were learned from production bugs and must be preserved across refac
 * New Job `job_type` should derive from the selected property's `service_frequency` when a property is known: `weekly`/`biweekly` → `'recurring'`; everything else → `'one_time'`. This matches the estimate conversion rule in `convertToJob()`. Use a controlled React select (`value={jobType}`) so it updates dynamically on property change — `defaultValue` (uncontrolled) will not update after initial render.
 * Service package prefill in New Job and Job editing must prefer property boolean columns (`default_mowing_enabled`, `default_weed_eating_enabled`, `default_edging_enabled`, `default_blow_off_enabled`) over the legacy `default_service_package` string. Property booleans are the source of truth after property save. `default_service_package` is a fallback only when all four booleans are null.
 * Estimate conversion may update `property.default_price` only when the operator explicitly checks the "Save as default price" checkbox in the convert panel. Never silently update the property default price on conversion. The update is best-effort (does not block conversion if it fails) and is scoped by both `property_id` and `business_id`.
+* Do not treat missing price as $0 due in operator UI. When `job.price` is null, display "No price set" rather than a calculated $0 balance. Null price means the price is unknown, not zero.
+* Do not send pay reminder SMS when no balance can be calculated. The Pay Reminder SMS button must be suppressed when `job.price` is null — a $0 balance link is misleading and incorrect.
+* `job.price` is nullable and optional in V1. Do not add hard validation that blocks job creation, completion, or payment actions for missing price unless an explicit approved phase adds that requirement.
+* `not_billable` jobs must remain exempt from all owed/balance displays regardless of price field state. The `not_billable` branch is always first and returns early — do not merge it with price-aware logic.
+* `markPaid()` must not write `amount_paid = null`. When `job.price` is null, store `amount_paid = 0`. The `payment_status = 'paid'` + `amount_paid = null` combination is inconsistent aggregate state — zero is honest when price is unknown.

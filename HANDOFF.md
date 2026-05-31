@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-31 (08608eb)
+Last updated: 2026-05-31 (a28e3d1)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-05-31 (08608eb)
 
 ## Current Checkpoint
 
-- **Latest commit:** `08608eb` — Fix estimate default price label spacing (Phase 5K)
+- **Latest commit:** `a28e3d1` — Add missing price guardrails (Phase 5L)
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -594,6 +594,41 @@ No migrations. No schema changes. No RLS changes. No env var changes.
 
 ---
 
+### Phase 5L — Data Integrity Guardrails V1 ✅
+
+**Commit:** `a28e3d1` (Add missing price guardrails)
+
+Job `price` is nullable and intentionally optional in V1. However, null price was causing misleading displays in several places. This phase adds lightweight guardrails without blocking any operator workflows.
+
+**No migration. No schema changes. No RLS changes. Price remains optional.**
+
+#### Task A — `markPaid()` data consistency (`a28e3d1`)
+
+`jobs/actions.ts` `markPaid()` previously stored `amount_paid: job?.price ?? null`. When price is null, this produced `payment_status='paid'` + `amount_paid=null` — inconsistent aggregate state. Fix: `amount_paid: job?.price ?? 0`. Consistent with `completeJob()` behavior for the same case.
+
+#### Task B — Today Unpaid "No price set" display (`a28e3d1`)
+
+`today/page.tsx` Unpaid section previously computed `balance = (job.price ?? 0) - (job.amount_paid ?? 0)`, causing null-price unpaid jobs to show "$0 due." Fix: `balance` is now null when `job.price` is null; display branches to "No price set." Pay Reminder SMS button also gated on `balance != null` — cannot construct a valid "$X balance" SMS without a known price. Jobs with real prices display exactly as before.
+
+#### Task C — Complete Job panel price hint (`a28e3d1`)
+
+`JobActions.tsx` Complete Job panel: static helper text added below Final Price input: "Enter a price to record the correct payment amount and generate an invoice." Always visible when panel is open. No state. No blocking. Price remains optional.
+
+#### Task D — Payment Summary "Price · Not set" (`a28e3d1`)
+
+`jobs/[id]/page.tsx` Payment Summary: changed `{payPrice != null && (...)}` to a ternary showing "Price · Not set" (muted) when `payPrice === null` for non-`not_billable` jobs. Previously the summary was silently empty for no-price completed jobs. `not_billable` branch unaffected — returns early with "No payment due" only.
+
+**Verified behaviors (`a28e3d1`):**
+- ✅ `markPaid()` stores `amount_paid = 0` (not null) when job has no price — no more `payment_status='paid'` + `amount_paid=null` inconsistency
+- ✅ Today Unpaid section shows "No price set" for null-price jobs instead of misleading "$0 due"
+- ✅ Today Unpaid Pay Reminder SMS button suppressed when `job.price` is null
+- ✅ Jobs with real prices in Today Unpaid display exactly as before
+- ✅ Complete Job panel shows static price hint text under the Final Price field
+- ✅ Payment Summary shows "Price · Not set" (muted) for null-price completed jobs instead of silently omitting the price row
+- ✅ `not_billable` jobs unaffected by all of the above — still return early with "No payment due"
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -615,6 +650,7 @@ No migrations. No schema changes. No RLS changes. No env var changes.
 
 | Hash | Description |
 |------|-------------|
+| `a28e3d1` | Add missing price guardrails (Phase 5L) |
 | `08608eb` | Fix estimate default price label spacing (Phase 5K) |
 | `b9fa8db` | Save estimate price as property default on convert (Phase 5K) |
 | `a3d990b` | Polish new job property prefill (Phase 5K) |
@@ -928,6 +964,7 @@ All of the following were user-tested and confirmed working as of `289b732`:
 | Phase 5I — Estimate conversion job type + day-count fix | ✅ Complete | `f1d77a6` + `4af55db` + `2ca5a86` — `job_type` derives from frequency, time window in convert panel, day-count local date fix, hotfix for runtime crash; no migration |
 | Phase 5J — Payment Summary polish | ✅ Complete | `041f355` + `389fd88` — Payment Summary card on completed job detail; explicit per-status branches; `not_billable` safe; human-readable payment method; duplicate partial text removed from `JobActions.tsx`; no migration |
 | Phase 5K — New Job prefill + estimate price default | ✅ Complete | `a3d990b` + `b9fa8db` + `08608eb` — price/package/job_type prefill from property; controlled `job_type` select; estimate→property default price opt-in checkbox; label spacing fix; no migration |
+| Phase 5L — Data integrity guardrails V1 | ✅ Complete | `a28e3d1` — `markPaid()` stores `amount_paid=0` when price null; Today Unpaid "No price set"; Pay Reminder SMS gated on known balance; Complete Job price hint; Payment Summary "Price · Not set"; no migration |
 | Route balancing / auto-scheduling follow-up | ⏸ Future | `Property.schedule_anchor_date` reserved; do not implement until explicitly asked |
 | `schedule_anchor_date` — no UI yet | ⏸ Future | Column exists in schema; no read or write path built |
 | Weather/rain-day shifting for scheduling | ⏸ Future | Not planned |
@@ -952,7 +989,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
 | 3 | Public intake and lead workflow improvements | ✅ Complete — all listed tasks done through `ec48565`; payment bugfixes continued in Phase 4 |
 | 4 | Operations UX / workflow polish | ✅ Substantially complete — 4A–4D + cleanup batch done (`463e762`) |
-| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A ✅, 5B ✅, 5C ✅, 5D ✅, 5E ✅, 5F ✅, 5G ✅, 5H ✅, 5I ✅, 5J ✅, 5K ✅ complete (`08608eb`); next TBD |
+| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A ✅, 5B ✅, 5C ✅, 5D ✅, 5E ✅, 5F ✅, 5G ✅, 5H ✅, 5I ✅, 5J ✅, 5K ✅, 5L ✅ complete (`a28e3d1`); next TBD |
 
 **Permanent Future-Handoff Requirements** (mandatory — see Architecture.md §16):
 Every future handoff must instruct the next chat to read ARCHITECTURE.md and HANDOFF.md first, remind it to update those docs after any verified/committed change, state the latest commit, current phase status, open items, workflow guardrails, and known security follow-ups (no secret values).
@@ -961,11 +998,11 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Phase 5L planning — next area TBD**
+**Phase 5M planning — next area TBD**
 
-Phase 5A–5K are all production-verified and complete as of `08608eb`.
+Phase 5A–5L are all production-verified and complete as of `a28e3d1`.
 
-**Completed Phase 5A–5K work:**
+**Completed Phase 5A–5L work:**
 - ✅ Customers list unpaid balance badges
 - ✅ Customer detail Outstanding Balance section
 - ✅ Balance reminder SMS with portal link
@@ -999,8 +1036,12 @@ Phase 5A–5K are all production-verified and complete as of `08608eb`.
 - ✅ New Job form prefills price / service package / job type from property defaults
 - ✅ New Job `job_type` select is controlled — updates dynamically on property change
 - ✅ Estimate conversion opt-in "Save as default price" checkbox with current-value hint
+- ✅ `markPaid()` stores `amount_paid=0` (not null) when job has no price
+- ✅ Today Unpaid shows "No price set" for null-price jobs; Pay Reminder SMS suppressed when balance unknown
+- ✅ Complete Job panel static price hint text
+- ✅ Payment Summary shows "Price · Not set" for null-price completed jobs
 
-**Next Phase 5L candidates:**
+**Next Phase 5M candidates:**
 1. `JobActions` SMS business phone — wire `businessPhone` into on-my-way / day-before / job-complete SMS
 2. Portal enhancements — customer-facing UX improvements
 3. Revenue/expense reporting — more useful Finances page analytics
