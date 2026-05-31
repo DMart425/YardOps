@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-31 (a28e3d1)
+Last updated: 2026-05-31 (67b9e80)
 
 ---
 
@@ -629,6 +629,36 @@ Job `price` is nullable and intentionally optional in V1. However, null price wa
 
 ---
 
+### Phase 5M — Customer/Property Navigation Polish ✅
+
+**Commits:** `b8444dd` (Polish customer property navigation) · `67b9e80` (Rename estimate actions card)
+
+UI/nav-only phase. No new routes, no server action changes, no schema changes, no RLS changes, no env var changes.
+
+#### Tasks completed
+
+1. **Customer detail `+ New Estimate` button** — added alongside existing `+ New Job` in header; passes `customer_id` to `/estimates/new`
+2. **Customer detail property card label** — "Edit Property" renamed to "View Property" (action verb clarified, href unchanged)
+3. **Property detail `+ New Estimate` button** — added to header button group alongside "Jobs" and `+ New Job`; passes `customer_id` + `property_id`; `flexWrap: 'wrap'` added for mobile safety
+4. **Property info card `View Customer` row** — added linked Customer row inside address/service info card; uses `currentCustomerName` (already computed) and `p.customer_id` (already available) — no new query
+5. **Job detail `View Estimate →` row** — conditional row in info card; shown only when `job.estimate_id` is set; uses `select('*')` result already fetched — no new query
+6. **Estimate action buttons renamed** — "Customer" → "View Customer", "Property" → "View Property"
+7. **Estimate summary card clickable rows** — Customer and Property values now render as `<Link>` to their detail pages (matching job detail pattern)
+8. **Estimate inner card heading** — "Actions" → "Manage Estimate" (resolves redundant "Action Center → Actions" nesting)
+
+**Verified behaviors (`b8444dd` + `67b9e80`):**
+- ✅ Customer detail header shows `+ New Estimate` and `+ New Job` side by side; both pass `customer_id` to creation routes
+- ✅ Customer detail property cards show "View Property" (not "Edit Property")
+- ✅ Property detail header shows "Jobs", `+ New Estimate`, `+ New Job`; all pass available context params
+- ✅ Property info card shows "Customer" row with clickable customer name linking to customer detail
+- ✅ Job detail shows "View Estimate →" row only when `job.estimate_id` is set; links to estimate detail
+- ✅ Estimate detail action buttons labeled "View Customer" and "View Property"
+- ✅ Estimate summary card Customer and Property values are clickable links to their respective detail pages
+- ✅ Estimate detail inner actions card heading reads "Manage Estimate" (not "Actions")
+- ✅ No new DB queries introduced — all data already available from existing fetches
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -650,6 +680,8 @@ Job `price` is nullable and intentionally optional in V1. However, null price wa
 
 | Hash | Description |
 |------|-------------|
+| `67b9e80` | Rename estimate actions card (Phase 5M) |
+| `b8444dd` | Polish customer property navigation (Phase 5M) |
 | `a28e3d1` | Add missing price guardrails (Phase 5L) |
 | `08608eb` | Fix estimate default price label spacing (Phase 5K) |
 | `b9fa8db` | Save estimate price as property default on convert (Phase 5K) |
@@ -965,11 +997,12 @@ All of the following were user-tested and confirmed working as of `289b732`:
 | Phase 5J — Payment Summary polish | ✅ Complete | `041f355` + `389fd88` — Payment Summary card on completed job detail; explicit per-status branches; `not_billable` safe; human-readable payment method; duplicate partial text removed from `JobActions.tsx`; no migration |
 | Phase 5K — New Job prefill + estimate price default | ✅ Complete | `a3d990b` + `b9fa8db` + `08608eb` — price/package/job_type prefill from property; controlled `job_type` select; estimate→property default price opt-in checkbox; label spacing fix; no migration |
 | Phase 5L — Data integrity guardrails V1 | ✅ Complete | `a28e3d1` — `markPaid()` stores `amount_paid=0` when price null; Today Unpaid "No price set"; Pay Reminder SMS gated on known balance; Complete Job price hint; Payment Summary "Price · Not set"; no migration |
+| Phase 5M — Customer/property navigation polish | ✅ Complete | `b8444dd` + `67b9e80` — contextual `+ New Estimate` buttons; `View Customer` linked row; `View Estimate →` on job detail; clickable estimate summary rows; renamed action buttons; `Manage Estimate` card heading; no migration |
 | Route balancing / auto-scheduling follow-up | ⏸ Future | `Property.schedule_anchor_date` reserved; do not implement until explicitly asked |
 | `schedule_anchor_date` — no UI yet | ⏸ Future | Column exists in schema; no read or write path built |
 | Weather/rain-day shifting for scheduling | ⏸ Future | Not planned |
 | Printable/downloadable portal invoice PDF | ⏸ Future | Portal invoice page is web-only; PDF export not yet added |
-| Job detail View Estimate link | ⏸ Future | When `job.estimate_id` exists — not yet added |
+| Job detail View Estimate link | ✅ Complete | `b8444dd` — conditional `View Estimate →` row on job detail when `job.estimate_id` is set |
 | Convert-to-job date/time pre-fill polish | ⏸ Future | Deferred — Phase 5 candidate |
 | Public quote page phone source | ⏸ Future | Uses separate data path; not updated in Phase 5B |
 | `JobActions` SMS business phone | ⏸ Future | On-my-way / day-before / job-complete SMS bodies; `businessPhone` not yet passed as prop |
@@ -989,7 +1022,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
 | 3 | Public intake and lead workflow improvements | ✅ Complete — all listed tasks done through `ec48565`; payment bugfixes continued in Phase 4 |
 | 4 | Operations UX / workflow polish | ✅ Substantially complete — 4A–4D + cleanup batch done (`463e762`) |
-| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A ✅, 5B ✅, 5C ✅, 5D ✅, 5E ✅, 5F ✅, 5G ✅, 5H ✅, 5I ✅, 5J ✅, 5K ✅, 5L ✅ complete (`a28e3d1`); next TBD |
+| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A ✅, 5B ✅, 5C ✅, 5D ✅, 5E ✅, 5F ✅, 5G ✅, 5H ✅, 5I ✅, 5J ✅, 5K ✅, 5L ✅, 5M ✅ complete (`67b9e80`); next TBD |
 
 **Permanent Future-Handoff Requirements** (mandatory — see Architecture.md §16):
 Every future handoff must instruct the next chat to read ARCHITECTURE.md and HANDOFF.md first, remind it to update those docs after any verified/committed change, state the latest commit, current phase status, open items, workflow guardrails, and known security follow-ups (no secret values).
@@ -998,11 +1031,11 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Phase 5M planning — next area TBD**
+**Phase 5N planning — next area TBD**
 
-Phase 5A–5L are all production-verified and complete as of `a28e3d1`.
+Phase 5A–5M are all production-verified and complete as of `67b9e80`.
 
-**Completed Phase 5A–5L work:**
+**Completed Phase 5A–5M work:**
 - ✅ Customers list unpaid balance badges
 - ✅ Customer detail Outstanding Balance section
 - ✅ Balance reminder SMS with portal link
@@ -1040,14 +1073,18 @@ Phase 5A–5L are all production-verified and complete as of `a28e3d1`.
 - ✅ Today Unpaid shows "No price set" for null-price jobs; Pay Reminder SMS suppressed when balance unknown
 - ✅ Complete Job panel static price hint text
 - ✅ Payment Summary shows "Price · Not set" for null-price completed jobs
+- ✅ Customer and property detail pages have `+ New Estimate` header buttons with contextual `customer_id`/`property_id` params
+- ✅ Property info card shows linked `View Customer` row — no new query
+- ✅ Job detail shows conditional `View Estimate →` row when `job.estimate_id` is set — no new query
+- ✅ Estimate summary card Customer and Property rows are clickable links
+- ✅ Estimate action buttons labeled "View Customer" / "View Property"; inner card heading "Manage Estimate"
 
-**Next Phase 5M candidates:**
+**Next Phase 5N candidates:**
 1. `JobActions` SMS business phone — wire `businessPhone` into on-my-way / day-before / job-complete SMS
 2. Portal enhancements — customer-facing UX improvements
 3. Revenue/expense reporting — more useful Finances page analytics
 4. Bulk job actions — mark multiple jobs paid, batch scheduling
 5. Printable portal invoice PDF — web-only currently
-6. Job detail → View Estimate link when `job.estimate_id` exists
 
 **Phase 3 completed tasks (all user-tested in production — historical record):**
 1. ~~Frequency display — website lead detail page~~ ✅ (`0589026`)

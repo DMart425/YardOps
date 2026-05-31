@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-31
-Current checkpoint commit: `a28e3d1` (Add missing price guardrails — Phase 5L)
+Current checkpoint commit: `67b9e80` (Rename estimate actions card — Phase 5M)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -495,6 +495,7 @@ Website/manual intake address, frequency, and service interests are written into
 | New Job property prefill polish | ✅ Phase 5K | `a3d990b` — `property.default_price` → price; property boolean columns → `service_package` (via `deriveServicePackageFromBooleans`); `service_frequency` → `job_type` (via `deriveJobTypeFromFrequency`); `job_type` select converted to controlled |
 | Save estimate price as property default on convert | ✅ Phase 5K | `b9fa8db` + `08608eb` — opt-in checkbox in convert panel; `defaultChecked` when no existing default; best-effort `properties.update` in `convertToJob()`; shows current value when one exists |
 | Missing price guardrails V1 | ✅ Phase 5L | `a28e3d1` — `markPaid()` stores `amount_paid=0` when price null; Today Unpaid shows "No price set"; Pay Reminder SMS suppressed; Complete Job panel price hint; Payment Summary "Price · Not set" |
+| Customer/property navigation polish | ✅ Phase 5M | `b8444dd` + `67b9e80` — contextual `+ New Estimate` buttons on customer and property detail; `View Customer` linked row in property info card; `View Estimate →` link on job detail; clickable Customer/Property rows in estimate summary; `View Customer`/`View Property` action buttons; `Manage Estimate` card heading |
 
 ### RLS Hardening Checklist (future — not yet applied)
 
@@ -1247,6 +1248,47 @@ Always visible when panel is open. No state. No blocking. Price remains optional
 `not_billable` branch is unaffected — it returns early with "No payment due" only.
 
 No new routes. No nav items. No schema migrations. No RLS changes. No env var changes.
+
+---
+
+### Phase 5M — Customer/Property Navigation Polish ✅
+
+**Commits:** `b8444dd` (Polish customer property navigation) · `67b9e80` (Rename estimate actions card)
+
+UI/nav-only phase. No new routes, no server action changes, no schema changes, no RLS changes, no env var changes.
+
+#### Navigation links added
+
+| From | Link added | Target |
+|------|-----------|--------|
+| Customer detail header | `+ New Estimate` button | `/estimates/new?customer_id={id}` |
+| Customer detail property card | `View Property` label | `/properties/{id}` (renamed from "Edit Property") |
+| Property detail header | `+ New Estimate` button | `/estimates/new?customer_id={cid}&property_id={pid}` |
+| Property info card | `View Customer` linked row | `/customers/{customer_id}` |
+| Job detail info card | `View Estimate →` row (conditional) | `/estimates/{estimate_id}` — shown only when `job.estimate_id` exists |
+| Estimate summary card | Clickable Customer row | `/customers/{customer_id}` |
+| Estimate summary card | Clickable Property row | `/properties/{property_id}` |
+| Estimate action buttons | `View Customer` / `View Property` | Renamed from bare "Customer" / "Property" |
+
+#### Label standard
+
+| Context | Label |
+|---------|-------|
+| Button navigating to customer detail | `View Customer` |
+| Button navigating to property detail | `View Property` |
+| Link navigating to estimate detail | `View Estimate →` |
+| Estimate action section inner card | `Manage Estimate` (was "Actions" — redundant under "Action Center") |
+
+#### Files changed (`b8444dd`)
+
+- `src/app/(protected)/customers/[id]/page.tsx` — `+ New Estimate` header button; "Edit Property" → "View Property" (all property card loops)
+- `src/app/(protected)/properties/[id]/page.tsx` — `+ New Estimate` header button (`flexWrap: 'wrap'` for mobile); `View Customer` linked row in info card
+- `src/app/(protected)/jobs/[id]/page.tsx` — conditional `View Estimate →` row when `job.estimate_id` is set
+- `src/app/(protected)/estimates/[id]/page.tsx` — clickable Customer/Property rows in summary card; `View Customer`/`View Property` action buttons
+
+#### File changed (`67b9e80`)
+
+- `src/app/(protected)/estimates/[id]/page.tsx` — inner card heading renamed from "Actions" to "Manage Estimate"
 
 ---
 

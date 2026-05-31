@@ -2,7 +2,7 @@
 
 Private operations app for Wicksburg Lawn Service.
 
-Verified checkpoint commit: `a28e3d1` (Add missing price guardrails — Phase 5L).
+Verified checkpoint commit: `67b9e80` (Rename estimate actions card — Phase 5M).
 
 ## Read First
 

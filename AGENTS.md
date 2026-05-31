@@ -8,7 +8,7 @@ YardOps is the private operations app for Wicksburg Lawn Service.
 
 Current verified YardOps checkpoint commit:
 
-`a28e3d1` (Add missing price guardrails — Phase 5L)
+`67b9e80` (Rename estimate actions card — Phase 5M)
 
 The public website repo is separate:
 
@@ -179,3 +179,7 @@ These rules were learned from production bugs and must be preserved across refac
 * `job.price` is nullable and optional in V1. Do not add hard validation that blocks job creation, completion, or payment actions for missing price unless an explicit approved phase adds that requirement.
 * `not_billable` jobs must remain exempt from all owed/balance displays regardless of price field state. The `not_billable` branch is always first and returns early — do not merge it with price-aware logic.
 * `markPaid()` must not write `amount_paid = null`. When `job.price` is null, store `amount_paid = 0`. The `payment_status = 'paid'` + `amount_paid = null` combination is inconsistent aggregate state — zero is honest when price is unknown.
+* Workflow polish should preserve context with query params when creating jobs/estimates from customer/property pages. `/jobs/new` and `/estimates/new` both accept `customer_id` and `property_id` params that pre-select the customer and property in the form. Always pass available context when linking to creation routes.
+* Use clear navigation labels with action verbs: `View Customer`, `View Property`, `View Estimate`. Do not use bare nouns ("Customer", "Property") as button labels when the button navigates to that entity's detail page.
+* Avoid redundant nested section labels. If a page section is already titled "Action Center", the inner card should not also be titled "Actions". Use a descriptive label like "Manage Estimate" instead.
+* Do not add navigation polish by changing business logic, server actions, or routes unless explicitly approved. Navigation improvements are link additions and label changes only.
