@@ -8,7 +8,7 @@ YardOps is the private operations app for Wicksburg Lawn Service.
 
 Current verified YardOps checkpoint commit:
 
-`fd5ecd3` (Show preferred day on property detail — Phase 5F)
+`74b8a90` (Add today action brief sections — Phase 5G)
 
 The public website repo is separate:
 
@@ -157,3 +157,6 @@ These rules were learned from production bugs and must be preserved across refac
 * Suggestion chips must explain why they suggest a date (note: "7-day cadence", "Preferred day", "Lighter day (N jobs)"). Do not show a chip without a note.
 * Do not add route balancing, weather-based shifting, or auto-scheduling to `ScheduleFollowUpCard` until explicitly asked. Those remain deferred. `Property.schedule_anchor_date` exists in the schema for future use and must not be dropped.
 * `Property.preferred_service_day` is property-scoped and optional. It is captured on `/leads/new`, in `PropertyForm`, and displayed on the property detail page. It must never be used to force a scheduled date — it is a hint for suggestion chips only. Do not promote it to a scheduling authority without explicit approval.
+* `/today` is the operator operations brief surface — the home dashboard that root redirects to. All additions to `/today` must be actionable and lightweight. Prefer links to existing action pages (e.g., `/jobs/[id]`, `/estimates/[id]`) over hidden automation or background side effects.
+* `not_billable` jobs must never inflate owed balances or collected revenue metrics. `not_billable` contributes 0 to `amount_paid` sums naturally — do not add special-case overrides that change this.
+* Do not add auto-scheduling, auto-follow-up creation, or any operator-bypassing automation to the Today dashboard without explicit approval. Today sections are read-only/action-link surfaces only.

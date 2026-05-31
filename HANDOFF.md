@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-31 (fd5ecd3)
+Last updated: 2026-05-31 (74b8a90)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-05-31 (fd5ecd3)
 
 ## Current Checkpoint
 
-- **Latest commit:** `fd5ecd3` — Show preferred day on property detail (Phase 5F)
+- **Latest commit:** `74b8a90` — Add today action brief sections (Phase 5G)
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -446,6 +446,41 @@ Key commits: `fbe63c0`, `3f5645c`, `b93e836`, `406f727`, `dd7dbb6`, `30df416`, `
 
 ---
 
+### Phase 5G — Today Operations Brief ✅
+
+**Commits:** `0a4ce23` (stat cards), `74b8a90` (action sections)
+
+#### Phase 5G-A — Stat cards (`0a4ce23`)
+
+Two new stat cards added to the `/today` stat grid:
+
+- **Collected today** — sum of `amount_paid` from completed-today jobs; `not_billable` contributes 0 naturally; hidden when zero; links to Jobs filtered by today's completions
+- **This week** — count of scheduled/in-progress/needs-reschedule jobs for current Sunday–Saturday week; also shows expected revenue (sum of `price`); links to `/jobs?filter=week`
+
+Week range uses Sunday-start UTC calculation matching `jobs/page.tsx` pattern.
+
+No migration. No nav changes. No env changes.
+
+#### Phase 5G-B — Action sections (`74b8a90`)
+
+Two new conditional sections added to `/today` after Tomorrow's Jobs, before Unpaid:
+
+**Needs Follow-up**
+- Query: `jobs` where `status=completed`, `job_type=recurring`, `next_job_created_id IS NULL`, `completed_at >= 30 days ago`; limit 10
+- Shows: job title, customer name, property address, completed date, service frequency
+- CTA: **Schedule Follow-up** → `/jobs/[id]`
+- Section hidden when empty; disappears naturally after follow-up is scheduled (`next_job_created_id` populated)
+
+**Approved Estimates Waiting**
+- Query: `estimates` where `status=approved`; limit 5
+- Shows: customer name, property address, estimate total, created date; `pill-approved` badge
+- CTA: **Schedule Job** → `/estimates/[id]`
+- Section hidden when empty; disappears naturally when estimate leaves `approved` status
+
+No migration. No new routes. No nav changes. No RLS changes.
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -467,6 +502,9 @@ Key commits: `fbe63c0`, `3f5645c`, `b93e836`, `406f727`, `dd7dbb6`, `30df416`, `
 
 | Hash | Description |
 |------|-------------|
+| `74b8a90` | Add today action brief sections (Phase 5G) |
+| `0a4ce23` | Add today revenue and week summary (Phase 5G) |
+| `c97cfef` | Docs checkpoint — Phase 5F (no code changes) |
 | `fd5ecd3` | Show preferred day on property detail (Phase 5F) |
 | `b90d0c3` | Add preferred service day to manual leads (Phase 5F) |
 | `12edbd6` | Docs checkpoint — Phase 5E (no code changes) |
@@ -705,6 +743,10 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ "Any day" (empty selection) saves as `null` via `str()` helper; weekday values save as lowercase string (e.g. `thursday`) (`b90d0c3`)
 - ✅ Property detail summary card displays Preferred day row below Frequency; null shows "Any day"; set values show title-cased weekday (e.g. Thursday) (`fd5ecd3`)
 - ✅ Scheduling helper 💡 chip now usable immediately for properties created through `/leads/new` — no additional setup needed (`b90d0c3` + Phase 5E)
+- ✅ Today page shows **This week** stat card — count of scheduled/in-progress/needs-reschedule jobs for the current Sunday–Saturday window; includes expected revenue (sum of `price`) when > 0; links to `/jobs?filter=week` (`0a4ce23`)
+- ✅ Today page shows **Collected today** stat card when amount_paid from completed-today jobs is > 0 — uses `amount_paid` not `price`; `not_billable` contributes 0 naturally; hidden when zero (`0a4ce23`)
+- ✅ Today page **Needs Follow-up** section shows completed recurring jobs from the last 30 days where no follow-up has been created (`next_job_created_id IS NULL`); section hidden when empty; CTA links to job detail to schedule follow-up; disappears after follow-up is scheduled (`74b8a90`)
+- ✅ Today page **Approved Estimates Waiting** section shows approved estimates pending scheduling (limit 5); section hidden when empty; `pill-approved` badge shown; CTA links to estimate detail to convert to job; disappears after estimate leaves approved status (`74b8a90`)
 
 ---
 
@@ -730,6 +772,7 @@ All of the following were user-tested and confirmed working as of `289b732`:
 | Phase 5D — Follow-up completion-date anchor | ✅ Complete | `b985bb3` — `ScheduleFollowUpCard` anchors from `completed_at`; no migration |
 | Phase 5E — Optional scheduling helper chips | ✅ Complete | `315268c` + `49c051f` — cadence, preferred-day, lighter-workload chips; no migration |
 | Phase 5F — Manual lead preferred service day | ✅ Complete | `b90d0c3` + `fd5ecd3` — capture in `/leads/new`, display on property detail; no migration |
+| Phase 5G — Today operations brief | ✅ Complete | `0a4ce23` + `74b8a90` — stat cards (Collected today, This week) + action sections (Needs Follow-up, Approved Estimates Waiting); no migration |
 | Route balancing / auto-scheduling follow-up | ⏸ Future | `Property.schedule_anchor_date` reserved; do not implement until explicitly asked |
 | `schedule_anchor_date` — no UI yet | ⏸ Future | Column exists in schema; no read or write path built |
 | Weather/rain-day shifting for scheduling | ⏸ Future | Not planned |
@@ -754,7 +797,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
 | 3 | Public intake and lead workflow improvements | ✅ Complete — all listed tasks done through `ec48565`; payment bugfixes continued in Phase 4 |
 | 4 | Operations UX / workflow polish | ✅ Substantially complete — 4A–4D + cleanup batch done (`463e762`) |
-| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A ✅, 5B ✅, 5C ✅, 5D ✅, 5E ✅, 5F ✅ complete (`fd5ecd3`); 5G TBD |
+| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A ✅, 5B ✅, 5C ✅, 5D ✅, 5E ✅, 5F ✅, 5G ✅ complete (`74b8a90`); next TBD |
 
 **Permanent Future-Handoff Requirements** (mandatory — see Architecture.md §16):
 Every future handoff must instruct the next chat to read ARCHITECTURE.md and HANDOFF.md first, remind it to update those docs after any verified/committed change, state the latest commit, current phase status, open items, workflow guardrails, and known security follow-ups (no secret values).
@@ -763,11 +806,11 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Phase 5G planning — next area TBD**
+**Phase 5H planning — next area TBD**
 
-Phase 5A–5F are all production-verified and complete as of `fd5ecd3`.
+Phase 5A–5G are all production-verified and complete as of `74b8a90`.
 
-**Completed Phase 5A–5F work:**
+**Completed Phase 5A–5G work:**
 - ✅ Customers list unpaid balance badges
 - ✅ Customer detail Outstanding Balance section
 - ✅ Balance reminder SMS with portal link
@@ -786,15 +829,17 @@ Phase 5A–5F are all production-verified and complete as of `fd5ecd3`.
 - ✅ `getClosestWeekdayNearDate` — correct backward+forward preferred-day logic in `src/lib/date.ts`
 - ✅ `/leads/new` captures Preferred Service Day; `createLead()` saves it to property
 - ✅ Property detail summary card displays Preferred day (null → "Any day"; set → title-cased)
+- ✅ Today dashboard Collected today + This week stat cards
+- ✅ Today dashboard Needs Follow-up action section
+- ✅ Today dashboard Approved Estimates Waiting action section
 
 **Next Phase 5 candidates:**
 1. Job detail View Estimate link — add back-link from job to its source estimate
 2. `JobActions` SMS business phone — wire `businessPhone` into on-my-way / day-before / job-complete SMS
 3. Portal enhancements — customer-facing UX improvements
-4. Operational weekly summary — improve daily/weekly brief for the operator
-5. Revenue/expense reporting — more useful Finances page analytics
-6. Bulk job actions — mark multiple jobs paid, batch scheduling
-7. Printable portal invoice PDF — web-only currently
+4. Revenue/expense reporting — more useful Finances page analytics
+5. Bulk job actions — mark multiple jobs paid, batch scheduling
+6. Printable portal invoice PDF — web-only currently
 
 **Phase 3 completed tasks (all user-tested in production — historical record):**
 1. ~~Frequency display — website lead detail page~~ ✅ (`0589026`)

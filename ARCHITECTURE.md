@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-31
-Current checkpoint commit: `fd5ecd3` (Show preferred day on property detail — Phase 5F)
+Current checkpoint commit: `74b8a90` (Add today action brief sections — Phase 5G)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -27,7 +27,7 @@ YardOps enables the operator to:
 - Schedule and complete jobs, with optional photo logging
 - Track partial and full payments, generate invoices
 - Log outbound SMS activity
-- Monitor daily/weekly workflow and cash flow
+- Monitor daily/weekly workflow and cash flow via the `/today` operations brief (home dashboard)
 - Manage equipment and maintenance schedules
 - Generate customer portal links
 
@@ -480,6 +480,9 @@ Website/manual intake address, frequency, and service interests are written into
 | Preferred weekday snapping — V1 suggestion chip | ✅ Phase 5E | Optional 💡 chip in `ScheduleFollowUpCard`; uses `getClosestWeekdayNearDate` (±4 days, backward+forward, min=today); chip suppressed when no valid candidate |
 | `preferred_service_day` capture in `/leads/new` | ✅ Phase 5F | `b90d0c3` — dropdown beside Requested Frequency; empty saves as null; no migration |
 | `preferred_service_day` display on property detail | ✅ Phase 5F | `fd5ecd3` — Preferred day row in address + service info card; null shows "Any day" |
+| Today page Collected today + This week stat cards | ✅ Phase 5G | `0a4ce23` — Collected today sums `amount_paid` from completed-today jobs (hides when zero); This week shows scheduled job count + expected revenue for current Sunday–Saturday window |
+| Today page Needs Follow-up section | ✅ Phase 5G | `74b8a90` — recurring completed jobs with `next_job_created_id IS NULL` in last 30 days; limit 10; CTA links to `/jobs/[id]`; hides when empty |
+| Today page Approved Estimates Waiting section | ✅ Phase 5G | `74b8a90` — approved estimates pending scheduling; limit 5; CTA links to `/estimates/[id]`; hides when empty |
 | Route balancing / auto-scheduling for follow-up | ⏸ Future | Distributing customers evenly across the week is a larger feature; auto-scheduling on completion is not built; `Property.schedule_anchor_date` reserved for this; do not implement until explicitly asked |
 | Printable/downloadable portal invoice PDF | ⏸ Future | Portal invoice page is web-only; PDF export not yet added |
 
@@ -911,6 +914,51 @@ fwdDays  = 7 - backDays                     // days to go forward (always backDa
 | `ScheduleFollowUpCard` 💡 chip | ✅ Phase 5E | — |
 | `jobs/[id]/page.tsx` join | ✅ Phase 5E | — |
 | `customers/[id]/page.tsx` | ✅ Pre-existing | — |
+
+---
+
+### Phase 5G — Today Operations Brief
+
+**Goal:** Enhance `/today` (the operations home) with actionable summary sections beyond job lists — giving the operator a fast at-a-glance read on what needs attention.
+
+**Status:** ✅ Complete (2026-05-31)
+
+**Commits:** `0a4ce23` (stat cards), `74b8a90` (action sections)
+
+#### `/today` as the operations brief
+
+`/today` is the operator's home dashboard — the root path redirects to it. After Phase 5G it runs ~14 parallel queries and assembles a complete daily operations view. All additions are read-only link surfaces. No automation, no background side effects.
+
+#### Phase 5G-A — Stat cards (`0a4ce23`)
+
+Two new stat cards added to the stat grid:
+
+| Card | Logic | Notes |
+|------|-------|-------|
+| **Collected today** | Sum of `amount_paid` from completed-today jobs | `not_billable` contributes 0 naturally; hidden when zero; links to Jobs filtered by today's completions |
+| **This week** | Count + expected revenue of scheduled/in-progress/needs-reschedule jobs for current Sunday–Saturday week | Week range uses Sunday-start UTC calculation matching `jobs/page.tsx` pattern; links to `/jobs?filter=week` |
+
+#### Phase 5G-B — Action sections (`74b8a90`)
+
+Two new conditional sections inserted after Tomorrow's Jobs, before Unpaid:
+
+**Needs Follow-up**
+- Query: `jobs` where `status=completed`, `job_type=recurring`, `next_job_created_id IS NULL`, `completed_at >= 30 days ago`; limit 10
+- Shows: job title, customer name, property address, completed date, service frequency
+- CTA: **Schedule Follow-up** → `/jobs/[id]`
+- Disappears naturally when follow-up is created (`next_job_created_id` populated by `scheduleFollowUpJob`)
+
+**Approved Estimates Waiting**
+- Query: `estimates` where `status=approved`; limit 5
+- Shows: customer name, property address, estimate total, created date; `pill-approved` badge
+- CTA: **Schedule Job** → `/estimates/[id]`
+- Disappears naturally when estimate leaves `approved` status (converted/declined/expired)
+
+Both sections are hidden when empty — no visual noise on a clean dashboard.
+
+#### No route/nav/schema changes
+
+No new routes added. No nav items added. No schema migrations. No env var changes.
 
 ---
 
