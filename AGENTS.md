@@ -8,7 +8,7 @@ YardOps is the private operations app for Wicksburg Lawn Service.
 
 Current verified YardOps checkpoint commit:
 
-`e2d42a1` (Polish estimate detail states — Phase 5N)
+`0e91bf9` (Fix no-price outstanding balance displays — Phase 5O)
 
 The public website repo is separate:
 
@@ -183,6 +183,11 @@ These rules were learned from production bugs and must be preserved across refac
 * Use clear navigation labels with action verbs: `View Customer`, `View Property`, `View Estimate`. Do not use bare nouns ("Customer", "Property") as button labels when the button navigates to that entity's detail page.
 * Avoid redundant nested section labels. If a page section is already titled "Action Center", the inner card should not also be titled "Actions". Use a descriptive label like "Manage Estimate" instead.
 * Do not add navigation polish by changing business logic, server actions, or routes unless explicitly approved. Navigation improvements are link additions and label changes only.
+* Do not hide no-price unpaid/partial jobs from customer awareness when an existing balance surface is present. Track them separately as `noPriceUnpaidJobs` and display a muted note prompting the operator to set a price — do not silently omit them.
+* Do not include no-price jobs in balance reminder SMS totals. The SMS button must be gated on `outstandingJobs.length > 0` (calculable priced balances only). A null-price job cannot produce a valid dollar amount for an SMS body.
+* Do not show `$0 owed` or `$0 due` for null-price jobs. When `job.price` is null, the balance is unknown — not zero. Always compute balance as `job.price != null ? Math.max(0, Number(job.price) - Number(job.amount_paid ?? 0)) : null` and gate owed/due display on `balance != null`.
+* Do not add property-level outstanding balance sections unless explicitly approved. Balance display is a customer-level surface (`customers/[id]`) only. Property pages intentionally do not show per-property outstanding balances in V1.
+* Keep no-price display fixes separate from payment action logic unless explicitly approved. `noPriceUnpaidJobs` is a UI-only display variable — it must never feed into `outstandingJobs`, `totalUnpaid`, SMS bodies, portal token creation, or any payment action.
 * Estimate detail pages must clearly communicate the estimate's current state and the correct next action. Each status (`draft`, `sent`, `approved`, `converted`, `declined`) should have a visible top-of-page banner or notice that orients the operator.
 * Converted estimates should direct the operator to the job. Do not show Schedule Visit or Send to Customer cards on converted estimates — the job is the relevant record after conversion.
 * Declined estimates are closed. Do not show Schedule Visit or Send to Customer cards on declined estimates. The page should be visually quiet with a clear "declined" indicator.

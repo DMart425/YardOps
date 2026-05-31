@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-31
-Current checkpoint commit: `e2d42a1` (Polish estimate detail states — Phase 5N)
+Current checkpoint commit: `0e91bf9` (Fix no-price outstanding balance displays — Phase 5O)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -497,6 +497,7 @@ Website/manual intake address, frequency, and service interests are written into
 | Missing price guardrails V1 | ✅ Phase 5L | `a28e3d1` — `markPaid()` stores `amount_paid=0` when price null; Today Unpaid shows "No price set"; Pay Reminder SMS suppressed; Complete Job panel price hint; Payment Summary "Price · Not set" |
 | Customer/property navigation polish | ✅ Phase 5M | `b8444dd` + `67b9e80` — contextual `+ New Estimate` buttons on customer and property detail; `View Customer` linked row in property info card; `View Estimate →` link on job detail; clickable Customer/Property rows in estimate summary; `View Customer`/`View Property` action buttons; `Manage Estimate` card heading |
 | Estimate detail state polish | ✅ Phase 5N | `e2d42a1` — per-status top banners; Schedule Visit and Send to Customer hidden for `converted`/`declined`; no action/SMS/schema changes |
+| Financial summary null-price display fixes | ✅ Phase 5O | `0e91bf9` — customer detail Outstanding Balance tracks no-price unpaid jobs separately; muted note; no phantom $0 total; Today Completed Today balance null-aware; no-price jobs do not show `$0 owed`; no schema/SMS/payment-action changes |
 
 ### RLS Hardening Checklist (future — not yet applied)
 
@@ -1321,6 +1322,58 @@ UI/conditional-rendering-only phase. No server actions changed. No SMS behavior 
 - `EstimateStatusActions.tsx`, `ScheduleVisitForm.tsx`, `SendSmsButton.tsx`, `EstimateDangerZone.tsx`, and all server actions untouched.
 
 No new routes. No nav items. No schema migrations. No RLS changes. No env var changes.
+
+---
+
+### Phase 5O — Financial Summary No-Price Display Fixes ✅
+
+**Commit:** `0e91bf9` (Fix no-price outstanding balance displays)
+
+Lightweight display-only fixes targeting two surfaces where null-price jobs produced misleading financial output. No migration, no schema changes, no RLS changes, no SMS body changes, no payment action changes. Price remains optional.
+
+#### Customer detail Outstanding Balance (`customers/[id]/page.tsx`)
+
+**Problem:** `outstandingJobs` filter requires `balance > 0` (computed as `Math.max(0, price ?? 0 - amount_paid ?? 0)`). A null-price unpaid job silently produces balance = 0 and is excluded — the operator sees no Outstanding Balance section at all.
+
+**Fix:** Added `noPriceUnpaidJobs` — a separate UI-only array of completed jobs where `payment_status` is `'unpaid'` or `'partial'` and `price == null`. This array is never used in `totalUnpaid`, never included in `outstandingJobs`, and never fed into portal token creation or SMS body construction.
+
+**Display behavior:**
+
+| State | Outer section shown | Dollar total header | Job balance cards | No-price note | SMS button |
+|-------|--------------------|--------------------|------------------|--------------|-----------|
+| `outstandingJobs` only | ✅ | ✅ ($X across N jobs) | ✅ | — | ✅ (when phone set) |
+| `noPriceUnpaidJobs` only | ✅ | ❌ (suppressed) | — | ✅ (muted note) | ❌ |
+| Both | ✅ | ✅ | ✅ | ✅ | ✅ (when phone set) |
+| Neither | ❌ | — | — | — | — |
+
+**No-price note text:** `+ N unpaid job(s) with no price set — set a price to include in the balance.`
+
+**Invariants preserved:**
+- `outstandingJobs` filter unchanged — calculable balances only
+- `totalUnpaid` calculation unchanged
+- Portal token fetch still gated on `outstandingJobs.length > 0 && customerRow.phone`
+- SMS balance reminder button still gated on `outstandingJobs.length > 0 && customerRow.phone`
+- `not_billable` jobs remain fully excluded — no intersection with either list
+
+**Property pages intentionally not changed.** No property-level balance section was added in this phase.
+
+#### Today Completed Today null-aware balance (`today/page.tsx`)
+
+**Problem:** `const balance = Math.max(0, (job.price ?? 0) - (job.amount_paid ?? 0))` — null price was coerced to 0, producing `balance = 0`. The owed display condition `balance > 0` correctly hid the label, but the calculation was semantically wrong: null price means unknown, not zero.
+
+**Fix:**
+
+```ts
+const balance = job.price != null
+  ? Math.max(0, Number(job.price) - Number(job.amount_paid ?? 0))
+  : null
+```
+
+Display condition updated from `balance > 0 && ...` to `balance != null && balance > 0 && ...`. No-price completed jobs no longer produce `$0 owed` if the condition were ever relaxed.
+
+#### No schema/migration/SMS/payment-action changes
+
+No routes added. No nav items added. No schema migrations. No RLS changes. No env var changes. No SMS body changes. No payment action changes.
 
 ---
 

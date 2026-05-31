@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-31 (e2d42a1)
+Last updated: 2026-05-31 (0e91bf9)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-05-31 (e2d42a1)
 
 ## Current Checkpoint
 
-- **Latest commit:** `a28e3d1` — Add missing price guardrails (Phase 5L)
+- **Latest commit:** `0e91bf9` — Fix no-price outstanding balance displays (Phase 5O)
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -689,6 +689,48 @@ UI/conditional-rendering-only phase. Single file changed: `src/app/(protected)/e
 
 ---
 
+### Phase 5O — Financial Summary No-Price Display Fixes ✅
+
+**Commit:** `0e91bf9` (Fix no-price outstanding balance displays)
+
+Display-only fixes. No migration, no schema changes, no RLS changes, no SMS body changes, no payment action changes. Price remains optional.
+
+#### Customer detail Outstanding Balance (`customers/[id]/page.tsx`)
+
+Added `noPriceUnpaidJobs` — a separate UI-only array for completed jobs where `payment_status` is `'unpaid'` or `'partial'` and `price == null`. Never included in `outstandingJobs`, `totalUnpaid`, portal token creation, or SMS construction.
+
+**Section behavior:**
+
+| State | Section shown | Dollar total header | Balance cards | No-price note | SMS button |
+|-------|--------------|--------------------|--------------|--------------|-|
+| Priced unpaid only | ✅ | ✅ | ✅ | — | ✅ |
+| No-price unpaid only | ✅ | ❌ | — | ✅ muted | ❌ |
+| Both | ✅ | ✅ | ✅ | ✅ muted | ✅ |
+| Neither | ❌ | — | — | — | — |
+
+Note text: `+ N unpaid job(s) with no price set — set a price to include in the balance.`
+
+All existing invariants preserved: `outstandingJobs` filter unchanged; `totalUnpaid` unchanged; portal token and SMS button both gated on `outstandingJobs.length > 0 && customerRow.phone`; `not_billable` fully excluded.
+
+**Property pages intentionally not changed.** No property-level balance section was added.
+
+#### Today Completed Today (`today/page.tsx`)
+
+Balance calculation updated from `Math.max(0, (job.price ?? 0) - ...)` to null-aware ternary: `job.price != null ? Math.max(0, ...) : null`. Display condition updated from `balance > 0` to `balance != null && balance > 0`. No-price completed jobs no longer produce `$0 owed`.
+
+**Verified behaviors (`0e91bf9`):**
+- ✅ Customer with only priced unpaid jobs — Outstanding Balance section unchanged
+- ✅ Customer with only no-price unpaid/partial jobs — section shown with muted note; no dollar total; no SMS button
+- ✅ Customer with mixed priced and no-price unpaid/partial jobs — normal priced balance cards + muted note both shown
+- ✅ Customer with no outstanding jobs — section hidden (unchanged)
+- ✅ Today Completed Today priced unpaid jobs still show owed amount
+- ✅ Today Completed Today no-price jobs do not show `$0 owed`
+- ✅ `not_billable` jobs remain excluded from all owed/balance displays
+- ✅ Property pages not changed — no new balance sections
+- ✅ No payment actions, SMS bodies, schema, migration, RLS, queries, routes, or env changes
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -710,6 +752,8 @@ UI/conditional-rendering-only phase. Single file changed: `src/app/(protected)/e
 
 | Hash | Description |
 |------|-------------|
+| `0e91bf9` | Fix no-price outstanding balance displays (Phase 5O) |
+| `5de1f8a` | Update docs through Phase 5N estimate states |
 | `e2d42a1` | Polish estimate detail states (Phase 5N) |
 | `67b9e80` | Rename estimate actions card (Phase 5M) |
 | `b8444dd` | Polish customer property navigation (Phase 5M) |
@@ -997,6 +1041,14 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ Estimate conversion "Save as default price" checkbox — pre-checked when property has no default price; shows current default when one exists; opt-in only; best-effort update does not block conversion (`b9fa8db`)
 - ✅ Estimate conversion saves `estimate.total` as `property.default_price` when operator checks the box and estimate total > 0; scoped by `property_id + business_id`; calls `revalidatePath('/properties/[id]')` (`b9fa8db`)
 - ✅ Checkbox label displays correctly with space: "Save $X.XX as this property's default price for future jobs" — `{' '}` explicit space token prevents JSX whitespace collapse (`08608eb`)
+- ✅ Customer detail Outstanding Balance section now appears when only no-price unpaid/partial jobs exist — shows muted note, no dollar total, no SMS button (`0e91bf9`)
+- ✅ Customer detail shows `+ N unpaid job(s) with no price set — set a price to include in the balance.` when no-price unpaid/partial jobs exist (`0e91bf9`)
+- ✅ Customer detail does not show a `$0.00` balance total when only no-price unpaid jobs exist — dollar header suppressed when `outstandingJobs.length === 0` (`0e91bf9`)
+- ✅ Customer detail balance reminder SMS remains gated on calculable priced outstanding jobs only — no-price jobs never trigger the SMS button (`0e91bf9`)
+- ✅ Customer with mixed priced and no-price outstanding jobs shows normal priced balance cards plus muted no-price note (`0e91bf9`)
+- ✅ Today Completed Today balance calculation is null-aware — `job.price != null ? Math.max(...) : null`; no-price completed jobs do not show `$0 owed` (`0e91bf9`)
+- ✅ `not_billable` jobs remain fully excluded from all balance/owed displays — no intersection with `noPriceUnpaidJobs` or `outstandingJobs` (`0e91bf9`)
+- ✅ Property pages not changed — no property-level balance section added in Phase 5O (`0e91bf9`)
 
 ---
 
@@ -1030,6 +1082,7 @@ All of the following were user-tested and confirmed working as of `289b732`:
 | Phase 5L — Data integrity guardrails V1 | ✅ Complete | `a28e3d1` — `markPaid()` stores `amount_paid=0` when price null; Today Unpaid "No price set"; Pay Reminder SMS gated on known balance; Complete Job price hint; Payment Summary "Price · Not set"; no migration |
 | Phase 5M — Customer/property navigation polish | ✅ Complete | `b8444dd` + `67b9e80` — contextual `+ New Estimate` buttons; `View Customer` linked row; `View Estimate →` on job detail; clickable estimate summary rows; renamed action buttons; `Manage Estimate` card heading; no migration |
 | Phase 5N — Estimate detail state polish | ✅ Complete | `e2d42a1` — per-status banners (draft/sent/converted/declined); Schedule Visit and Send to Customer hidden for converted/declined; no action/SMS/schema changes |
+| Phase 5O — Financial summary no-price display fixes | ✅ Complete | `0e91bf9` — customer detail Outstanding Balance tracks no-price unpaid jobs separately; muted note; no phantom $0 total; Today Completed Today balance null-aware; no schema/SMS/payment-action changes |
 | Route balancing / auto-scheduling follow-up | ⏸ Future | `Property.schedule_anchor_date` reserved; do not implement until explicitly asked |
 | `schedule_anchor_date` — no UI yet | ⏸ Future | Column exists in schema; no read or write path built |
 | Weather/rain-day shifting for scheduling | ⏸ Future | Not planned |
@@ -1054,7 +1107,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
 | 3 | Public intake and lead workflow improvements | ✅ Complete — all listed tasks done through `ec48565`; payment bugfixes continued in Phase 4 |
 | 4 | Operations UX / workflow polish | ✅ Substantially complete — 4A–4D + cleanup batch done (`463e762`) |
-| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A ✅, 5B ✅, 5C ✅, 5D ✅, 5E ✅, 5F ✅, 5G ✅, 5H ✅, 5I ✅, 5J ✅, 5K ✅, 5L ✅, 5M ✅, 5N ✅ complete (`e2d42a1`); next TBD |
+| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A ✅, 5B ✅, 5C ✅, 5D ✅, 5E ✅, 5F ✅, 5G ✅, 5H ✅, 5I ✅, 5J ✅, 5K ✅, 5L ✅, 5M ✅, 5N ✅, 5O ✅ complete (`0e91bf9`); next TBD |
 
 **Permanent Future-Handoff Requirements** (mandatory — see Architecture.md §16):
 Every future handoff must instruct the next chat to read ARCHITECTURE.md and HANDOFF.md first, remind it to update those docs after any verified/committed change, state the latest commit, current phase status, open items, workflow guardrails, and known security follow-ups (no secret values).
@@ -1063,9 +1116,9 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Phase 5O planning — next area TBD**
+**Phase 5P — next area TBD**
 
-Phase 5A–5N are all production-verified and complete as of `e2d42a1`.
+Phase 5A–5O are all production-verified and complete as of `0e91bf9`.
 
 **Completed Phase 5A–5N work:**
 - ✅ Customers list unpaid balance badges
@@ -1113,8 +1166,15 @@ Phase 5A–5N are all production-verified and complete as of `e2d42a1`.
 - ✅ Estimate detail shows per-status banners: draft, sent, approved (existing), converted, declined
 - ✅ Converted estimate banner includes inline View Job → link
 - ✅ Schedule Visit and Send to Customer cards hidden for converted and declined estimates
+- ✅ Customer detail Outstanding Balance tracks no-price unpaid/partial jobs separately — muted note; no phantom $0 total; SMS button unchanged
+- ✅ Today Completed Today balance null-aware — no-price jobs do not show `$0 owed`
 
-**Next Phase 5O candidates:**
+**Completed Phase 5O work:**
+- ✅ Customer detail Outstanding Balance tracks no-price unpaid jobs separately as `noPriceUnpaidJobs`; shows muted note; no phantom `$0.00` total; SMS button gated on calculable priced balances only
+- ✅ Today Completed Today balance null-aware; no-price jobs do not show `$0 owed`
+- ✅ Property pages, finances, customer list, SMS bodies, payment actions, schema, RLS — all unchanged
+
+**Next Phase 5P candidates:**
 1. `JobActions` SMS business phone — wire `businessPhone` into on-my-way / day-before / job-complete SMS
 2. Portal enhancements — customer-facing UX improvements
 3. Revenue/expense reporting — more useful Finances page analytics
