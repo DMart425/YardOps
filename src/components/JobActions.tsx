@@ -446,10 +446,6 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
       {/* ── Mark remaining paid (partial) ── */}
       {isCompleted && job.payment_status === 'partial' && (
         <>
-          <div className="text-small" style={{ color: 'var(--color-warning)', padding: '4px 0' }}>
-            Partial: ${Number(job.amount_paid ?? 0).toFixed(0)} of ${Number(job.price ?? 0).toFixed(0)} paid
-            &nbsp;— ${(Number(job.price ?? 0) - Number(job.amount_paid ?? 0)).toFixed(0)} remaining
-          </div>
           {venmoHandle && customerPhone && partialRemaining > 0 && (
             <a
               href={`sms:${customerPhone}?&body=${encodeURIComponent(`Hi ${customerFirstName ?? ''}, friendly reminder for the remaining $${partialRemaining.toFixed(0)} balance for your lawn service. Pay via Venmo: https://venmo.com/${venmoHandle}?txn=pay&amount=${partialRemaining.toFixed(0)}&note=${encodeURIComponent('Lawn service')}\n\nThanks!${businessName ? ` — ${businessName}` : ''}`)}`}

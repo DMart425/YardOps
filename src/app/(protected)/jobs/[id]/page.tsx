@@ -39,6 +39,20 @@ const JOB_TYPE_LABELS: Record<string, string> = {
   recurring: 'Recurring',
 }
 
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  cash:    'Cash',
+  venmo:   'Venmo',
+  card:    'Card',
+  check:   'Check',
+  cashapp: 'CashApp',
+  zelle:   'Zelle',
+  other:   'Other',
+}
+
+function formatPaymentMethod(method: string): string {
+  return PAYMENT_METHOD_LABELS[method] ?? method.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
+}
+
 export default async function JobDetailPage({
   params,
 }: {
@@ -176,9 +190,9 @@ export default async function JobDetailPage({
   const payBalance    = payPrice != null ? Math.max(0, payPrice - payAmtPaid) : null
   const showPaymentRow = job.status === 'completed' || ps === 'not_billable' || ps === 'paid' || ps === 'partial'
   const paymentRowLabel =
-    ps === 'not_billable' ? '💰 Not billable' :
-    ps === 'paid'         ? '💰 Paid'         :
-    ps === 'partial'      ? '💰 Payment'      :
+    ps === 'not_billable' ? '💰 Not billable'     :
+    ps === 'paid'         ? '💰 Paid'             :
+    ps === 'partial'      ? '💰 Partial payment'  :
                             '💰 Balance'
   const paymentRowValue =
     ps === 'not_billable' ? 'No payment due' :
@@ -301,6 +315,54 @@ export default async function JobDetailPage({
                 <span className="text-small text-muted">Notes</span>
                 <p className="text-small" style={{ marginTop: '4px' }}>{job.completion_notes}</p>
               </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Payment summary (completed jobs only) */}
+      {job.status === 'completed' && (
+        <div className="card" style={{ marginBottom: '1rem' }}>
+          <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Payment Summary</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {ps === 'not_billable' ? (
+              <div className="card-row">
+                <span className="text-small text-muted">Status</span>
+                <span className="pill pill-not_billable">No payment due</span>
+              </div>
+            ) : (
+              <>
+                {payPrice != null && (
+                  <div className="card-row">
+                    <span className="text-small text-muted">Price</span>
+                    <span className="text-small">${payPrice.toFixed(2)}</span>
+                  </div>
+                )}
+                {(ps === 'paid' || ps === 'partial') && payAmtPaid > 0 && (
+                  <div className="card-row">
+                    <span className="text-small text-muted">Amount paid</span>
+                    <span className="text-small">${payAmtPaid.toFixed(2)}</span>
+                  </div>
+                )}
+                {(ps === 'partial' || ps === 'unpaid') && payBalance != null && payBalance > 0 && (
+                  <div className="card-row">
+                    <span className="text-small text-muted">Balance due</span>
+                    <span className="text-small font-bold" style={{ color: 'var(--color-warning)' }}>${payBalance.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="card-row">
+                  <span className="text-small text-muted">Status</span>
+                  <span className={`pill pill-${ps}`}>
+                    {ps === 'paid' ? 'Paid in full' : ps.replace(/_/g, ' ')}
+                  </span>
+                </div>
+                {job.payment_method && (
+                  <div className="card-row">
+                    <span className="text-small text-muted">Method</span>
+                    <span className="text-small">{formatPaymentMethod(job.payment_method)}</span>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
