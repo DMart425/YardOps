@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-06-01 (4e2c815)
+Last updated: 2026-06-01 (43a198f)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-06-01 (4e2c815)
 
 ## Current Checkpoint
 
-- **Latest commit:** `4e2c815` — Portal/invoice job scope display + completion note autofill (Phase 5T/5U complete)
+- **Latest commit:** `43a198f` — Today weather reliability — current conditions, address geocode fallback, city/ZIP fallback (Phase 5V complete)
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -900,6 +900,60 @@ No schema migrations. No RLS changes. No env var changes.
 
 ---
 
+### Phase 5V — Today Weather Reliability ✅
+
+**Commits:** `030fec4` · `85a9651` · `7c08ebc` · `43a198f`
+
+Four sequential fixes that make Today's job card weather work end-to-end for properties that were never explicitly geocoded.
+
+#### `030fec4` — Unavailable fallback
+
+When a property has stored coordinates but the Open-Meteo fetch returns null (API down, network error), the weather row previously disappeared silently. Now shows `"Weather unavailable for this property."` (muted) so the operator knows weather was attempted.
+
+Before: `{fc && <weather row>}` — silent on API failure.
+After: guard checks `effectiveCoord != null`, then ternary on `fc` → forecast or fallback message.
+
+#### `85a9651` — Address geocode fallback (`today/page.tsx`)
+
+Most Wicksburg properties have `latitude = null` / `longitude = null` because geocoding was never run. Today now geocodes transiently in two phases:
+
+- **Phase 1**: collect stored lat/lon from `property.latitude` / `property.longitude`
+- **Phase 2**: `Promise.all` geocodes jobs that have an address but no stored coords via `geocodeAddress({ address, city, state, postalCode })`
+
+Geocoded coordinates go into a `jobCoordMap: Map<jobId, {lat, lon}>` — **never written to Supabase**. Result cached by Next.js for 30 days per address URL. `state` and `postal_code` added to the `properties(...)` sub-select for geocoding accuracy.
+
+#### `7c08ebc` — City/ZIP centroid fallback (`geocode.ts`)
+
+Rural Alabama roads (e.g., Airport Rd in Hartford, Geneva County) often exist in the real world but not in OpenStreetMap's database. `geocodeAddress()` now has a three-step fallback:
+
+1. Structured Nominatim query (street + city + state + zip) → `[]`
+2. Freeform full-address query → `[]`
+3. **New: city/ZIP centroid** — `"Hartford, AL, 36344"` → `(31.1020, -85.6978)` ✅
+
+Town-level coordinates are precise enough for weather. Nominatim provider, cache settings, and error handling unchanged.
+
+#### `43a198f` — Current conditions (`weather.ts`)
+
+Replaced the daily `weather_code` with real-time `current=temperature_2m,weather_code` from Open-Meteo.
+
+**Problem:** `daily.weather_code` is the dominant condition for the entire 24-hour day — it can show overnight fog or a brief storm as the "main" condition at 2pm when it's actually clear.
+
+**Fix:** Three new fields added to `DayForecast`:
+- `currentTemp` — from `data.current.temperature_2m` (falls back to daily high)
+- `currentSummary` — from `data.current.weather_code` → WMO_CODES (falls back to daily summary)
+- `currentEmoji` — from `data.current.weather_code` → WMO_CODES (falls back to daily emoji)
+
+**New display:** `{currentEmoji} 86° now · Clear · High 91° · 14% rain`
+**Old display:** `{emoji} 91° / 70° · Fog · 14% rain` (daily dominant code — misleading)
+
+Rain chance and daily high remain from `daily.*` — correct for planning.
+
+**Verified:** Today card displayed `91° now · Mostly clear · High 93° · 14% rain` in production.
+
+No migrations. No DB writes. No RLS changes. No env var changes.
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -922,6 +976,11 @@ No schema migrations. No RLS changes. No env var changes.
 
 | Hash | Description |
 |------|-------------|
+| `43a198f` | Show current weather on today jobs (Phase 5V) |
+| `7c08ebc` | Add city fallback for weather geocoding (Phase 5V) |
+| `85a9651` | Use address fallback for today weather (Phase 5V) |
+| `030fec4` | Show fallback when today weather is unavailable (Phase 5V) |
+| `368b34f` | Update docs through Phase 5U job completion scope |
 | `4e2c815` | Phase 5U: autofill completion notes from job scope |
 | `b0d4f46` | Show job scope in portal invoices (Phase 5T) |
 | `f8f4adc` | Default estimate conversion to preferred day (Phase 5Q.4c) |
@@ -1266,6 +1325,11 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ Property change clears `selectedEstimateId`, switches source away from Estimate, re-filters `propertyEstimates` for new property (`ca4a01e`)
 - ✅ `allApprovedEstimates` loaded server-side in parallel with customers and properties — no new API endpoint; filter is client-side by `propertyId` (`ca4a01e`)
 - ✅ `buildEstimatePrefill()` helper extracted in `jobs/new/page.tsx` — shared by bulk fetch and `?estimate_id=` validation path; no duplication (`ca4a01e`)
+- ✅ Today active job cards show weather when effective coordinates are available — stored DB coords take priority; transient address geocode used when stored coords are null; city/ZIP centroid used when street-level geocode fails (`85a9651` + `7c08ebc`)
+- ✅ Today weather displays current conditions from Open-Meteo `current=` endpoint — `{currentEmoji} {currentTemp}° now · {currentSummary} · High {dailyHigh}° · {precipChance}% rain`; daily dominant code no longer shown as live condition (`43a198f`)
+- ✅ Today weather geocoding is transient — no geocoded coordinates written to `properties` or any Supabase table; results cached 30 days per address via Next.js fetch URL (`85a9651`)
+- ✅ When effective coordinates exist but Open-Meteo fetch returns null, Today shows `"Weather unavailable for this property."` — visible failure, not silent disappearance (`030fec4`)
+- ✅ Properties with no address/coordinates show no weather row; Completed Today cards do not show weather — by design (`030fec4` + `85a9651`)
 
 ---
 
@@ -1306,6 +1370,7 @@ All of the following were user-tested and confirmed working as of `289b732`:
 | Phase 5S — New Job source selector | ✅ Complete | `ca4a01e` — Estimate / Property defaults / Custom radio group; estimate picker; `applyEstimateFields` / `applyPropertyFields`; server-side parallel load of approved estimates |
 | Phase 5T — Portal/invoice service scope from job_inputs | ✅ Complete | `b0d4f46` — `src/lib/jobScope.ts` shared helper; portal home + invoice prefer `job_inputs`; add-ons subline; property booleans removed from portal scope display |
 | Phase 5U — Completion note autofill from job scope | ✅ Complete | `4e2c815` — quick chips removed; `buildDefaultCompletionNotes()` as textarea `defaultValue`; legacy fallback via `PKG_COMPLETION_NOTES`; notes remain editable |
+| Phase 5V — Today weather reliability | ✅ Complete | `030fec4`+`85a9651`+`7c08ebc`+`43a198f` — unavailable fallback, address geocode, city/ZIP geocode, current conditions display |
 | Route balancing / auto-scheduling follow-up | ⏸ Future | `Property.schedule_anchor_date` reserved; do not implement until explicitly asked |
 | `schedule_anchor_date` — no UI yet | ⏸ Future | Column exists in schema; no read or write path built |
 | Weather/rain-day shifting for scheduling | ⏸ Future | Not planned |
@@ -1335,7 +1400,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
 | 3 | Public intake and lead workflow improvements | ✅ Complete — all listed tasks done through `ec48565`; payment bugfixes continued in Phase 4 |
 | 4 | Operations UX / workflow polish | ✅ Substantially complete — 4A–4D + cleanup batch done (`463e762`) |
-| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A–5U ✅ complete (`4e2c815`); next TBD |
+| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A–5V ✅ complete (`43a198f`); next TBD |
 
 **Permanent Future-Handoff Requirements** (mandatory — see Architecture.md §16):
 Every future handoff must instruct the next chat to read ARCHITECTURE.md and HANDOFF.md first, remind it to update those docs after any verified/committed change, state the latest commit, current phase status, open items, workflow guardrails, and known security follow-ups (no secret values).
@@ -1344,17 +1409,17 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Phase 5V — next area TBD**
+**Phase 5W — next area TBD**
 
-Phase 5A–5U are all complete as of `4e2c815`.
+Phase 5A–5V are all complete as of `43a198f`.
 
-**Completed Phase 5T–5U work (most recent):**
-- ✅ `src/lib/jobScope.ts` shared helper — `parseJobInputs`, `resolveServiceLabel`, `formatAddonsForCustomer`, `buildDefaultCompletionNotes`
-- ✅ Portal home service labels prefer `job_inputs`; add-ons subline shown when selected; property booleans removed from scope display (`b0d4f46`)
-- ✅ Portal invoice Service row uses `job_inputs`; Add-ons row added when add-ons were selected (`b0d4f46`)
-- ✅ Complete Job form completion notes auto-filled from actual job scope; legacy fallback via `PKG_COMPLETION_NOTES` (`4e2c815`)
-- ✅ Legacy quick-fill chips removed from Complete Job form (`4e2c815`)
-- ✅ Clean lint and build confirmed for both commits
+**Completed Phase 5V work (most recent — Today weather reliability):**
+- ✅ Weather unavailable fallback — shows `"Weather unavailable for this property."` when coords exist but API fails (`030fec4`)
+- ✅ Address geocode fallback — Today geocodes from `service_address + city + state + postal_code` when stored coords are null (`85a9651`)
+- ✅ City/ZIP centroid fallback in `geocodeAddress()` — rural roads not in OSM resolve via town centroid (`7c08ebc`)
+- ✅ Current conditions — Today card now shows `{currentTemp}° now · {currentCondition} · High {dailyHigh}°` from Open-Meteo `current=` endpoint (`43a198f`)
+- ✅ Verified in production: `91° now · Mostly clear · High 93° · 14% rain` displayed correctly
+- ✅ No DB writes; geocoded coords are transient; no schema/RLS/env changes
 
 **Remaining deferred items:**
 1. Follow-up `job_inputs` copy runtime test — code committed; no qualifying production follow-up yet
@@ -1362,8 +1427,9 @@ Phase 5A–5U are all complete as of `4e2c815`.
 3. SMS invoice/receipt scope text from `job_inputs` — generic "Lawn service" note; deferred
 4. PDF invoice description polish from `job_inputs` — `DownloadInvoiceButton.tsx` uses `job.title`; deferred
 5. Package-only historical job approximation backfill — no `estimate_inputs` source; deferred
+6. Completed Today cards don't show weather — intentional; only worth adding if explicitly requested
 
-**Next Phase 5V candidates:**
+**Next Phase 5W candidates:**
 1. `JobActions` SMS business phone — wire `businessPhone` into on-my-way / day-before / job-complete SMS bodies
 2. Revenue/expense reporting — more useful Finances page analytics
 3. Bulk job actions — mark multiple jobs paid, batch scheduling

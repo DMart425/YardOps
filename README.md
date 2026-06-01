@@ -2,7 +2,7 @@
 
 Private operations app for Wicksburg Lawn Service.
 
-Verified checkpoint commit: `4e2c815` (Portal/invoice job scope display + completion note autofill — Phase 5T/5U complete).
+Verified checkpoint commit: `43a198f` (Today weather reliability — current conditions, address geocode fallback, city/ZIP fallback — Phase 5V complete).
 
 ## Read First
 
@@ -52,6 +52,23 @@ Jobs store structured service scope in `jobs.job_inputs` (nullable JSONB — add
 - `buildDefaultCompletionNotes(jobInputs, servicePackage)` — operator-facing past-tense autofill for the completion notes textarea (Phase 5U)
 
 Customer-facing surfaces (`/portal/[token]` and `/portal/[token]/invoice/[jobId]`) use `job_inputs` first and fall back to `service_package`/`title`. Property default booleans are **not** used to describe historical job work on public surfaces.
+
+## Today Page Weather
+
+Active job cards on `/today` show current weather conditions when effective coordinates are available.
+
+**Coordinate resolution (priority order):**
+1. Stored `properties.latitude` / `properties.longitude` (set via the parcel/geocode workflow)
+2. Transient geocode via `geocodeAddress()` (`src/lib/geocode.ts`) using `service_address + city + state + postal_code` — 30-day Next.js fetch cache; no DB write-back
+3. City/ZIP centroid fallback — if street-level geocode fails (rural road not in OSM), drops the street number and resolves `city, state, postalCode`
+
+**Weather display** (`src/lib/weather.ts` → Open-Meteo, free, no API key):
+- `{emoji} {currentTemp}° now · {currentCondition} · High {dailyHigh}° · {rainChance}% rain`
+- Current temperature and condition come from Open-Meteo `current=` endpoint
+- Daily high and rain-chance provide planning context
+- 30-minute Next.js fetch cache
+
+**Fallback:** when effective coordinates exist but Open-Meteo fails, shows "Weather unavailable for this property." Completed Today cards do not show weather (working by design).
 
 ## Defaults + Frequency Rules
 

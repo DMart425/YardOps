@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-06-01
-Current checkpoint commit: `4e2c815` (Portal/invoice job scope display + completion note autofill — Phase 5T/5U complete)
+Current checkpoint commit: `43a198f` (Today weather reliability — current conditions, address geocode fallback, city/ZIP fallback — Phase 5V complete)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -101,7 +101,8 @@ src/
 │   │   └── context.ts            # requireBusinessContext() — resolves userId + businessId
 │   ├── pricing.ts                # Estimate calculation engine
 │   ├── format.ts                 # Display formatting helpers: formatPhoneInput() — formats 10-digit US numbers as (xxx) xxx-xxxx; used on all phone input fields and customer-facing output
-│   ├── geocode.ts                # Address geocoding helper
+│   ├── geocode.ts                # Address geocoding helper: geocodeAddress() — Nominatim/OSM, free, no API key, 30-day cache, city/ZIP centroid fallback when street fails
+│   ├── weather.ts                # Weather helper: getForecast() / getTodayForecastForCoords() — Open-Meteo, free, no API key, 30-min cache, current + daily fields
 │   ├── frequency.ts              # Frequency and service interest helpers: normalizeFrequency(), formatFrequencyLabel(), parseWebsiteServiceInterests(), formatServiceInterestLabel()
 │   ├── jobScope.ts               # Shared job scope helpers (Phase 5T): parseJobInputs(), formatCoreServicesForCustomer(), formatAddonsForCustomer(), resolveServiceLabel(), buildDefaultCompletionNotes() — pure TypeScript; no React; used by portal server components and JobActions client component
 │   └── push.ts                   # Web push helper
@@ -563,6 +564,10 @@ Website/manual intake address, frequency, and service interests are written into
 | New Job source selector (Estimate / Property / Custom) | ✅ Phase 5S | `ca4a01e` — radio group shown when approved estimates exist for selected property; Estimate option adds hidden `estimate_id`; switching away removes it |
 | Portal/invoice service scope from job_inputs | ✅ Phase 5T | `b0d4f46` — portal home + portal invoice both prefer `job_inputs`; add-ons subline shown when selected; `src/lib/jobScope.ts` shared helper created |
 | Completion notes autofill from job scope | ✅ Phase 5U | `4e2c815` — quick chips removed; textarea `defaultValue` built from `buildDefaultCompletionNotes()`; operator can edit freely before submitting |
+| Today weather unavailable fallback | ✅ Phase 5V | `030fec4` — when coords exist but Open-Meteo fails, shows "Weather unavailable for this property." instead of silently hiding |
+| Today weather address geocode fallback | ✅ Phase 5V | `85a9651` — when stored lat/lon is null, geocodes from `service_address + city + state + postal_code` via Nominatim; no DB write-back; 30-day cache |
+| Today weather city/ZIP geocode fallback | ✅ Phase 5V | `7c08ebc` — when street-level geocode fails (rural road not in OSM), drops street number and resolves city/state/ZIP centroid |
+| Today weather current conditions | ✅ Phase 5V | `43a198f` — adds `current=temperature_2m,weather_code` to Open-Meteo request; card now shows `{currentTemp}° now · {currentCondition} · High {dailyHigh}°` instead of daily dominant code |
 | Approved estimate + New Job entry point integration | ⏸ Deferred | Customer/property page + New Job buttons do not yet pass `estimate_id`; source selector handles this ad-hoc when operator selects the property |
 | `/jobs/new?source_job_id` reviewable follow-up creation | ⏸ Deferred | Phase 5Q deferred |
 | Package-only historical job backfill | ⏸ Deferred | No approximation backfill without estimate_inputs source |
@@ -1724,6 +1729,75 @@ If `parts.length === 0` (all boxes unchecked), falls through to Priority 2.
 Notes remain fully editable — `defaultValue` is a starting suggestion, not a locked value.
 
 No schema migrations. No RLS changes. No env var changes.
+
+---
+
+### Phase 5V — Today Weather Reliability ✅
+
+**Goal:** Make Today's job card weather accurate and reliable for rural Alabama properties that have never been geocoded.
+
+**Commits:** `030fec4` · `85a9651` · `7c08ebc` · `43a198f`
+
+#### Problem chain
+
+1. Properties commonly have `latitude = null` / `longitude = null` (never geocoded via `ApplyParcelButton`)
+2. With no stored coords, Today never attempted a weather fetch → weather silently absent
+3. When coords exist but Open-Meteo fails, the `{fc && (...)}` guard silently suppressed the row
+4. The daily `weather_code` (dominant all-day condition, e.g., overnight fog) was displayed as the current condition
+
+#### `030fec4` — Unavailable fallback
+
+Changed `{fc && (...)}` to a ternary guarded by `property?.latitude != null && property.longitude != null`:
+- Coordinates present + forecast available → weather row
+- Coordinates present + forecast missing → `"Weather unavailable for this property."` (muted)
+- No coordinates → nothing shown
+
+#### `85a9651` — Address geocode fallback (`today/page.tsx`)
+
+When stored coords are null, Today now geocodes transiently via `geocodeAddress()`:
+- Added `state, postal_code` to the `properties(...)` sub-select
+- Phase 1: collect stored lat/lon into `jobCoordMap` keyed by `job.id`
+- Phase 2: `Promise.all` geocodes jobs with no stored coords from `service_address + city + state + postal_code`
+- Results stored in `jobCoordMap` — **never written to Supabase**
+- Card looks up `effectiveCoord = jobCoordMap.get(job.id)` and checks `effectiveCoord != null` as display guard
+
+#### `7c08ebc` — City/ZIP centroid fallback (`geocode.ts`)
+
+Extended `geocodeAddress()` with a third fallback after street-level and freeform both fail:
+```
+Structured (street + city + state + zip)  → []  (road not in OSM)
+Freeform full-address                     → []  (same gap)
+City/ZIP centroid: "Hartford, AL, 36344"  → (31.1020, -85.6978) ✅
+```
+Nominatim knows town boundaries even when individual rural roads are missing. Good enough for weather.
+
+#### `43a198f` — Current conditions (`weather.ts`)
+
+Added `current=temperature_2m,weather_code` to the Open-Meteo request URL.
+
+**`DayForecast` interface additions:**
+
+| Field | Source | Fallback |
+|-------|--------|---------|
+| `currentTemp` | `data.current.temperature_2m` (rounded) | daily `temperature_2m_max` |
+| `currentSummary` | `data.current.weather_code` → `WMO_CODES` | daily `summary` |
+| `currentEmoji` | `data.current.weather_code` → `WMO_CODES` | daily `emoji` |
+
+**Display change (today/page.tsx):**
+
+| Before | After |
+|--------|-------|
+| `{fc.emoji} 91° / 70° · Fog` | `{fc.currentEmoji} 86° now · Clear · High 91°` |
+
+`currentTemp` / `currentSummary` / `currentEmoji` are only sourced from `data.current` for index 0 (today). Future days fall back to daily values. Rain chance and daily high remain from `daily.*` fields (correct for planning).
+
+#### Cache and API notes
+
+- Weather: `{ next: { revalidate: 1800 } }` — 30-min cache; successful responses only; failures are not cached
+- Geocoding: `{ next: { revalidate: 60 * 60 * 24 * 30 } }` — 30-day cache; address-to-coord mapping is stable
+- Both APIs: free, no API key, no env vars required
+
+No schema migrations. No DB writes. No RLS changes. No env var changes.
 
 ---
 

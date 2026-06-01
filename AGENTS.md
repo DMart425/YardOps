@@ -8,7 +8,7 @@ YardOps is the private operations app for Wicksburg Lawn Service.
 
 Current verified YardOps checkpoint commit:
 
-`4e2c815` (Portal/invoice job scope display + completion note autofill — Phase 5T/5U complete)
+`43a198f` (Today weather reliability — current conditions, address geocode fallback, city/ZIP fallback — Phase 5V complete)
 
 The public website repo is separate:
 
@@ -216,3 +216,8 @@ These rules were learned from production bugs and must be preserved across refac
 * Do not reintroduce package-style quick chips in the completion notes form. The quick-chip pattern was removed in Phase 5U because it did not reflect actual job scope. `buildDefaultCompletionNotes()` with a structured source is the replacement.
 * `completion_notes` is the canonical customer-visible work summary. Do not expose `internal_notes` or `customer_notes` fields on the public portal without explicit approval.
 * `src/lib/jobScope.ts` is a pure TypeScript shared helper — no React imports. It is used by server components (portal, invoice) and client components (JobActions) alike. Do not add React or Next.js imports to it. Do not duplicate its parse/format logic inline at call sites.
+* Today weather should resolve coordinates in priority order: stored `property.latitude`/`property.longitude` first → transient `geocodeAddress()` from `service_address + city + state + postal_code` → city/ZIP centroid fallback (`city, state, postalCode` only). Do not skip the stored-coords check.
+* Do not write geocoded coordinates back to Supabase from the Today page or any read-only server component. Geocoding on Today is transient and display-only.
+* Today weather must display current/near-now conditions from Open-Meteo `current=temperature_2m,weather_code`, not the daily dominant `weather_code`. Daily `weather_code` represents the worst condition across the entire day (including overnight) and must not be shown as the live condition.
+* When effective coordinates exist (stored or geocoded) but the Open-Meteo fetch returns null, show `"Weather unavailable for this property."` so the operator sees that weather was attempted. Do not silently suppress it.
+* Completed Today cards do not show weather. Weather is relevant to jobs the operator is about to drive to. Do not add weather to Completed Today cards without explicit approval.
