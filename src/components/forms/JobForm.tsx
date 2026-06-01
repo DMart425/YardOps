@@ -19,6 +19,28 @@ interface PropertyOption {
   default_edging_enabled?: boolean | null
   default_blow_off_enabled?: boolean | null
 }
+// Structured prefill data derived from an approved estimate.
+// Passed from jobs/new page when ?estimate_id= is present and valid.
+export interface EstimatePrefill {
+  estimateId: string
+  estimateNumber: string | null
+  customerId: string
+  propertyId: string
+  price: number | null
+  frequency: string | null
+  svcMowing: boolean
+  svcWeedEating: boolean
+  svcEdging: boolean
+  svcBlowOff: boolean
+  baggingLevel: string
+  stickPickupLevel: string
+  leafCleanupLevel: string
+  haulOffLevel: string
+  shrubSmallCount: number
+  shrubMediumCount: number
+  shrubLargeCount: number
+}
+
 interface JobFormProps {
   action: (prevState: FormState, formData: FormData) => Promise<FormState>
   submitLabel: string
@@ -29,6 +51,8 @@ interface JobFormProps {
   defaultPropertyId?: string
   localToday: string
   defaultValues?: Record<string, string | number | boolean | null>
+  estimatePrefill?: EstimatePrefill | null
+  estimateWarning?: string | null
 }
 
 type SvcCheckboxes = { mow: boolean; weed: boolean; edge: boolean; blow: boolean }
@@ -90,6 +114,7 @@ export function JobForm({
   action, submitLabel, cancelHref,
   customers, properties,
   defaultCustomerId, defaultPropertyId, localToday, defaultValues,
+  estimatePrefill, estimateWarning,
 }: JobFormProps) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(action, { error: null })
   const initialProperty = getPropertyDefaults(properties, defaultPropertyId)
@@ -98,29 +123,31 @@ export function JobForm({
   const [selectedCustomerId, setSelectedCustomerId] = useState(defaultCustomerId ?? '')
   const [selectedPropertyId, setSelectedPropertyId] = useState(defaultPropertyId ?? '')
   const [price, setPrice] = useState(() => {
+    if (estimatePrefill?.price != null) return String(estimatePrefill.price)
     if (defaultValues?.price != null) return String(defaultValues.price)
     return initialProperty?.default_price != null ? String(initialProperty.default_price) : ''
   })
   const [jobType, setJobType] = useState(() => {
+    if (estimatePrefill?.frequency) return deriveJobTypeFromFrequency(estimatePrefill.frequency)
     if (defaultValues?.job_type) return String(defaultValues.job_type)
     if (initialProperty) return deriveJobTypeFromFrequency(initialProperty.service_frequency)
     return 'one_time'
   })
 
   // Core service checkboxes — source of truth for service scope on new jobs
-  const [svcMowing,     setSvcMowing]     = useState(initialCheckboxes.mow)
-  const [svcWeedEating, setSvcWeedEating] = useState(initialCheckboxes.weed)
-  const [svcEdging,     setSvcEdging]     = useState(initialCheckboxes.edge)
-  const [svcBlowOff,    setSvcBlowOff]    = useState(initialCheckboxes.blow)
+  const [svcMowing,     setSvcMowing]     = useState(estimatePrefill ? estimatePrefill.svcMowing     : initialCheckboxes.mow)
+  const [svcWeedEating, setSvcWeedEating] = useState(estimatePrefill ? estimatePrefill.svcWeedEating : initialCheckboxes.weed)
+  const [svcEdging,     setSvcEdging]     = useState(estimatePrefill ? estimatePrefill.svcEdging     : initialCheckboxes.edge)
+  const [svcBlowOff,    setSvcBlowOff]    = useState(estimatePrefill ? estimatePrefill.svcBlowOff    : initialCheckboxes.blow)
 
   // Add-on selections
-  const [baggingLevel,     setBaggingLevel]     = useState('none')
-  const [stickPickupLevel, setStickPickupLevel] = useState('none')
-  const [leafCleanupLevel, setLeafCleanupLevel] = useState('none')
-  const [haulOffLevel,     setHaulOffLevel]     = useState('none')
-  const [shrubSmallCount,  setShrubSmallCount]  = useState(0)
-  const [shrubMediumCount, setShrubMediumCount] = useState(0)
-  const [shrubLargeCount,  setShrubLargeCount]  = useState(0)
+  const [baggingLevel,     setBaggingLevel]     = useState(estimatePrefill?.baggingLevel     ?? 'none')
+  const [stickPickupLevel, setStickPickupLevel] = useState(estimatePrefill?.stickPickupLevel ?? 'none')
+  const [leafCleanupLevel, setLeafCleanupLevel] = useState(estimatePrefill?.leafCleanupLevel ?? 'none')
+  const [haulOffLevel,     setHaulOffLevel]     = useState(estimatePrefill?.haulOffLevel     ?? 'none')
+  const [shrubSmallCount,  setShrubSmallCount]  = useState(estimatePrefill?.shrubSmallCount  ?? 0)
+  const [shrubMediumCount, setShrubMediumCount] = useState(estimatePrefill?.shrubMediumCount ?? 0)
+  const [shrubLargeCount,  setShrubLargeCount]  = useState(estimatePrefill?.shrubLargeCount  ?? 0)
 
   const filteredProperties = selectedCustomerId
     ? properties.filter(p => p.customer_id === selectedCustomerId)
@@ -162,16 +189,30 @@ export function JobForm({
     ? formatFrequencyLabel(selectedProperty.service_frequency)
     : null
 
-  const prefillNote: { text: string; isDefaults: boolean } = selectedProperty
-    ? hasPropertyDefaults(selectedProperty)
-      ? { text: 'Using property defaults — edit any field before creating the job.', isDefaults: true }
-      : { text: 'Manual entry — this property has no defaults set.', isDefaults: false }
-    : { text: 'Manual entry — choose a property to load defaults, or fill the job manually.', isDefaults: false }
+  // Estimate prefill is "active" only while the operator has the estimate's original property
+  // selected. If they switch to a different property, the note reverts to property/manual mode.
+  const isEstimateActive = !!(estimatePrefill && selectedPropertyId === estimatePrefill.propertyId)
+
+  const prefillNote: { text: string; isDefaults: boolean } = isEstimateActive
+    ? {
+        text: `Prefilled from Estimate${estimatePrefill!.estimateNumber ? ` #${estimatePrefill!.estimateNumber}` : ''} — edit any field before creating the job.`,
+        isDefaults: true,
+      }
+    : selectedProperty
+      ? hasPropertyDefaults(selectedProperty)
+        ? { text: 'Using property defaults — edit any field before creating the job.', isDefaults: true }
+        : { text: 'Manual entry — this property has no defaults set.', isDefaults: false }
+      : { text: 'Manual entry — choose a property to load defaults, or fill the job manually.', isDefaults: false }
 
   return (
     <form action={formAction} className="form">
       <Toast message={state.success} />
       {state.error && <div className="alert alert-error">{state.error}</div>}
+      {estimateWarning && (
+        <div className="alert alert-error" style={{ marginBottom: '12px' }}>
+          ⚠ {estimateWarning}
+        </div>
+      )}
 
       {/* Customer */}
       <div className="form-field">
