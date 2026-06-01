@@ -176,14 +176,9 @@ export function EstimateStatusActions({
            choices are visually grouped. Only shown for approved, non-lead-gated
            estimates; lead gate and all other statuses suppress this block. */}
       {estimate.status === 'approved' && !isLeadGated && (
-        <div>
-          <Link href={`/jobs/new?estimate_id=${estimate.id}`} className="btn btn-secondary btn-full">
-            📝 Review &amp; Create Job
-          </Link>
-          <p className="text-small text-muted" style={{ marginTop: '5px', textAlign: 'center' }}>
-            Opens the full job form prefilled from this estimate.
-          </p>
-        </div>
+        <Link href={`/jobs/new?estimate_id=${estimate.id}`} className="btn btn-secondary btn-full">
+          📝 Review &amp; Create Job
+        </Link>
       )}
 
       {/* Decline */}

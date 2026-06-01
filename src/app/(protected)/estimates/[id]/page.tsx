@@ -190,8 +190,7 @@ export default async function EstimateDetailPage({
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '1.25rem' }}>✅</span>
             <div>
-              <div className="font-bold">Customer approved — ready to schedule</div>
-              <div className="text-small text-muted">Use Convert to Job below to create a scheduled job for this estimate.</div>
+              <div className="font-bold">Customer approved</div>
             </div>
           </div>
         </div>
