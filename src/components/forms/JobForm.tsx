@@ -297,6 +297,13 @@ export function JobForm({
            to work correctly without any action changes. */}
       <input type="hidden" name="job_type" value={jobType} />
 
+      {/* Estimate source — included only while the estimate's original property is
+           still selected. If operator switches to a different property the hidden field
+           is removed so createJob does not attempt to link an unrelated estimate. */}
+      {isEstimateActive && estimatePrefill && (
+        <input type="hidden" name="estimate_id" value={estimatePrefill.estimateId} />
+      )}
+
       {/* Frequency display — read-only context for the operator */}
       <div className="form-field">
         <label className="form-label">Frequency</label>

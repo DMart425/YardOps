@@ -101,6 +101,41 @@ export async function createJob(
   if (!customerId) return { error: 'Please select a customer.' }
   if (!propertyId)  return { error: 'Please select a property.' }
 
+  // ── Estimate linkage validation ─────────────────────────────────────────
+  // If a hidden estimate_id field is present (injected by JobForm when
+  // estimatePrefill is active), validate it before inserting the job.
+  // Invalid or mismatched estimate_id is a hard error — we will not silently
+  // create a job linked to an estimate we cannot verify.
+  const estimateIdRaw = (formData.get('estimate_id') as string | null)?.trim() || null
+  let validatedEstimateId: string | null = null
+  let linkedEstimateCustomerId: string | null = null
+
+  if (estimateIdRaw) {
+    const { data: est } = await supabase
+      .from('estimates')
+      .select('id, status, business_id, customer_id, property_id')
+      .eq('id', estimateIdRaw)
+      .eq('business_id', businessId)
+      .maybeSingle()
+
+    if (!est) {
+      return { error: 'Estimate not found or does not belong to this account.' }
+    }
+    if (est.status !== 'approved') {
+      return { error: `Cannot link estimate — its status is "${est.status}", not "approved".` }
+    }
+    if (est.customer_id !== customerId) {
+      return { error: 'Estimate customer does not match the selected customer.' }
+    }
+    if (est.property_id !== propertyId) {
+      return { error: 'Estimate property does not match the selected property.' }
+    }
+
+    validatedEstimateId      = est.id as string
+    linkedEstimateCustomerId = est.customer_id as string
+  }
+  // ───────────────────────────────────────────────────────────────────────
+
   const priceRaw = formData.get('price') as string
   const price    = priceRaw ? parseFloat(priceRaw) : null
 
@@ -113,6 +148,7 @@ export async function createJob(
       business_id:           businessId,
       customer_id:           customerId,
       property_id:           propertyId,
+      ...(validatedEstimateId ? { estimate_id: validatedEstimateId } : {}),
       title:                 'Lawn Service',
       job_type:              (formData.get('job_type') as string) || 'one_time',
       service_package:       derivePackageFromJobInputs(jobInputs),
@@ -128,6 +164,40 @@ export async function createJob(
     .single()
 
   if (error) return { error: error.message }
+
+  // ── Estimate conversion side effects ────────────────────────────────────
+  // Mirror the same post-insert steps as convertToJob() so a job created
+  // from /jobs/new?estimate_id= is fully equivalent to a direct conversion.
+  if (validatedEstimateId && linkedEstimateCustomerId) {
+    // Mark estimate converted (best-effort — job already created)
+    await supabase
+      .from('estimates')
+      .update({ status: 'converted' })
+      .eq('id', validatedEstimateId)
+      .eq('business_id', businessId)
+
+    // Promote lead → active customer (guard: only promotes genuine leads)
+    await supabase
+      .from('customers')
+      .update({ status: 'active' })
+      .eq('id', linkedEstimateCustomerId)
+      .eq('business_id', businessId)
+      .eq('status', 'lead')
+
+    // Clear unreviewed approval notification so Today page does not show
+    // a stale "Approved Estimates Waiting" card after conversion.
+    await supabase
+      .from('app_notifications')
+      .update({ is_reviewed: true, reviewed_at: new Date().toISOString() })
+      .eq('estimate_id', validatedEstimateId)
+      .eq('is_reviewed', false)
+      .eq('notification_type', 'estimate_approved')
+
+    revalidatePath(`/estimates/${validatedEstimateId}`)
+    revalidatePath('/estimates')
+    revalidatePath('/leads')
+  }
+  // ───────────────────────────────────────────────────────────────────────
 
   revalidatePath('/jobs')
   revalidatePath('/today')
