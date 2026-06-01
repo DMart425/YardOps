@@ -421,6 +421,25 @@ export default async function EstimateDetailPage({
       <div className="card" style={{ marginBottom: '1rem' }}>
         <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Manage Estimate</div>
         <EstimateStatusActions estimate={estimate} localToday={localToday} propertyDefaultPrice={property.default_price ?? null} customerId={estimate.customer_id} customerStatus={customer.status} defaultScheduledDate={defaultScheduledDate} />
+
+        {/* Review & Create Job — secondary conversion path that opens the full JobForm.
+             Only shown for approved estimates on active (non-lead) customers.
+             The resulting job is fully linked via Phase 5R createJob() linkage logic.
+             Hidden for lead-gated customers (the lead activation card already explains the required step). */}
+        {estimate.status === 'approved' && customer.status !== 'lead' && (
+          <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--color-border)' }}>
+            <Link
+              href={`/jobs/new?estimate_id=${estimate.id}`}
+              className="btn btn-secondary btn-full"
+            >
+              📝 Review &amp; Create Job
+            </Link>
+            <p className="text-small text-muted" style={{ marginTop: '5px', textAlign: 'center' }}>
+              Opens the full job form prefilled from this estimate.
+            </p>
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: '8px', marginTop: '0.75rem', flexWrap: 'wrap' }}>
           {estimate.status !== 'converted' && (
             <Link href={`/estimates/${estimate.id}/edit`} className="btn btn-sm btn-secondary">Edit</Link>
