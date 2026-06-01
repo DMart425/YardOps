@@ -1,9 +1,10 @@
 'use client'
 
-import { useActionState, useState, useRef, useEffect } from 'react'
+import { useActionState, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import type { FormState, Job } from '@/types/database'
 import { completeJob, markInProgress, skipJob, cancelJob, markPaid, markPartial, rescheduleJob } from '@/app/(protected)/jobs/actions'
+import { buildDefaultCompletionNotes } from '@/lib/jobScope'
 import { Toast } from '@/components/Toast'
 
 export function JobActions({ job, venmoHandle, customerPhone, customerFirstName, businessName, businessPhone, portalInvoiceUrl }: { job: Job; venmoHandle?: string | null; customerPhone?: string | null; customerFirstName?: string | null; businessName?: string | null; businessPhone?: string | null; portalInvoiceUrl?: string | null }) {
@@ -15,15 +16,6 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
   const [laterPartialAmt,  setLaterPartialAmt]  = useState('')
   const [pendingReceipt,   setPendingReceipt]   = useState<{ smsBody: string; isPaidInFull: boolean } | null>(null)
   const router = useRouter()
-  const notesRef = useRef<HTMLTextAreaElement>(null)
-
-  const NOTE_TEMPLATES = [
-    'Mowed, edged, blown',
-    'Mowed only',
-    'Mowed, edged, blown, trimmed shrubs',
-    'Full service complete',
-    'Gate locked — mowed front only',
-  ]
 
   const [startState,    startAction,    startPending]    = useActionState<FormState, FormData>(markInProgress.bind(null, job.id), { error: null })
   const [completeState, completeAction, completePending] = useActionState<FormState, FormData>(completeJob.bind(null, job.id),    { error: null })
@@ -135,20 +127,7 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
                 <form action={completeAction} className="form action-panel">
                   <div className="form-field">
                     <label className="form-label">Completion Notes</label>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '6px' }}>
-                      {NOTE_TEMPLATES.map(t => (
-                        <button
-                          key={t}
-                          type="button"
-                          className="pill pill-draft"
-                          style={{ cursor: 'pointer', fontSize: '0.7rem', border: '1px solid var(--color-border)' }}
-                          onClick={() => { if (notesRef.current) notesRef.current.value = t }}
-                        >
-                          {t}
-                        </button>
-                      ))}
-                    </div>
-                    <textarea ref={notesRef} name="completion_notes" className="form-textarea" rows={2} placeholder="Any notes about this visit…" />
+                    <textarea name="completion_notes" className="form-textarea" rows={2} placeholder="Any notes about this visit…" defaultValue={buildDefaultCompletionNotes(job.job_inputs as Record<string, unknown> | null, job.service_package as string | null)} />
                   </div>
                   <div className="form-row">
                     <div className="form-field">

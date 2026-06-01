@@ -1,14 +1,24 @@
 /**
- * Customer-facing job scope helpers (Phase 5T).
+ * Job scope helpers — customer-facing display (Phase 5T) and operator
+ * completion note autofill (Phase 5U).
  *
- * These helpers parse and format jobs.job_inputs (added Phase 5Q) for display
- * on customer-facing portal/invoice surfaces.  They are intentionally separate
- * from the operator-facing helpers in jobs/[id]/page.tsx so customer labels can
- * differ (e.g., no add-on level detail shown to customers).
+ * Customer-facing helpers are intentionally separate from the operator helpers
+ * in jobs/[id]/page.tsx so customer labels can differ (e.g., no add-on level
+ * detail exposed to customers).
  *
  * Usage:
- *   import { parseJobInputs, resolveServiceLabel, formatAddonsForCustomer } from '@/lib/jobScope'
+ *   import { parseJobInputs, resolveServiceLabel, formatAddonsForCustomer,
+ *            buildDefaultCompletionNotes } from '@/lib/jobScope'
  */
+
+// ---------------------------------------------------------------------------
+// Internal utility
+// ---------------------------------------------------------------------------
+
+function capFirst(s: string): string {
+  if (!s) return s
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -140,4 +150,59 @@ export function resolveServiceLabel(
   }
   if (pkg) return SERVICE_LABELS[pkg] ?? pkg.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
   return title ?? 'Lawn Service'
+}
+
+// ---------------------------------------------------------------------------
+// Operator-facing — completion note autofill (Phase 5U)
+// ---------------------------------------------------------------------------
+
+/** service_package → default completion note (legacy fallback) */
+const PKG_COMPLETION_NOTES: Record<string, string> = {
+  mow_only:      'Mowed',
+  mow_trim_blow: 'Mowed, weed ate, blew off',
+  full_service:  'Mowed, weed ate, edged, blew off',
+  trim_cleanup:  'Weed ate, edged, blew off',
+}
+
+/**
+ * Returns a short, editable completion note pre-filled from job scope.
+ *
+ * Priority:
+ *  1. job_inputs (Phase 5Q+) — builds a comma-separated past-tense list
+ *     from whichever services and add-ons were selected.
+ *     e.g. "Mowed, weed ate, blew off, cleaned up leaves"
+ *  2. service_package — maps legacy package codes to a fixed phrase.
+ *     e.g. mow_trim_blow → "Mowed, weed ate, blew off"
+ *  3. Ultimate fallback — "Lawn service completed"
+ *
+ * The returned string is used as the textarea defaultValue so the operator
+ * can freely edit or delete it before submitting.
+ */
+export function buildDefaultCompletionNotes(
+  jobInputs:      Record<string, unknown> | null | undefined,
+  servicePackage: string | null | undefined,
+): string {
+  const parsed = parseJobInputs(jobInputs)
+  if (parsed) {
+    const parts: string[] = []
+    // Core services — past-tense, lowercase (first word capped by capFirst below)
+    if (parsed.svcMowing)     parts.push('Mowed')
+    if (parsed.svcWeedEating) parts.push('weed ate')
+    if (parsed.svcEdging)     parts.push('edged')
+    if (parsed.svcBlowOff)    parts.push('blew off')
+    // Add-ons
+    if (parsed.baggingLevel     && parsed.baggingLevel     !== 'none') parts.push('bagged clippings')
+    if (parsed.stickPickupLevel && parsed.stickPickupLevel !== 'none') parts.push('picked up sticks/limbs')
+    if (parsed.leafCleanupLevel && parsed.leafCleanupLevel !== 'none') parts.push('cleaned up leaves')
+    if (parsed.haulOffLevel     && parsed.haulOffLevel     !== 'none') parts.push('hauled off debris')
+    const shrubTotal = (parsed.shrubSmallCount ?? 0) + (parsed.shrubMediumCount ?? 0) + (parsed.shrubLargeCount ?? 0)
+    if (shrubTotal > 0) parts.push('trimmed shrubs')
+    // Only use job_inputs result when at least one flag was set; otherwise fall
+    // through to service_package (e.g. a job saved with all boxes unchecked).
+    if (parts.length > 0) return capFirst(parts.join(', '))
+  }
+  if (servicePackage && PKG_COMPLETION_NOTES[servicePackage]) {
+    return PKG_COMPLETION_NOTES[servicePackage]
+  }
+  return 'Lawn service completed'
 }
