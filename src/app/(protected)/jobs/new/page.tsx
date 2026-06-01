@@ -5,6 +5,42 @@ import { createJob } from '../actions'
 import { getLocalDateStr, resolveTimeZone } from '@/lib/date'
 import { requireBusinessContext } from '@/lib/business/context'
 
+// ---------------------------------------------------------------------------
+// Maps a raw estimate DB row into the EstimatePrefill shape used by JobForm.
+// Shared by the explicit ?estimate_id= validation path and the bulk approved-
+// estimates fetch so the mapping logic is not duplicated.
+// ---------------------------------------------------------------------------
+function buildEstimatePrefill(est: {
+  id: unknown
+  estimate_number: unknown
+  customer_id: unknown
+  property_id: unknown
+  total: unknown
+  frequency: unknown
+  estimate_inputs: unknown
+}): EstimatePrefill {
+  const ei = (est.estimate_inputs as Record<string, unknown> | null) ?? null
+  return {
+    estimateId:       est.id as string,
+    estimateNumber:   (est.estimate_number as string | null) ?? null,
+    customerId:       est.customer_id as string,
+    propertyId:       est.property_id as string,
+    price:            est.total != null ? Number(est.total) : null,
+    frequency:        (est.frequency as string | null) ?? null,
+    svcMowing:        ei ? ((ei.mowingMinutes   as number ?? 0)      > 0)                    : false,
+    svcWeedEating:    ei ? ((ei.weedEatingLevel as string ?? 'none') !== 'none')              : false,
+    svcEdging:        ei ? ((ei.edgingLevel     as string ?? 'none') !== 'none')              : false,
+    svcBlowOff:       ei ? ((ei.blowOffLevel    as string ?? 'none') !== 'none')              : false,
+    baggingLevel:     (ei?.baggingLevel     as string) ?? 'none',
+    stickPickupLevel: (ei?.stickPickupLevel as string) ?? 'none',
+    leafCleanupLevel: (ei?.leafCleanupLevel as string) ?? 'none',
+    haulOffLevel:     (ei?.haulOffLevel     as string) ?? 'none',
+    shrubSmallCount:  (ei?.shrubSmallCount  as number) ?? 0,
+    shrubMediumCount: (ei?.shrubMediumCount as number) ?? 0,
+    shrubLargeCount:  (ei?.shrubLargeCount  as number) ?? 0,
+  }
+}
+
 export default async function NewJobPage({
   searchParams,
 }: {
@@ -21,7 +57,14 @@ export default async function NewJobPage({
     .maybeSingle()
   const localToday = getLocalDateStr(resolveTimeZone(settings?.time_zone))
 
-  const [{ data: customers }, { data: properties }] = await Promise.all([
+  // Fetch customers, properties, and all approved estimates in parallel.
+  // The approved estimates list is passed to JobForm so the source selector
+  // can offer available estimates for whichever property the operator selects.
+  const [
+    { data: customers },
+    { data: properties },
+    { data: rawApprovedEstimates },
+  ] = await Promise.all([
     supabase
       .from('customers')
       .select('id, first_name, last_name, status')
@@ -34,12 +77,24 @@ export default async function NewJobPage({
       .eq('business_id', businessId)
       .eq('status', 'active')
       .order('service_address'),
+    supabase
+      .from('estimates')
+      .select('id, estimate_number, status, customer_id, property_id, total, frequency, estimate_inputs')
+      .eq('business_id', businessId)
+      .eq('status', 'approved'),
   ])
 
-  // ── Estimate prefill ──────────────────────────────────────────────────────
-  // When ?estimate_id= is present, fetch + validate the estimate and build
-  // structured prefill data. Invalid estimates show a warning; they do not
-  // silently fall back to property defaults.
+  // Build EstimatePrefill list for all currently approved estimates.
+  // Filtered to rows that have both customer_id and property_id set.
+  const allApprovedEstimates: EstimatePrefill[] = (rawApprovedEstimates ?? [])
+    .filter(est => est.customer_id && est.property_id)
+    .map(est => buildEstimatePrefill(est))
+
+  // ── Explicit ?estimate_id= validation ────────────────────────────────────
+  // When ?estimate_id= is present, validate that exact estimate separately.
+  // Invalid estimates show a warning; they do not silently fall back to
+  // property defaults. The validated estimate is also already in
+  // allApprovedEstimates (same status=approved query) so no duplication.
   let estimatePrefill: EstimatePrefill | null = null
   let estimateWarning: string | null = null
 
@@ -59,26 +114,7 @@ export default async function NewJobPage({
     } else if (!est.customer_id || !est.property_id) {
       estimateWarning = 'This estimate cannot be used for prefill — it is missing customer or property data.'
     } else {
-      const ei = (est.estimate_inputs as Record<string, unknown> | null) ?? null
-      estimatePrefill = {
-        estimateId:       est.id as string,
-        estimateNumber:   (est.estimate_number as string | null) ?? null,
-        customerId:       est.customer_id as string,
-        propertyId:       est.property_id as string,
-        price:            est.total != null ? Number(est.total) : null,
-        frequency:        (est.frequency as string | null) ?? null,
-        svcMowing:        ei ? ((ei.mowingMinutes as number ?? 0) > 0)                       : false,
-        svcWeedEating:    ei ? ((ei.weedEatingLevel as string ?? 'none') !== 'none')          : false,
-        svcEdging:        ei ? ((ei.edgingLevel     as string ?? 'none') !== 'none')          : false,
-        svcBlowOff:       ei ? ((ei.blowOffLevel    as string ?? 'none') !== 'none')          : false,
-        baggingLevel:     (ei?.baggingLevel     as string)  ?? 'none',
-        stickPickupLevel: (ei?.stickPickupLevel as string)  ?? 'none',
-        leafCleanupLevel: (ei?.leafCleanupLevel as string)  ?? 'none',
-        haulOffLevel:     (ei?.haulOffLevel     as string)  ?? 'none',
-        shrubSmallCount:  (ei?.shrubSmallCount  as number)  ?? 0,
-        shrubMediumCount: (ei?.shrubMediumCount as number)  ?? 0,
-        shrubLargeCount:  (ei?.shrubLargeCount  as number)  ?? 0,
-      }
+      estimatePrefill = buildEstimatePrefill(est)
     }
   }
 
@@ -105,6 +141,7 @@ export default async function NewJobPage({
           localToday={localToday}
           estimatePrefill={estimatePrefill}
           estimateWarning={estimateWarning}
+          approvedEstimates={allApprovedEstimates}
         />
       </div>
     </div>

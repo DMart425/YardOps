@@ -20,7 +20,8 @@ interface PropertyOption {
   default_blow_off_enabled?: boolean | null
 }
 // Structured prefill data derived from an approved estimate.
-// Passed from jobs/new page when ?estimate_id= is present and valid.
+// Passed from jobs/new page when ?estimate_id= is present and valid,
+// and as a list in approvedEstimates for the source selector.
 export interface EstimatePrefill {
   estimateId: string
   estimateNumber: string | null
@@ -41,6 +42,12 @@ export interface EstimatePrefill {
   shrubLargeCount: number
 }
 
+// Source of prefill data for the new job form.
+// 'estimate'  — uses a selected approved estimate; submits hidden estimate_id.
+// 'property'  — uses property defaults; no estimate linked.
+// 'custom'    — manual entry; fields left as-is; no estimate linked.
+type JobSource = 'estimate' | 'property' | 'custom'
+
 interface JobFormProps {
   action: (prevState: FormState, formData: FormData) => Promise<FormState>
   submitLabel: string
@@ -53,6 +60,9 @@ interface JobFormProps {
   defaultValues?: Record<string, string | number | boolean | null>
   estimatePrefill?: EstimatePrefill | null
   estimateWarning?: string | null
+  // All currently approved estimates for this business. Used to populate the
+  // source selector dropdown when a property with approved estimates is selected.
+  approvedEstimates?: EstimatePrefill[]
 }
 
 type SvcCheckboxes = { mow: boolean; weed: boolean; edge: boolean; blow: boolean }
@@ -115,6 +125,7 @@ export function JobForm({
   customers, properties,
   defaultCustomerId, defaultPropertyId, localToday, defaultValues,
   estimatePrefill, estimateWarning,
+  approvedEstimates,
 }: JobFormProps) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(action, { error: null })
   const initialProperty = getPropertyDefaults(properties, defaultPropertyId)
@@ -134,6 +145,17 @@ export function JobForm({
     return 'one_time'
   })
 
+  // Source selector state — which data source is driving the form fields.
+  const [source, setSource] = useState<JobSource>(() => {
+    if (estimatePrefill) return 'estimate'
+    if (initialProperty && hasPropertyDefaults(initialProperty)) return 'property'
+    return 'custom'
+  })
+  // The estimate currently selected in the estimate picker (by estimateId).
+  const [selectedEstimateId, setSelectedEstimateId] = useState<string | null>(
+    estimatePrefill?.estimateId ?? null
+  )
+
   // Core service checkboxes — source of truth for service scope on new jobs
   const [svcMowing,     setSvcMowing]     = useState(estimatePrefill ? estimatePrefill.svcMowing     : initialCheckboxes.mow)
   const [svcWeedEating, setSvcWeedEating] = useState(estimatePrefill ? estimatePrefill.svcWeedEating : initialCheckboxes.weed)
@@ -149,11 +171,58 @@ export function JobForm({
   const [shrubMediumCount, setShrubMediumCount] = useState(estimatePrefill?.shrubMediumCount ?? 0)
   const [shrubLargeCount,  setShrubLargeCount]  = useState(estimatePrefill?.shrubLargeCount  ?? 0)
 
+  // ── Derived values ────────────────────────────────────────────────────────
+  const allEstimates = approvedEstimates ?? []
+  // Estimates available for the currently selected property.
+  const propertyEstimates = allEstimates.filter(e => e.propertyId === selectedPropertyId)
+  // The estimate currently active in the picker (may be null if none selected yet).
+  const activeEstimate = propertyEstimates.find(e => e.estimateId === selectedEstimateId) ?? null
+  // Estimate source is fully active only when source=estimate, an estimate is selected,
+  // and it belongs to the currently selected property.
+  const isEstimateActive = source === 'estimate' && activeEstimate != null && activeEstimate.propertyId === selectedPropertyId
+
   const filteredProperties = selectedCustomerId
     ? properties.filter(p => p.customer_id === selectedCustomerId)
     : properties
 
-  // Reset property if customer changes and current property doesn't belong to new customer
+  // ── Field-population helpers ──────────────────────────────────────────────
+  // Apply all scope fields from an estimate prefill object.
+  // Date is intentionally excluded — it is a scheduling decision, not scope data.
+  const applyEstimateFields = (ep: EstimatePrefill) => {
+    if (ep.price != null) setPrice(String(ep.price))
+    setJobType(deriveJobTypeFromFrequency(ep.frequency))
+    setSvcMowing(ep.svcMowing)
+    setSvcWeedEating(ep.svcWeedEating)
+    setSvcEdging(ep.svcEdging)
+    setSvcBlowOff(ep.svcBlowOff)
+    setBaggingLevel(ep.baggingLevel)
+    setStickPickupLevel(ep.stickPickupLevel)
+    setLeafCleanupLevel(ep.leafCleanupLevel)
+    setHaulOffLevel(ep.haulOffLevel)
+    setShrubSmallCount(ep.shrubSmallCount)
+    setShrubMediumCount(ep.shrubMediumCount)
+    setShrubLargeCount(ep.shrubLargeCount)
+  }
+
+  // Apply property defaults and reset add-ons to none/0.
+  const applyPropertyFields = (p: PropertyOption) => {
+    setPrice(p.default_price != null ? String(p.default_price) : '')
+    setJobType(deriveJobTypeFromFrequency(p.service_frequency))
+    const cbs = getPropertyCheckboxDefaults(p)
+    setSvcMowing(cbs.mow)
+    setSvcWeedEating(cbs.weed)
+    setSvcEdging(cbs.edge)
+    setSvcBlowOff(cbs.blow)
+    setBaggingLevel('none')
+    setStickPickupLevel('none')
+    setLeafCleanupLevel('none')
+    setHaulOffLevel('none')
+    setShrubSmallCount(0)
+    setShrubMediumCount(0)
+    setShrubLargeCount(0)
+  }
+
+  // ── Event handlers ────────────────────────────────────────────────────────
   const handleCustomerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newId = e.target.value
     setSelectedCustomerId(newId)
@@ -164,6 +233,10 @@ export function JobForm({
   const handlePropertyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const propertyId = e.target.value
     setSelectedPropertyId(propertyId)
+    // Reset estimate selection whenever the property changes.
+    setSelectedEstimateId(null)
+    // If estimate source was active, fall back to property defaults.
+    if (source === 'estimate') setSource('property')
     const property = getPropertyDefaults(properties, propertyId)
     if (!property) return
     // Price: only prefill if a default exists; leave operator input untouched otherwise
@@ -178,6 +251,34 @@ export function JobForm({
     setSvcBlowOff(cbs.blow)
   }
 
+  // Handle source selector radio change.
+  const handleSourceChange = (newSource: JobSource) => {
+    if (newSource === source) return
+    setSource(newSource)
+    if (newSource === 'estimate') {
+      // Auto-select the first available estimate when switching to Estimate source.
+      const target = activeEstimate ?? propertyEstimates[0] ?? null
+      if (target) {
+        setSelectedEstimateId(target.estimateId)
+        applyEstimateFields(target)
+      }
+    } else if (newSource === 'property') {
+      setSelectedEstimateId(null)
+      const property = getPropertyDefaults(properties, selectedPropertyId)
+      if (property) applyPropertyFields(property)
+    } else {
+      // 'custom' — leave all current field values as-is; just clear the estimate link.
+      setSelectedEstimateId(null)
+    }
+  }
+
+  // Handle estimate picker dropdown change.
+  const handleEstimatePickerChange = (estimateId: string) => {
+    setSelectedEstimateId(estimateId)
+    const est = propertyEstimates.find(e => e.estimateId === estimateId) ?? null
+    if (est) applyEstimateFields(est)
+  }
+
   const today = localToday
 
   // Derived frequency label — shown read-only to operator; updates when property changes.
@@ -189,20 +290,19 @@ export function JobForm({
     ? formatFrequencyLabel(selectedProperty.service_frequency)
     : null
 
-  // Estimate prefill is "active" only while the operator has the estimate's original property
-  // selected. If they switch to a different property, the note reverts to property/manual mode.
-  const isEstimateActive = !!(estimatePrefill && selectedPropertyId === estimatePrefill.propertyId)
-
+  // Prefill source note — reflects current source selection.
   const prefillNote: { text: string; isDefaults: boolean } = isEstimateActive
     ? {
-        text: `Prefilled from Estimate${estimatePrefill!.estimateNumber ? ` #${estimatePrefill!.estimateNumber}` : ''} — edit any field before creating the job.`,
+        text: `Prefilled from Estimate${activeEstimate!.estimateNumber ? ` #${activeEstimate!.estimateNumber}` : ''} — edit any field before creating the job.`,
         isDefaults: true,
       }
-    : selectedProperty
-      ? hasPropertyDefaults(selectedProperty)
-        ? { text: 'Using property defaults — edit any field before creating the job.', isDefaults: true }
-        : { text: 'Manual entry — this property has no defaults set.', isDefaults: false }
-      : { text: 'Manual entry — choose a property to load defaults, or fill the job manually.', isDefaults: false }
+    : source === 'custom'
+      ? { text: 'Custom / Manual — fields will be submitted as-is.', isDefaults: false }
+      : selectedProperty
+        ? hasPropertyDefaults(selectedProperty)
+          ? { text: 'Using property defaults — edit any field before creating the job.', isDefaults: true }
+          : { text: 'Manual entry — this property has no defaults set.', isDefaults: false }
+        : { text: 'Manual entry — choose a property to load defaults, or fill the job manually.', isDefaults: false }
 
   return (
     <form action={formAction} className="form">
@@ -254,6 +354,63 @@ export function JobForm({
         </select>
       </div>
 
+      {/* Source selector — shown only when a property is selected AND it has
+           at least one approved estimate. Lets the operator choose whether to
+           fill the form from an estimate, property defaults, or manually. */}
+      {selectedPropertyId && propertyEstimates.length > 0 && (
+        <div className="form-field" style={{ marginTop: '-2px', marginBottom: '4px' }}>
+          <label className="form-label">Job source</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {/* Estimate option */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input
+                type="radio"
+                name="jf_source"
+                checked={source === 'estimate'}
+                onChange={() => handleSourceChange('estimate')}
+              />
+              <span className="text-small">Estimate</span>
+            </label>
+            {source === 'estimate' && propertyEstimates.length > 0 && (
+              <select
+                className="form-select"
+                style={{ marginLeft: '24px' }}
+                value={selectedEstimateId ?? ''}
+                onChange={e => handleEstimatePickerChange(e.target.value)}
+              >
+                {propertyEstimates.map(e => (
+                  <option key={e.estimateId} value={e.estimateId}>
+                    {e.estimateNumber ? `Estimate #${e.estimateNumber}` : 'Estimate'}
+                    {' · '}${e.price != null ? Number(e.price).toFixed(0) : '?'}
+                    {' · '}{e.frequency ? formatFrequencyLabel(e.frequency) : 'One-time'}
+                  </option>
+                ))}
+              </select>
+            )}
+            {/* Property defaults option */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input
+                type="radio"
+                name="jf_source"
+                checked={source === 'property'}
+                onChange={() => handleSourceChange('property')}
+              />
+              <span className="text-small">Property defaults</span>
+            </label>
+            {/* Custom / Manual option */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input
+                type="radio"
+                name="jf_source"
+                checked={source === 'custom'}
+                onChange={() => handleSourceChange('custom')}
+              />
+              <span className="text-small">Custom / Manual</span>
+            </label>
+          </div>
+        </div>
+      )}
+
       {/* Prefill source note */}
       <p
         className="text-small text-muted"
@@ -297,11 +454,12 @@ export function JobForm({
            to work correctly without any action changes. */}
       <input type="hidden" name="job_type" value={jobType} />
 
-      {/* Estimate source — included only while the estimate's original property is
-           still selected. If operator switches to a different property the hidden field
-           is removed so createJob does not attempt to link an unrelated estimate. */}
-      {isEstimateActive && estimatePrefill && (
-        <input type="hidden" name="estimate_id" value={estimatePrefill.estimateId} />
+      {/* Estimate source — included only while isEstimateActive is true.
+           isEstimateActive requires source==='estimate', an activeEstimate,
+           and the active estimate's property matching the selected property.
+           If operator switches source or changes property the field is removed. */}
+      {isEstimateActive && (
+        <input type="hidden" name="estimate_id" value={activeEstimate!.estimateId} />
       )}
 
       {/* Frequency display — read-only context for the operator */}
