@@ -526,8 +526,8 @@ export default async function TodayPage() {
                       {effectiveCoord != null && (
                         fc ? (
                           <div className="card-meta" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span>{fc.emoji}</span>
-                            <span>{fc.tempHi}° / {fc.tempLo}° · {fc.summary}</span>
+                            <span>{fc.currentEmoji}</span>
+                            <span>{fc.currentTemp}° now · {fc.currentSummary} · High {fc.tempHi}°</span>
                             {fc.precipChance > 0 && (
                               <span style={{ color: wetRisk ? 'var(--color-overdue)' : undefined, fontWeight: wetRisk ? 600 : undefined }}>
                                 · {fc.precipChance}% rain

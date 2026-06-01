@@ -5,16 +5,23 @@
 
 export interface DayForecast {
   date: string             // YYYY-MM-DD
-  tempHi: number           // °F
-  tempLo: number           // °F
-  precipChance: number     // %
-  precipInches: number     // inches
-  weatherCode: number      // WMO code
-  summary: string
-  emoji: string
+  tempHi: number           // °F — daily high
+  tempLo: number           // °F — daily low
+  currentTemp: number      // °F — current actual temperature; falls back to daily high
+  currentSummary: string   // current WMO condition label; falls back to daily summary
+  currentEmoji: string     // current WMO emoji; falls back to daily emoji
+  precipChance: number     // % — daily max precip probability
+  precipInches: number     // inches — daily precip sum
+  weatherCode: number      // WMO code (daily dominant — kept for rain banner logic)
+  summary: string          // daily condition label
+  emoji: string            // daily emoji
 }
 
 interface OpenMeteoResponse {
+  current?: {
+    temperature_2m?: number   // current actual temperature
+    weather_code?: number     // current WMO condition code
+  }
   daily?: {
     time: string[]
     temperature_2m_max: number[]
@@ -56,6 +63,7 @@ export async function getForecast(lat: number, lon: number): Promise<DayForecast
   const url = new URL('https://api.open-meteo.com/v1/forecast')
   url.searchParams.set('latitude', lat.toFixed(4))
   url.searchParams.set('longitude', lon.toFixed(4))
+  url.searchParams.set('current', 'temperature_2m,weather_code')
   url.searchParams.set('daily', 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum')
   url.searchParams.set('timezone', 'auto')
   url.searchParams.set('temperature_unit', 'fahrenheit')
@@ -71,10 +79,24 @@ export async function getForecast(lat: number, lon: number): Promise<DayForecast
     return data.daily.time.map((date, i) => {
       const code = data.daily!.weather_code[i] ?? 0
       const meta = WMO_CODES[code] ?? { summary: 'Unknown', emoji: '🌡' }
+
+      // Current conditions are only available for today (index 0).
+      // For future days fall back to the daily dominant code and daily high.
+      const rawCurrentCode = i === 0 ? data.current?.weather_code : undefined
+      const currentMeta = rawCurrentCode != null
+        ? (WMO_CODES[rawCurrentCode] ?? { summary: 'Unknown', emoji: '🌡' })
+        : meta
+      const currentTemp = i === 0 && data.current?.temperature_2m != null
+        ? Math.round(data.current.temperature_2m)
+        : Math.round(data.daily!.temperature_2m_max[i])
+
       return {
         date,
         tempHi: Math.round(data.daily!.temperature_2m_max[i]),
         tempLo: Math.round(data.daily!.temperature_2m_min[i]),
+        currentTemp,
+        currentSummary: currentMeta.summary,
+        currentEmoji: currentMeta.emoji,
         precipChance: data.daily!.precipitation_probability_max[i] ?? 0,
         precipInches: data.daily!.precipitation_sum[i] ?? 0,
         weatherCode: code,
