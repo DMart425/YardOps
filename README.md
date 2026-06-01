@@ -2,7 +2,7 @@
 
 Private operations app for Wicksburg Lawn Service.
 
-Verified checkpoint commit: `ca4a01e` (New Job source selector — Phase 5S complete).
+Verified checkpoint commit: `4e2c815` (Portal/invoice job scope display + completion note autofill — Phase 5T/5U complete).
 
 ## Read First
 
@@ -40,6 +40,18 @@ Jobs store structured service scope in `jobs.job_inputs` (nullable JSONB — add
 - `service_package` is a legacy fallback — still written but not the primary source.
 - `JobForm` does not calculate price — only `property.default_price` is a permitted prefill.
 - `/jobs/new` source selector (Phase 5S): when approved estimates exist for the selected property, a radio group offers **Estimate / Property defaults / Custom**. Selecting Estimate adds a hidden `estimate_id` field; the `createJob` action validates it and marks the source estimate `converted`. Switching away from Estimate removes `estimate_id` — Property defaults and Custom never convert estimates.
+
+### Shared scope helper — `src/lib/jobScope.ts` (Phase 5T)
+
+`src/lib/jobScope.ts` is a pure TypeScript module (no React) used by all customer-facing surfaces:
+
+- `parseJobInputs(raw)` — null-safe JSONB parser; returns `ParsedJobInputs | null`; uses `'svcMowing' in raw` as Phase 5Q+ marker
+- `formatCoreServicesForCustomer(inputs)` — comma-separated friendly label for customer display
+- `formatAddonsForCustomer(inputs)` — comma-separated add-on label; suppresses internal level detail
+- `resolveServiceLabel(jobInputs, pkg, title)` — priority: `job_inputs` core services → `SERVICE_LABELS[pkg]` → capitalised code → `title` → `'Lawn Service'`
+- `buildDefaultCompletionNotes(jobInputs, servicePackage)` — operator-facing past-tense autofill for the completion notes textarea (Phase 5U)
+
+Customer-facing surfaces (`/portal/[token]` and `/portal/[token]/invoice/[jobId]`) use `job_inputs` first and fall back to `service_package`/`title`. Property default booleans are **not** used to describe historical job work on public surfaces.
 
 ## Defaults + Frequency Rules
 

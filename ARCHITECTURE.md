@@ -4,8 +4,8 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-31
-Current checkpoint commit: `ca4a01e` (New Job source selector — Phase 5S complete)
+Last updated: 2026-06-01
+Current checkpoint commit: `4e2c815` (Portal/invoice job scope display + completion note autofill — Phase 5T/5U complete)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -103,6 +103,7 @@ src/
 │   ├── format.ts                 # Display formatting helpers: formatPhoneInput() — formats 10-digit US numbers as (xxx) xxx-xxxx; used on all phone input fields and customer-facing output
 │   ├── geocode.ts                # Address geocoding helper
 │   ├── frequency.ts              # Frequency and service interest helpers: normalizeFrequency(), formatFrequencyLabel(), parseWebsiteServiceInterests(), formatServiceInterestLabel()
+│   ├── jobScope.ts               # Shared job scope helpers (Phase 5T): parseJobInputs(), formatCoreServicesForCustomer(), formatAddonsForCustomer(), resolveServiceLabel(), buildDefaultCompletionNotes() — pure TypeScript; no React; used by portal server components and JobActions client component
 │   └── push.ts                   # Web push helper
 ├── types/
 │   └── database.ts               # TypeScript interfaces for all DB entities (manually maintained)
@@ -384,6 +385,18 @@ After property save, the service scope defaults are stored in four boolean colum
 
 - `deriveJobInputsFromEstimateInputs(raw)` — maps `estimate_inputs` JSONB to a `JobInputs` object; null/non-object input returns `null` safely; individual missing keys fall back to `false` / `'none'` / `0`
 
+### Shared helpers in `src/lib/jobScope.ts` (Phase 5T+)
+
+Pure TypeScript module — no React imports. Used by portal server components and `JobActions` client component.
+
+- `parseJobInputs(raw)` — null-safe JSONB parser; returns `ParsedJobInputs | null`; uses `'svcMowing' in raw` as Phase 5Q+ marker; safe defaults for all fields
+- `formatCoreServicesForCustomer(inputs)` — comma-separated customer-friendly core service label (e.g., `"Mowing, Weed eating, Edging"`)
+- `formatAddonsForCustomer(inputs)` — comma-separated customer-friendly add-on label; suppresses internal level detail; shows shrub total count only (e.g., `"Bagging clippings, Shrub trimming (3)"`)
+- `resolveServiceLabel(jobInputs, pkg, title)` — priority: `job_inputs` core services → `SERVICE_LABELS[pkg]` → capitalised code → `title` → `'Lawn Service'`; used on portal home and portal invoice
+- `buildDefaultCompletionNotes(jobInputs, servicePackage)` — operator-facing past-tense completion note autofill (Phase 5U); priority: `job_inputs` structured scope → `PKG_COMPLETION_NOTES[servicePackage]` → `'Lawn service completed'`; result is a `defaultValue` for the textarea — always editable
+
+**Customer-facing scope display rule:** Portal and invoice surfaces must prefer `job_inputs` when present. Property default booleans (`default_mowing_enabled`, etc.) describe current property intent — they must not be used to describe what was performed on a specific historical job.
+
 ### Job Creation Paths and job_inputs Coverage
 
 | Path | job_inputs written? | Notes |
@@ -548,11 +561,14 @@ Website/manual intake address, frequency, and service interests are written into
 | `createJob` from /jobs/new marks estimate converted | ✅ Phase 5R | `ee0f6e3` — `createJob()` validates `estimate_id`, marks estimate `converted`, promotes lead→active, clears approval notification; equivalent to direct `convertToJob()` outcome |
 | Review & Create Job button on estimate detail | ✅ Phase 5R | `06575b2` + `13be6a0` + `5a80b37` — secondary job creation path from estimate detail; grouped with Convert to Job in `EstimateStatusActions`; lead-gated |
 | New Job source selector (Estimate / Property / Custom) | ✅ Phase 5S | `ca4a01e` — radio group shown when approved estimates exist for selected property; Estimate option adds hidden `estimate_id`; switching away removes it |
+| Portal/invoice service scope from job_inputs | ✅ Phase 5T | `b0d4f46` — portal home + portal invoice both prefer `job_inputs`; add-ons subline shown when selected; `src/lib/jobScope.ts` shared helper created |
+| Completion notes autofill from job scope | ✅ Phase 5U | `4e2c815` — quick chips removed; textarea `defaultValue` built from `buildDefaultCompletionNotes()`; operator can edit freely before submitting |
 | Approved estimate + New Job entry point integration | ⏸ Deferred | Customer/property page + New Job buttons do not yet pass `estimate_id`; source selector handles this ad-hoc when operator selects the property |
 | `/jobs/new?source_job_id` reviewable follow-up creation | ⏸ Deferred | Phase 5Q deferred |
-| Portal/invoice service scope from job_inputs | ⏸ Deferred | Portal still uses `service_package`/`title`; job_inputs display on portal deferred |
 | Package-only historical job backfill | ⏸ Deferred | No approximation backfill without estimate_inputs source |
 | Follow-up job_inputs copy runtime test | ⏸ Pending | Code committed; no qualifying completed job with non-null job_inputs has been followed up in production yet |
+| SMS invoice/receipt scope text | ⏸ Deferred | `buildInvoiceSms()` note uses generic "Lawn service"; detailed scope text from `job_inputs` not yet added to SMS bodies |
+| PDF invoice description from job_inputs | ⏸ Deferred | `DownloadInvoiceButton.tsx` uses `job.title`; structured scope description polish deferred |
 
 ### RLS Hardening Checklist (future — not yet applied)
 
@@ -1608,6 +1624,104 @@ type JobSource = 'estimate' | 'property' | 'custom'
 - Property defaults and Custom sources never submit `estimate_id` — hidden field is absent from DOM.
 - `createJob()` server-side validation is a hard stop regardless; the UI constraint is defense-in-depth.
 - Switching to Custom leaves current form values as-is — does not reset fields the operator may have already edited.
+
+No schema migrations. No RLS changes. No env var changes.
+
+---
+
+### Phase 5T — Portal and Invoice Service Scope Display ✅
+
+**Goal:** Show actual job service scope on customer-facing portal and invoice surfaces instead of legacy `service_package`/title fallbacks or current property defaults.
+
+**Commits:** `b0d4f46` (portal + invoice scope display)
+
+#### New file: `src/lib/jobScope.ts`
+
+Pure TypeScript shared helper — no React imports. Exports:
+
+| Export | Purpose |
+|--------|---------|
+| `parseJobInputs(raw)` | Null-safe JSONB parser; `'svcMowing' in raw` as Phase 5Q+ marker; returns `ParsedJobInputs \| null` |
+| `formatCoreServicesForCustomer(inputs)` | Comma-separated customer-friendly core service label |
+| `formatAddonsForCustomer(inputs)` | Comma-separated customer-friendly add-on label; no internal level detail; shrub count as total |
+| `resolveServiceLabel(jobInputs, pkg, title)` | Priority chain for a single service label string |
+| `buildDefaultCompletionNotes(jobInputs, servicePackage)` | Operator-facing completion note autofill (Phase 5U) |
+
+#### Portal home (`portal/[token]/page.tsx`)
+
+- Added `job_inputs` to jobs SELECT
+- Removed parallel properties fetch and `propertyMap` (property booleans no longer used to describe job work)
+- Replaced local `serviceLabel()` / `SERVICE_LABELS` / `PropertyBooleans` with `resolveServiceLabel()` from `jobScope.ts`
+- Upcoming and Service History cards: `addonsLine` (from `formatAddonsForCustomer`) shown as muted subline when non-null
+- Legacy jobs (`job_inputs = null`) fall back to `service_package` → `SERVICE_LABELS` → capitalised code → `'Lawn Service'`
+
+#### Portal invoice (`portal/[token]/invoice/[jobId]/page.tsx`)
+
+- Added `job_inputs` to job SELECT
+- Replaced local `serviceLabel()` / `SERVICE_LABELS` with `resolveServiceLabel()` from `jobScope.ts`
+- Add-ons row inserted below Service row — shown only when `addonsLabel` is non-null
+- `completion_notes` display, payment totals, status, Venmo, and token security unchanged
+
+#### Deferred from Phase 5T
+
+- SMS invoice/receipt scope text — `buildInvoiceSms()` note still generic; not updated
+- PDF invoice description — `DownloadInvoiceButton.tsx` uses `job.title`; not updated
+
+No schema migrations. No RLS changes. No env var changes.
+
+---
+
+### Phase 5U — Completion Note Autofill from Job Scope ✅
+
+**Goal:** Remove legacy quick-fill chips from the Complete Job form and replace with a textarea pre-filled from actual job scope — so the operator sees an accurate draft and can edit it before submitting.
+
+**Commits:** `4e2c815` (autofill + chip removal)
+
+#### Changes in `src/lib/jobScope.ts`
+
+`buildDefaultCompletionNotes(jobInputs, servicePackage)` added:
+
+**Priority 1 — `job_inputs` (Phase 5Q+):** Builds a comma-separated past-tense list from structured scope:
+
+| Field | Phrase |
+|-------|--------|
+| `svcMowing` | Mowed |
+| `svcWeedEating` | weed ate |
+| `svcEdging` | edged |
+| `svcBlowOff` | blew off |
+| `baggingLevel !== 'none'` | bagged clippings |
+| `stickPickupLevel !== 'none'` | picked up sticks/limbs |
+| `leafCleanupLevel !== 'none'` | cleaned up leaves |
+| `haulOffLevel !== 'none'` | hauled off debris |
+| `shrubTotal > 0` | trimmed shrubs |
+
+Result: `capFirst(parts.join(', '))` — e.g., `"Mowed, weed ate, blew off, bagged clippings"`.
+
+If `parts.length === 0` (all boxes unchecked), falls through to Priority 2.
+
+**Priority 2 — `service_package` fallback:**
+
+| Code | Phrase |
+|------|--------|
+| `mow_only` | Mowed |
+| `mow_trim_blow` | Mowed, weed ate, blew off |
+| `full_service` | Mowed, weed ate, edged, blew off |
+| `trim_cleanup` | Weed ate, edged, blew off |
+
+**Priority 3 — Ultimate fallback:** `"Lawn service completed"`
+
+#### Changes in `src/components/JobActions.tsx`
+
+- Removed `useRef` from React imports
+- Added `buildDefaultCompletionNotes` import from `@/lib/jobScope`
+- Removed `const notesRef = useRef<HTMLTextAreaElement>(null)`
+- Removed `const NOTE_TEMPLATES = [...]` (5 legacy chip strings)
+- Removed chips `<div>` block (`NOTE_TEMPLATES.map(...)` pill buttons)
+- Completion notes `<textarea>`: removed `ref={notesRef}`; added `defaultValue={buildDefaultCompletionNotes(job.job_inputs, job.service_package)}`
+- `completeJob` server action unchanged — reads `completion_notes` from FormData as before
+- Portal receipt still displays final saved `completion_notes`
+
+Notes remain fully editable — `defaultValue` is a starting suggestion, not a locked value.
 
 No schema migrations. No RLS changes. No env var changes.
 

@@ -8,7 +8,7 @@ YardOps is the private operations app for Wicksburg Lawn Service.
 
 Current verified YardOps checkpoint commit:
 
-`ca4a01e` (New Job source selector — Phase 5S complete)
+`4e2c815` (Portal/invoice job scope display + completion note autofill — Phase 5T/5U complete)
 
 The public website repo is separate:
 
@@ -208,3 +208,11 @@ These rules were learned from production bugs and must be preserved across refac
 * The New Job source selector should only be shown when it is useful: display the Estimate radio option only when `propertyEstimates.length > 0` (approved estimates exist for the currently selected property). When no approved estimates exist for the property, suppress the entire source selector; the form behaves as if Property defaults or Custom is selected.
 * The "Review & Create Job" path (`/jobs/new?estimate_id=`) and the direct "Convert to Job" path (`convertToJob()`) must be equivalent in conversion outcomes: both write `job_inputs`, mark the estimate `converted`, promote lead customers to `active`, and clear unreviewed `estimate_approved` notifications. Do not introduce asymmetry between these two conversion paths without explicit approval.
 * Keep helper text minimal on estimate detail pages. Avoid adding explanatory paragraphs beneath buttons when the button label is already self-explanatory. The "Review & Create Job" button and the "Convert to Job" panel do not need helper text that re-states what the button does.
+* Customer-facing service scope must prefer `job_inputs` when present. Do not use `service_package` alone when `job_inputs` data is available for the same job.
+* Do not use current property default booleans (`default_mowing_enabled`, etc.) to describe historical job work on public-facing surfaces. Property defaults reflect current intent, not what was actually performed on a specific past job. `job_inputs` is the per-job record of what was done.
+* Add-ons should be shown only when selected. Do not show an add-ons row or label when all add-on levels are `'none'` and all shrub counts are `0`.
+* Customer-facing add-on labels must not expose internal level detail (light / basic / full) unless explicitly required. Labels like "Bagging clippings" and "Leaf cleanup" are correct; "Bagging clippings (basic)" is not.
+* Completion notes (`jobs.completion_notes`) are customer-visible and must remain intentional. The Complete Job form autofills the textarea from `buildDefaultCompletionNotes()` (`src/lib/jobScope.ts`) so the operator can review and edit before submitting. Do not bypass or suppress this autofill without approval.
+* Do not reintroduce package-style quick chips in the completion notes form. The quick-chip pattern was removed in Phase 5U because it did not reflect actual job scope. `buildDefaultCompletionNotes()` with a structured source is the replacement.
+* `completion_notes` is the canonical customer-visible work summary. Do not expose `internal_notes` or `customer_notes` fields on the public portal without explicit approval.
+* `src/lib/jobScope.ts` is a pure TypeScript shared helper — no React imports. It is used by server components (portal, invoice) and client components (JobActions) alike. Do not add React or Next.js imports to it. Do not duplicate its parse/format logic inline at call sites.

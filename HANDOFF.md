@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-31 (ca4a01e)
+Last updated: 2026-06-01 (4e2c815)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-05-31 (ca4a01e)
 
 ## Current Checkpoint
 
-- **Latest commit:** `ca4a01e` — New Job source selector (Phase 5S complete)
+- **Latest commit:** `4e2c815` — Portal/invoice job scope display + completion note autofill (Phase 5T/5U complete)
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -799,6 +799,107 @@ No RLS changes. No env var changes.
 
 ---
 
+### Phase 5T — Portal and Invoice Service Scope Display ✅
+
+**Commit:** `b0d4f46`
+
+**Goal:** Display actual job service scope on customer-facing portal/invoice surfaces, not legacy `service_package` strings or current property defaults.
+
+#### New file: `src/lib/jobScope.ts`
+
+Pure TypeScript shared helper — no React. Exports:
+
+- `parseJobInputs(raw)` — null-safe JSONB parser; `'svcMowing' in raw` as Phase 5Q+ marker
+- `formatCoreServicesForCustomer(inputs)` — comma-separated customer-friendly core service label
+- `formatAddonsForCustomer(inputs)` — comma-separated add-on label; suppresses level detail; shows shrub total count
+- `resolveServiceLabel(jobInputs, pkg, title)` — priority chain for a single service label string
+- `buildDefaultCompletionNotes(jobInputs, servicePackage)` — operator-facing autofill (Phase 5U; added to this file alongside 5T helpers)
+
+#### Portal home (`portal/[token]/page.tsx`)
+
+- Added `job_inputs` to jobs SELECT
+- Removed parallel properties fetch and `propertyMap` — property booleans no longer used to describe historical job work
+- `resolveServiceLabel()` replaces local `serviceLabel()` / `SERVICE_LABELS` / `PropertyBooleans`
+- Add-ons muted subline (`fontSize: '0.75rem'`, `text-muted`) shown below service label when `addonsLine` is non-null
+- Legacy jobs fall back to `service_package` → `SERVICE_LABELS` → capitalised code → `'Lawn Service'`
+- Payment, status, token, Venmo behavior unchanged
+
+#### Portal invoice (`portal/[token]/invoice/[jobId]/page.tsx`)
+
+- Added `job_inputs` to job SELECT
+- `resolveServiceLabel()` replaces local helpers
+- Add-ons row inserted below Service row — shown only when `addonsLabel` is non-null
+- `completion_notes`, payment totals, status, receipt behavior unchanged
+
+#### Deferred from Phase 5T
+
+- SMS invoice/receipt scope text (deferred)
+- PDF invoice description from `job_inputs` (deferred)
+
+No schema migrations. No RLS changes. No env var changes.
+
+**Verified behaviors:**
+- ✅ Portal home Upcoming cards show service label from `job_inputs` when present; add-ons subline shown when selected
+- ✅ Portal home Service History cards show service label from `job_inputs`; add-ons subline shown when selected
+- ✅ Portal invoice Service row shows label from `job_inputs` when present
+- ✅ Portal invoice Add-ons row shown only when add-ons were selected for that job
+- ✅ Legacy jobs (null `job_inputs`) fall back to `service_package` → friendly label → 'Lawn Service' on all surfaces
+- ✅ Property booleans no longer affect portal/invoice service label display
+
+---
+
+### Phase 5U — Completion Note Autofill from Job Scope ✅
+
+**Commit:** `4e2c815`
+
+**Goal:** Remove legacy quick-fill chips from the Complete Job form and pre-fill the Completion Notes textarea from actual job scope so the operator sees an accurate draft.
+
+#### Changes
+
+**`src/lib/jobScope.ts`** — `buildDefaultCompletionNotes(jobInputs, servicePackage)` added:
+
+Priority 1 — `job_inputs` past-tense list:
+
+| Input | Phrase |
+|-------|--------|
+| `svcMowing` | Mowed |
+| `svcWeedEating` | weed ate |
+| `svcEdging` | edged |
+| `svcBlowOff` | blew off |
+| `baggingLevel !== 'none'` | bagged clippings |
+| `stickPickupLevel !== 'none'` | picked up sticks/limbs |
+| `leafCleanupLevel !== 'none'` | cleaned up leaves |
+| `haulOffLevel !== 'none'` | hauled off debris |
+| `shrubTotal > 0` | trimmed shrubs |
+
+Result: `capFirst(parts.join(', '))` — e.g., `"Mowed, weed ate, blew off"`.
+
+Priority 2 — `service_package` fallback map (`mow_only → "Mowed"`, `mow_trim_blow → "Mowed, weed ate, blew off"`, `full_service → "Mowed, weed ate, edged, blew off"`, `trim_cleanup → "Weed ate, edged, blew off"`).
+
+Priority 3 — `"Lawn service completed"` (ultimate fallback).
+
+**`src/components/JobActions.tsx`** — four removals + one change:
+
+- Removed `useRef` from React imports
+- Removed `const notesRef = useRef<HTMLTextAreaElement>(null)`
+- Removed `const NOTE_TEMPLATES = [...]` (5 legacy chip strings)
+- Removed chips `<div>` block (`NOTE_TEMPLATES.map(...)` pill buttons)
+- Completion notes `<textarea>`: removed `ref={notesRef}`; added `defaultValue={buildDefaultCompletionNotes(job.job_inputs, job.service_package)}`
+
+`completeJob` server action unchanged. Notes remain fully editable before submit. Portal receipt displays final saved `completion_notes` as before.
+
+No schema migrations. No RLS changes. No env var changes.
+
+**Verified behaviors:**
+- ✅ Complete Job form shows pre-filled notes from `job_inputs` scope (e.g., `"Mowed, weed ate, blew off"`)
+- ✅ Legacy jobs with only `service_package` fall back to the `PKG_COMPLETION_NOTES` map
+- ✅ Jobs with no usable scope show `"Lawn service completed"`
+- ✅ Operator can freely edit or clear the pre-filled text before submitting
+- ✅ Legacy quick-fill chips no longer appear in the Complete Job form
+- ✅ `completeJob` server action and saved `completion_notes` unchanged
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -821,6 +922,8 @@ No RLS changes. No env var changes.
 
 | Hash | Description |
 |------|-------------|
+| `4e2c815` | Phase 5U: autofill completion notes from job scope |
+| `b0d4f46` | Show job scope in portal invoices (Phase 5T) |
 | `f8f4adc` | Default estimate conversion to preferred day (Phase 5Q.4c) |
 | `e3f241f` | Write job inputs on estimate conversion (Phase 5Q.4b) |
 | `0f81d6d` | Gate estimate job conversion behind active customer (Phase 5Q.4a) |
@@ -1201,6 +1304,8 @@ All of the following were user-tested and confirmed working as of `289b732`:
 | Phase 5Q — Estimate conversion job_inputs + preferred-day default | ✅ Complete | `f8f4adc` — `convertToJob()` writes `job_inputs` from `estimate_inputs`; Scheduled Date defaults to next preferred service day; `isLeadGated` gate; `deriveJobInputsFromEstimateInputs()` helper |
 | Phase 5R — Reviewed estimate-created jobs | ✅ Complete | `ee0f6e3` + `06575b2` + `13be6a0` + `5a80b37` — `/jobs/new?estimate_id=` fully converts estimate on job create; Review & Create Job button grouped with Convert to Job in `EstimateStatusActions`; helper text cleanup |
 | Phase 5S — New Job source selector | ✅ Complete | `ca4a01e` — Estimate / Property defaults / Custom radio group; estimate picker; `applyEstimateFields` / `applyPropertyFields`; server-side parallel load of approved estimates |
+| Phase 5T — Portal/invoice service scope from job_inputs | ✅ Complete | `b0d4f46` — `src/lib/jobScope.ts` shared helper; portal home + invoice prefer `job_inputs`; add-ons subline; property booleans removed from portal scope display |
+| Phase 5U — Completion note autofill from job scope | ✅ Complete | `4e2c815` — quick chips removed; `buildDefaultCompletionNotes()` as textarea `defaultValue`; legacy fallback via `PKG_COMPLETION_NOTES`; notes remain editable |
 | Route balancing / auto-scheduling follow-up | ⏸ Future | `Property.schedule_anchor_date` reserved; do not implement until explicitly asked |
 | `schedule_anchor_date` — no UI yet | ⏸ Future | Column exists in schema; no read or write path built |
 | Weather/rain-day shifting for scheduling | ⏸ Future | Not planned |
@@ -1209,7 +1314,9 @@ All of the following were user-tested and confirmed working as of `289b732`:
 | Convert-to-job date/time pre-fill polish | ✅ Complete | Phase 5Q.4c — defaults to next `preferred_service_day` using `getClosestWeekdayNearDate`; `maxDays: 7`; falls back to local today |
 | `/jobs/new?estimate_id` → mark estimate converted | ✅ Complete | Phase 5R `ee0f6e3` — `createJob()` validates and marks estimate converted with full side effects |
 | Approved estimate selector for generic New Job entry | ✅ Complete | Phase 5S `ca4a01e` — source selector with estimate picker; shown when approved estimates exist for selected property |
-| Portal job_inputs display — service scope from structured data | ⏸ Future | Deferred — portal/invoice does not yet read `job_inputs` |
+| Portal/invoice job_inputs display | ✅ Complete | Phase 5T `b0d4f46` — both surfaces prefer `job_inputs` |
+| SMS invoice/receipt scope text | ⏸ Deferred | `buildInvoiceSms()` note still generic; detailed scope text from `job_inputs` not added |
+| PDF invoice description from job_inputs | ⏸ Deferred | `DownloadInvoiceButton.tsx` uses `job.title`; structured scope polish deferred |
 | Public quote page phone source | ⏸ Future | Uses separate data path; not updated in Phase 5B |
 | `JobActions` SMS business phone | ⏸ Future | On-my-way / day-before / job-complete SMS bodies; `businessPhone` not yet passed as prop |
 | Operational weekly summary improvements | ⏸ Future | Deferred — Phase 5 candidate |
@@ -1228,7 +1335,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
 | 3 | Public intake and lead workflow improvements | ✅ Complete — all listed tasks done through `ec48565`; payment bugfixes continued in Phase 4 |
 | 4 | Operations UX / workflow polish | ✅ Substantially complete — 4A–4D + cleanup batch done (`463e762`) |
-| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A–5O ✅, 5P ✅, 5Q ✅, 5R ✅, 5S ✅ complete (`ca4a01e`); next TBD |
+| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A–5U ✅ complete (`4e2c815`); next TBD |
 
 **Permanent Future-Handoff Requirements** (mandatory — see Architecture.md §16):
 Every future handoff must instruct the next chat to read ARCHITECTURE.md and HANDOFF.md first, remind it to update those docs after any verified/committed change, state the latest commit, current phase status, open items, workflow guardrails, and known security follow-ups (no secret values).
@@ -1237,30 +1344,31 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Phase 5T — next area TBD**
+**Phase 5V — next area TBD**
 
-Phase 5A–5S are all complete as of `ca4a01e`.
+Phase 5A–5U are all complete as of `4e2c815`.
 
-**Completed Phase 5R–5S work (most recent):**
-- ✅ `/jobs/new?estimate_id=` fully converts estimate — `createJob()` validates, marks `converted`, promotes lead→active, clears notification
-- ✅ "Review & Create Job" secondary button on estimate detail — grouped with Convert to Job in `EstimateStatusActions`; lead-gated
-- ✅ Approved banner simplified; redundant helper text removed
-- ✅ New Job source selector — Estimate / Property defaults / Custom; shown when approved estimates exist for selected property
-- ✅ Estimate picker with `#N · $X · Frequency` labels
-- ✅ Source switching correctly clears `estimate_id` from DOM; only Estimate source converts estimates
-- ✅ `allApprovedEstimates` loaded server-side in parallel; `buildEstimatePrefill()` helper shared between bulk fetch and `?estimate_id=` path
+**Completed Phase 5T–5U work (most recent):**
+- ✅ `src/lib/jobScope.ts` shared helper — `parseJobInputs`, `resolveServiceLabel`, `formatAddonsForCustomer`, `buildDefaultCompletionNotes`
+- ✅ Portal home service labels prefer `job_inputs`; add-ons subline shown when selected; property booleans removed from scope display (`b0d4f46`)
+- ✅ Portal invoice Service row uses `job_inputs`; Add-ons row added when add-ons were selected (`b0d4f46`)
+- ✅ Complete Job form completion notes auto-filled from actual job scope; legacy fallback via `PKG_COMPLETION_NOTES` (`4e2c815`)
+- ✅ Legacy quick-fill chips removed from Complete Job form (`4e2c815`)
+- ✅ Clean lint and build confirmed for both commits
 
-**Remaining deferred items from Phase 5Q–5S:**
-1. Portal/invoice — display service scope from `job_inputs` instead of legacy `service_package`
-2. Follow-up `job_inputs` copy runtime test — code committed; no qualifying production follow-up yet
-3. Customer/property page `+ New Job` buttons still don't pass `estimate_id` — source selector handles this ad-hoc
+**Remaining deferred items:**
+1. Follow-up `job_inputs` copy runtime test — code committed; no qualifying production follow-up yet
+2. Customer/property page `+ New Job` buttons still don't pass `estimate_id` — source selector handles this ad-hoc
+3. SMS invoice/receipt scope text from `job_inputs` — generic "Lawn service" note; deferred
+4. PDF invoice description polish from `job_inputs` — `DownloadInvoiceButton.tsx` uses `job.title`; deferred
+5. Package-only historical job approximation backfill — no `estimate_inputs` source; deferred
 
-**Next Phase 5T candidates:**
-1. `JobActions` SMS business phone — wire `businessPhone` into on-my-way / day-before / job-complete SMS
-2. Portal enhancements — customer-facing UX improvements, `job_inputs` display
-3. Revenue/expense reporting — more useful Finances page analytics
-4. Bulk job actions — mark multiple jobs paid, batch scheduling
-5. Printable portal invoice PDF — web-only currently
+**Next Phase 5V candidates:**
+1. `JobActions` SMS business phone — wire `businessPhone` into on-my-way / day-before / job-complete SMS bodies
+2. Revenue/expense reporting — more useful Finances page analytics
+3. Bulk job actions — mark multiple jobs paid, batch scheduling
+4. Printable portal invoice PDF — web-only currently
+5. Portal enhancements — any remaining customer-facing UX improvements
 
 **Phase 3 completed tasks (all user-tested in production — historical record):**
 1. ~~Frequency display — website lead detail page~~ ✅ (`0589026`)
