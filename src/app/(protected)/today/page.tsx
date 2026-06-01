@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { getTodayForecastForCoords, coordKey } from '@/lib/weather'
+import { geocodeAddress } from '@/lib/geocode'
 import { EstimateApprovalNotifications } from '@/components/EstimateApprovalNotifications'
 import { addDays, formatDateOnly, formatTimestampDate, getLocalDateStr, resolveTimeZone } from '@/lib/date'
 import { formatFrequencyLabel } from '@/lib/frequency'
@@ -106,7 +107,7 @@ export default async function TodayPage() {
       .select(`
         id, title, service_package, job_type, price, payment_status, status, scheduled_date, scheduled_time_window,
         customers ( first_name, last_name, phone ),
-        properties ( service_address, city, pet_warning, gate_code, access_notes, obstacle_notes, latitude, longitude, default_mowing_enabled, default_weed_eating_enabled, default_edging_enabled, default_blow_off_enabled )
+        properties ( service_address, city, state, postal_code, pet_warning, gate_code, access_notes, obstacle_notes, latitude, longitude, default_mowing_enabled, default_weed_eating_enabled, default_edging_enabled, default_blow_off_enabled )
       `)
       .eq('business_id', businessId)
       .eq('scheduled_date', today)
@@ -276,14 +277,48 @@ export default async function TodayPage() {
     return true
   })
 
-  // Fetch weather for unique property coordinates
-  const coords: Array<{ lat: number; lon: number }> = []
+  // Fetch weather — two-phase coordinate resolution:
+  // Phase 1: use stored lat/lon from the DB when available.
+  // Phase 2: for properties that have an address but no stored coordinates,
+  //          geocode transiently via Nominatim (30-day Next.js fetch cache).
+  //          Results are never written back to Supabase.
+  type JobCoord = { lat: number; lon: number }
+  const jobCoordMap = new Map<string, JobCoord>()
+
   for (const j of todayJobs ?? []) {
-    const p = (Array.isArray(j.properties) ? j.properties[0] : j.properties) as { latitude: number | null; longitude: number | null } | null
+    const p = (Array.isArray(j.properties) ? j.properties[0] : j.properties) as {
+      latitude: number | null; longitude: number | null
+      service_address: string; city: string | null; state: string | null; postal_code: string | null
+    } | null
     if (p?.latitude != null && p.longitude != null) {
-      coords.push({ lat: p.latitude, lon: p.longitude })
+      jobCoordMap.set(j.id as string, { lat: p.latitude, lon: p.longitude })
     }
   }
+
+  // Geocode any jobs whose property has an address but no stored coordinates.
+  await Promise.all(
+    (todayJobs ?? [])
+      .filter(j => {
+        if (jobCoordMap.has(j.id as string)) return false
+        const p = (Array.isArray(j.properties) ? j.properties[0] : j.properties) as { service_address?: string | null } | null
+        return !!p?.service_address
+      })
+      .map(async j => {
+        const p = (Array.isArray(j.properties) ? j.properties[0] : j.properties) as {
+          service_address: string; city: string | null; state: string | null; postal_code: string | null
+        } | null
+        if (!p?.service_address) return
+        const geo = await geocodeAddress({
+          address: p.service_address,
+          city: p.city,
+          state: p.state,
+          postalCode: p.postal_code,
+        })
+        if (geo) jobCoordMap.set(j.id as string, { lat: geo.latitude, lon: geo.longitude })
+      })
+  )
+
+  const coords = Array.from(jobCoordMap.values())
   const weatherMap = coords.length > 0 ? await getTodayForecastForCoords(coords) : new Map()
   const anyRainToday = Array.from(weatherMap.values()).some(fc => fc.precipChance >= 40 || fc.precipInches >= 0.05)
 
@@ -469,11 +504,12 @@ export default async function TodayPage() {
         ) : (
           todayJobs.map((job) => {
             const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null; phone: string | null } | null
-            const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null; pet_warning: string | null; gate_code: string | null; access_notes: string | null; obstacle_notes: string | null; latitude: number | null; longitude: number | null; default_mowing_enabled: boolean | null; default_weed_eating_enabled: boolean | null; default_edging_enabled: boolean | null; default_blow_off_enabled: boolean | null } | null
+            const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null; state: string | null; postal_code: string | null; pet_warning: string | null; gate_code: string | null; access_notes: string | null; obstacle_notes: string | null; latitude: number | null; longitude: number | null; default_mowing_enabled: boolean | null; default_weed_eating_enabled: boolean | null; default_edging_enabled: boolean | null; default_blow_off_enabled: boolean | null } | null
             const warnings = [property?.pet_warning, property?.gate_code ? `Gate: ${property.gate_code}` : null, property?.access_notes, property?.obstacle_notes].filter(Boolean)
-            const fc = property?.latitude != null && property.longitude != null
-              ? weatherMap.get(coordKey(property.latitude, property.longitude))
-              : null
+            const effectiveCoord = jobCoordMap.get(job.id as string)
+            const fc = effectiveCoord
+              ? weatherMap.get(coordKey(effectiveCoord.lat, effectiveCoord.lon))
+              : undefined
             const wetRisk = fc && (fc.precipChance >= 40 || fc.precipInches >= 0.05)
 
             return (
@@ -487,7 +523,7 @@ export default async function TodayPage() {
                       {job.scheduled_time_window && <div className="card-meta">🗓 {job.scheduled_time_window}</div>}
                       <div className="card-meta">🌿 {deriveServiceLabel(job.service_package, property)}</div>
                       {job.price != null && <div className="card-meta">💵 ${Number(job.price).toFixed(0)}</div>}
-                      {property?.latitude != null && property.longitude != null && (
+                      {effectiveCoord != null && (
                         fc ? (
                           <div className="card-meta" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <span>{fc.emoji}</span>
