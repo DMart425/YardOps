@@ -12,12 +12,14 @@ export function EstimateStatusActions({
   propertyDefaultPrice = null,
   customerId,
   customerStatus,
+  defaultScheduledDate,
 }: {
   estimate: { id: string; status: string; total: number; revision_number: number }
   localToday: string
   propertyDefaultPrice?: number | null
   customerId: string
   customerStatus: string
+  defaultScheduledDate?: string
 }) {
   const [panel, setPanel] = useState<'approve' | 'convert' | null>(null)
 
@@ -129,7 +131,7 @@ export function EstimateStatusActions({
               <div className="form-row">
                 <div className="form-field">
                   <label className="form-label">Scheduled Date</label>
-                  <input name="scheduled_date" type="date" className="form-input" defaultValue={today} />
+                  <input name="scheduled_date" type="date" className="form-input" defaultValue={defaultScheduledDate ?? today} />
                 </div>
                 <div className="form-field">
                   <label className="form-label">Time Window</label>
