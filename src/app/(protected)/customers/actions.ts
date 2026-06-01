@@ -101,7 +101,6 @@ export async function markLeadCustomerActive(
   formData: FormData
 ): Promise<FormState> {
   void prevState
-  void formData
   const supabase = await createClient()
   const { businessId } = await requireBusinessContext()
 
@@ -110,6 +109,7 @@ export async function markLeadCustomerActive(
     .update({ status: 'active' })
     .eq('id', customerId)
     .eq('business_id', businessId)
+    .eq('status', 'lead')      // only promote leads — never overwrite active/inactive/archived
     .select('id')
     .maybeSingle()
 
@@ -117,12 +117,18 @@ export async function markLeadCustomerActive(
     return { error: 'Unable to mark this lead as active right now. Please try again.' }
   }
   if (!activatedCustomer) {
-    return { error: 'Customer not found or not owned by this business.' }
+    return { error: 'Customer not found, not owned by this business, or is not currently a lead.' }
   }
 
   revalidatePath('/customers')
   revalidatePath('/leads')
   revalidatePath(`/customers/${customerId}`)
+
+  // If called from an estimate page, revalidate that specific path so
+  // Convert to Job becomes available immediately on reload.
+  const estimateId = (formData.get('estimate_id') as string | null)?.trim() || null
+  if (estimateId) revalidatePath(`/estimates/${estimateId}`)
+
   return { error: null, success: 'Lead marked as active customer.' }
 }
 

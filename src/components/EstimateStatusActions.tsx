@@ -3,16 +3,21 @@
 import { useActionState, useState } from 'react'
 import type { FormState } from '@/types/database'
 import { convertToJob, manuallyApproveEstimate, updateEstimateStatus } from '@/app/(protected)/estimates/actions'
+import { markLeadCustomerActive } from '@/app/(protected)/customers/actions'
 import { Toast } from '@/components/Toast'
 
 export function EstimateStatusActions({
   estimate,
   localToday,
   propertyDefaultPrice = null,
+  customerId,
+  customerStatus,
 }: {
   estimate: { id: string; status: string; total: number; revision_number: number }
   localToday: string
   propertyDefaultPrice?: number | null
+  customerId: string
+  customerStatus: string
 }) {
   const [panel, setPanel] = useState<'approve' | 'convert' | null>(null)
 
@@ -28,9 +33,14 @@ export function EstimateStatusActions({
   const [convertState, convertAction, convertPending] = useActionState<FormState, FormData>(
     convertToJob.bind(null, estimate.id), { error: null }
   )
+  const [activateLeadState, activateLeadAction, activateLeadPending] = useActionState<FormState, FormData>(
+    markLeadCustomerActive.bind(null, customerId), { error: null }
+  )
 
-  const anySuccess = sentState.success ?? approvedState.success ?? declinedState.success ?? convertState.success
-  const anyError   = sentState.error   ?? approvedState.error   ?? declinedState.error   ?? convertState.error
+  const anySuccess = sentState.success ?? approvedState.success ?? declinedState.success ?? convertState.success ?? activateLeadState.success
+  const anyError   = sentState.error   ?? approvedState.error   ?? declinedState.error   ?? convertState.error   ?? activateLeadState.error
+
+  const isLeadGated = estimate.status === 'approved' && customerStatus === 'lead'
 
   const today = localToday
 
@@ -87,8 +97,24 @@ export function EstimateStatusActions({
         </>
       )}
 
-      {/* Convert to job */}
-      {estimate.status === 'approved' && (
+      {/* Lead activation gate — shown instead of Convert to Job when customer is still a lead */}
+      {isLeadGated && (
+        <div className="action-panel" style={{ borderLeft: '3px solid var(--color-warning, #f59e0b)', background: 'rgba(245,158,11,0.06)', padding: '12px', borderRadius: 'var(--r-sm)' }}>
+          <div className="text-small font-bold" style={{ marginBottom: '4px' }}>⚠️ Customer is still a lead</div>
+          <div className="text-small text-muted" style={{ marginBottom: '10px' }}>
+            Mark this customer as active before converting the estimate to a job.
+          </div>
+          <form action={activateLeadAction}>
+            <input type="hidden" name="estimate_id" value={estimate.id} />
+            <button type="submit" disabled={activateLeadPending} className="btn btn-primary btn-full">
+              {activateLeadPending ? 'Saving…' : '✓ Mark as Active Customer'}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* Convert to job — only shown when customer is active */}
+      {estimate.status === 'approved' && !isLeadGated && (
         <>
           <button
             type="button"

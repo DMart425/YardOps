@@ -17,7 +17,7 @@ const FREQ_LABELS: Record<string, string> = {
 }
 
 type EstimateWithRelations = Estimate & {
-  customers: { first_name: string; last_name: string | null; phone: string | null }
+  customers: { first_name: string; last_name: string | null; phone: string | null; status: string }
   properties: { service_address: string; city: string | null; state: string | null; estimated_mowable_acres: number | null; default_price: number | null }
 }
 
@@ -32,7 +32,7 @@ export default async function EstimateDetailPage({
 
   const { data: estimateRaw } = await supabase
     .from('estimates')
-    .select('*, customers(first_name, last_name, phone), properties(service_address, city, state, estimated_mowable_acres, default_price)')
+    .select('*, customers(first_name, last_name, phone, status), properties(service_address, city, state, estimated_mowable_acres, default_price)')
     .eq('id', id)
     .eq('business_id', businessId)
     .single()
@@ -415,7 +415,7 @@ export default async function EstimateDetailPage({
       {/* Status actions */}
       <div className="card" style={{ marginBottom: '1rem' }}>
         <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Manage Estimate</div>
-        <EstimateStatusActions estimate={estimate} localToday={localToday} propertyDefaultPrice={property.default_price ?? null} />
+        <EstimateStatusActions estimate={estimate} localToday={localToday} propertyDefaultPrice={property.default_price ?? null} customerId={estimate.customer_id} customerStatus={customer.status} />
         <div style={{ display: 'flex', gap: '8px', marginTop: '0.75rem', flexWrap: 'wrap' }}>
           {estimate.status !== 'converted' && (
             <Link href={`/estimates/${estimate.id}/edit`} className="btn btn-sm btn-secondary">Edit</Link>
