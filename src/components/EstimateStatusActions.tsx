@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useState } from 'react'
+import Link from 'next/link'
 import type { FormState } from '@/types/database'
 import { convertToJob, manuallyApproveEstimate, updateEstimateStatus } from '@/app/(protected)/estimates/actions'
 import { markLeadCustomerActive } from '@/app/(protected)/customers/actions'
@@ -168,6 +169,21 @@ export function EstimateStatusActions({
             </form>
           )}
         </>
+      )}
+
+      {/* Review & Create Job — secondary job-creation path via the full JobForm.
+           Placed between Convert to Job and Mark Declined so both job-creation
+           choices are visually grouped. Only shown for approved, non-lead-gated
+           estimates; lead gate and all other statuses suppress this block. */}
+      {estimate.status === 'approved' && !isLeadGated && (
+        <div>
+          <Link href={`/jobs/new?estimate_id=${estimate.id}`} className="btn btn-secondary btn-full">
+            📝 Review &amp; Create Job
+          </Link>
+          <p className="text-small text-muted" style={{ marginTop: '5px', textAlign: 'center' }}>
+            Opens the full job form prefilled from this estimate.
+          </p>
+        </div>
       )}
 
       {/* Decline */}
