@@ -8,7 +8,7 @@ YardOps is the private operations app for Wicksburg Lawn Service.
 
 Current verified YardOps checkpoint commit:
 
-`0e91bf9` (Fix no-price outstanding balance displays — Phase 5O)
+`f8f4adc` (Default estimate conversion to preferred day — Phase 5Q complete)
 
 The public website repo is separate:
 
@@ -192,3 +192,13 @@ These rules were learned from production bugs and must be preserved across refac
 * Converted estimates should direct the operator to the job. Do not show Schedule Visit or Send to Customer cards on converted estimates — the job is the relevant record after conversion.
 * Declined estimates are closed. Do not show Schedule Visit or Send to Customer cards on declined estimates. The page should be visually quiet with a clear "declined" indicator.
 * Do not change estimate status-transition logic, `convertToJob()`, or SMS behavior during UI state polish phases without explicit approval. State polish is conditional rendering only.
+* `jobs.job_inputs` is the structured service scope source of truth for new jobs. Always write it when creating jobs via `JobForm` or converting estimates via `convertToJob()`. Do not skip it when refactoring creation or conversion logic.
+* `service_package` is a legacy fallback only. Keep writing derived `service_package` on job insert until all display paths consuming it are retired. Do not treat it as the canonical scope.
+* `JobForm` does not calculate price. The only permitted price prefill source is `property.default_price`. Do not add acreage-based or other heuristic pricing without explicit approval.
+* `job_type` (`recurring` / `one_time`) is an internal scheduling field. UI should show `service_frequency` from the property when available. Never expose `job_type` as a service scope label.
+* Direct estimate conversion via `convertToJob()` must write `job_inputs` derived from `estimate_inputs` using `deriveJobInputsFromEstimateInputs()`. Null `estimate_inputs` safely produces null `job_inputs`; this is correct behavior — do not throw or block conversion.
+* Follow-up jobs created by `scheduleFollowUpJob` must copy `job_inputs` from the parent completed job when `job_inputs` is non-null.
+* Approved estimate conversion for lead-status customers must be gated behind `markLeadCustomerActive`. When `estimate.status === 'approved'` and `customer.status === 'lead'`, the Convert to Job panel must not render. Do not remove this gate without explicit approval.
+* Do not invent historical service scope for jobs that have no `estimate_inputs` and no usable `service_package`. Null `job_inputs` on legacy jobs is acceptable — backfilling with guessed values is forbidden.
+* Estimate conversion scheduled date should default to the next matching `property.preferred_service_day` on or after `localToday`, using `getClosestWeekdayNearDate(localToday, preferredServiceDay, { minDate: localToday, maxDays: 7 })`. Fall back to `localToday` when no preferred day is set. Operator must always be able to override.
+* Supabase migration history drift is a known state. **Do not run `supabase db push`** — it will fail or produce unexpected results. Always use `npx supabase db query --linked --file "<file>"` with explicit project-ref confirmation.

@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-31 (0e91bf9)
+Last updated: 2026-05-31 (f8f4adc)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-05-31 (0e91bf9)
 
 ## Current Checkpoint
 
-- **Latest commit:** `0e91bf9` — Fix no-price outstanding balance displays (Phase 5O)
+- **Latest commit:** `f8f4adc` — Default estimate conversion to preferred day (Phase 5Q complete)
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -731,6 +731,74 @@ Balance calculation updated from `Math.max(0, (job.price ?? 0) - ...)` to null-a
 
 ---
 
+### Phase 5Q — Job Service Scope (job_inputs) ✅
+
+**Goal:** Replace legacy `service_package` with structured `job_inputs` JSONB. Improve the estimate → job conversion workflow end to end — active customer gate, structured scope on direct conversion, and preferred-day scheduling default.
+
+**Latest commit:** `f8f4adc`
+
+#### Phase 5Q.1 — job_inputs foundation
+**Commits:** `14c3d83` (migration), `2fa58a4` (JobForm)
+
+- Migration `20260531120000_add_jobs_job_inputs.sql` adds `jobs.job_inputs` as nullable JSONB.
+- Applied directly to `lewzqavgvltzwfeypvam` via `npx supabase db query --linked` — **not tracked in remote migration history** (known drift). Do not run `supabase db push`.
+- `JobForm.tsx`: package dropdown replaced with service checkboxes (Mowing, Weed Eating, Edging, Blow Off) + add-on fields (bagging, stick/limb pickup, leaf cleanup, haul-off, shrub S/M/L counts).
+- New jobs write `job_inputs`; `service_package` still derived as legacy fallback.
+
+#### Phase 5Q.2 — Service scope display + frequency label
+**Commits:** `5a8b489`, `958e876`, `6ec4305`
+
+- Job detail shows `🌿 Services` from `job_inputs`; conditional `✨ Add-ons` row; falls back to `pkgLabel` for legacy jobs.
+- Job detail shows Frequency (property `service_frequency`) instead of internal `job_type`.
+- Today page `deriveServiceLabel()` now checks property booleans first before `service_package`.
+
+#### Phase 5Q.2b — Historical backfill + follow-up copy
+**Commits:** `7c1768c` (code); SQL applied directly to Supabase
+
+- 5 historical estimate-linked jobs backfilled with `job_inputs` derived from `estimate_inputs`. Live state: 6 of 14 jobs have `job_inputs`; 8 are legacy null.
+- One mismatch corrected: `full_service` job `c3fe16fd` now shows mowing + blow off only (matching its estimate).
+- `scheduleFollowUpJob` (`jobs/actions.ts`) now copies `job_inputs` from parent job when non-null.
+
+#### Phase 5Q.3a — New job prefill source note
+**Commit:** `9563c76`
+
+- `JobForm.tsx` shows contextual note: manual entry / property defaults / manual-no-defaults / estimate prefill states.
+
+#### Phase 5Q.3b — Exact estimate prefill via /jobs/new
+**Commit:** `53c51b2`
+
+- `/jobs/new?estimate_id=[id]` validates estimate server-side (approved, same business, non-null customer/property).
+- Prefills: customer, property, price, job_type/frequency, core services, add-ons, shrub counts via `EstimatePrefill` interface.
+- Invalid/non-approved `estimate_id` shows a warning; does not silently fall through.
+
+#### Phase 5Q.4a — Active customer gate for estimate conversion
+**Commit:** `0f81d6d`
+
+- `markLeadCustomerActive` hardened: `.eq('status', 'lead')` guard prevents overwriting active/inactive/archived.
+- `estimates/[id]/page.tsx`: fetches `customer.status`; passes `customerId` + `customerStatus` to `EstimateStatusActions`.
+- `EstimateStatusActions.tsx`: when `approved` estimate + lead customer → amber gate card + "Mark as Active Customer" button; Convert to Job hidden. After activation, page revalidates and Convert to Job appears.
+- `markLeadCustomerActive` reads `estimate_id` from formData and revalidates `/estimates/[id]`.
+
+#### Phase 5Q.4b — Direct conversion writes job_inputs
+**Commit:** `e3f241f`
+
+- `estimates/actions.ts`: `deriveJobInputsFromEstimateInputs(raw)` — null/non-object input → `null` (safe, no throw). Maps all 11 fields with safe defaults.
+- `convertToJob()` writes `job_inputs: jobInputs` alongside `service_package`. Converted job detail immediately shows structured Services/Add-ons.
+
+#### Phase 5Q.4c — Preferred-day default on conversion
+**Commit:** `f8f4adc`
+
+- `estimates/[id]/page.tsx`: `preferred_service_day` added to properties select; `defaultScheduledDate = getClosestWeekdayNearDate(localToday, preferredServiceDay, { minDate: localToday, maxDays: 7 })`.
+- `EstimateStatusActions.tsx`: date input `defaultValue={defaultScheduledDate ?? today}`. Operator can override.
+- No preferred day set → defaults to `localToday` as before.
+
+#### Known pending manual tests
+- Follow-up `job_inputs` copy: no qualifying completed job (non-null `job_inputs`, `job_type=recurring`) has been followed up in production yet. Runtime test pending.
+
+No RLS changes. No env var changes.
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -745,6 +813,7 @@ Balance calculation updated from `Math.max(0, (job.price ?? 0) - ...)` to null-a
 | `20260511200000_phase2e_leads_not_null.sql` | Phase 2E leads — business_id NOT NULL / FK ON DELETE RESTRICT |
 | `20260513200000_phase2g_leads_rls_cosmetic.sql` | Phase 2G leads RLS — remove redundant NOT NULL prefix from SELECT/DELETE USING clauses |
 | `20260522000000_add_business_phone.sql` | Add nullable `phone text` column to `businesses` — business-scoped contact number |
+| `20260531120000_add_jobs_job_inputs.sql` | Add nullable `job_inputs jsonb` column to `jobs` — structured service scope (Phase 5Q.1). **Note:** Applied directly via `npx supabase db query --linked`; not tracked in remote migration history due to known drift. Do not `supabase db push`. |
 
 ---
 
@@ -752,6 +821,17 @@ Balance calculation updated from `Math.max(0, (job.price ?? 0) - ...)` to null-a
 
 | Hash | Description |
 |------|-------------|
+| `f8f4adc` | Default estimate conversion to preferred day (Phase 5Q.4c) |
+| `e3f241f` | Write job inputs on estimate conversion (Phase 5Q.4b) |
+| `0f81d6d` | Gate estimate job conversion behind active customer (Phase 5Q.4a) |
+| `53c51b2` | Prefill new job from estimate (Phase 5Q.3b) |
+| `9563c76` | Show new job prefill source note (Phase 5Q.3a) |
+| `7c1768c` | Copy job inputs to follow-up jobs (Phase 5Q.2b) |
+| `6ec4305` | Prefer property service labels on today (Phase 5Q.2) |
+| `958e876` | Show job service scope on detail (Phase 5Q.2) |
+| `5a8b489` | Show property frequency on jobs (Phase 5Q.2) |
+| `2fa58a4` | Add job service scope inputs (Phase 5Q.1) |
+| `14c3d83` | Add job inputs scope column (Phase 5Q.1) |
 | `0e91bf9` | Fix no-price outstanding balance displays (Phase 5O) |
 | `5de1f8a` | Update docs through Phase 5N estimate states |
 | `e2d42a1` | Polish estimate detail states (Phase 5N) |
@@ -1049,6 +1129,24 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ Today Completed Today balance calculation is null-aware — `job.price != null ? Math.max(...) : null`; no-price completed jobs do not show `$0 owed` (`0e91bf9`)
 - ✅ `not_billable` jobs remain fully excluded from all balance/owed displays — no intersection with `noPriceUnpaidJobs` or `outstandingJobs` (`0e91bf9`)
 - ✅ Property pages not changed — no property-level balance section added in Phase 5O (`0e91bf9`)
+- ✅ `jobs.job_inputs` nullable JSONB column added — stores structured service scope: `svcMowing`, `svcWeedEating`, `svcEdging`, `svcBlowOff`, `baggingLevel`, `stickPickupLevel`, `leafCleanupLevel`, `haulOffLevel`, `shrubSmallCount`, `shrubMediumCount`, `shrubLargeCount` (`20260531120000_add_jobs_job_inputs.sql`)
+- ✅ Migration applied directly to `lewzqavgvltzwfeypvam` via `npx supabase db query` — `supabase db push` not used; remote migration history does not track this migration (known drift)
+- ✅ `scheduleFollowUpJob()` copies `job_inputs` from the parent completed job when non-null — follow-up jobs carry forward structured service scope
+- ✅ `JobForm` writes `job_inputs` from service boolean + level inputs on new job creation; `service_package` derived string still written as legacy fallback
+- ✅ New Job form service booleans prefill from property boolean columns (`default_mowing_enabled`, `default_weed_eating_enabled`, `default_edging_enabled`, `default_blow_off_enabled`) first; `default_service_package` is fallback only when all four booleans are null
+- ✅ New Job form `job_type` derives from `property.service_frequency` — `weekly`/`biweekly` → `recurring`; everything else → `one_time`; controlled select updates dynamically on property change
+- ✅ Convert to Job panel hidden when `estimate.status === 'approved'` and `customer.status === 'lead'` — `isLeadGated` gate prevents premature conversion
+- ✅ Amber "Customer is still a lead" warning card shown instead of Convert to Job when `isLeadGated` — includes "Mark as Active Customer" button
+- ✅ "Mark as Active Customer" triggers `markLeadCustomerActive()` which only promotes genuine leads (`.eq('status', 'lead')` guard); after activation `revalidatePath('/estimates/[id]')` fires; Convert to Job panel appears on reload
+- ✅ `markLeadCustomerActive()` reads `estimate_id` from FormData and revalidates the estimate path when present — no extra navigation needed after activation
+- ✅ `convertToJob()` derives `job_inputs` from `estimate.estimate_inputs` via `deriveJobInputsFromEstimateInputs()` — `job_inputs` now written on direct estimate conversion
+- ✅ Null `estimate_inputs` safely produces null `job_inputs` — no throw, no block on conversion; legacy estimates convert cleanly
+- ✅ `deriveJobInputsFromEstimateInputs` maps: `mowingMinutes > 0` → `svcMowing`; `weedEatingLevel`/`edgingLevel`/`blowOffLevel` !== `'none'` → service booleans; level and count fields carry forward with `'none'`/`0` defaults
+- ✅ Estimate conversion Scheduled Date defaults to next matching `property.preferred_service_day` on or after local today — uses `getClosestWeekdayNearDate(localToday, preferredServiceDay, { minDate: localToday, maxDays: 7 })`
+- ✅ Falls back to `localToday` when property has no preferred service day set
+- ✅ `maxDays: 7` ensures the next weekday occurrence is always found within a week — `maxDays: 4` default was insufficient for days 5–7 away
+- ✅ Operator can override the pre-filled conversion date in the Convert to Job panel — default is a suggestion only
+- ✅ `estimates/[id]/page.tsx` selects `customers(status)` and `properties(preferred_service_day)` — `EstimateWithRelations` type extended accordingly; `defaultScheduledDate` computed server-side and passed as prop
 
 ---
 
@@ -1083,12 +1181,17 @@ All of the following were user-tested and confirmed working as of `289b732`:
 | Phase 5M — Customer/property navigation polish | ✅ Complete | `b8444dd` + `67b9e80` — contextual `+ New Estimate` buttons; `View Customer` linked row; `View Estimate →` on job detail; clickable estimate summary rows; renamed action buttons; `Manage Estimate` card heading; no migration |
 | Phase 5N — Estimate detail state polish | ✅ Complete | `e2d42a1` — per-status banners (draft/sent/converted/declined); Schedule Visit and Send to Customer hidden for converted/declined; no action/SMS/schema changes |
 | Phase 5O — Financial summary no-price display fixes | ✅ Complete | `0e91bf9` — customer detail Outstanding Balance tracks no-price unpaid jobs separately; muted note; no phantom $0 total; Today Completed Today balance null-aware; no schema/SMS/payment-action changes |
+| Phase 5P — Lead activation gate + job_inputs foundation | ✅ Complete | `20260531120000_add_jobs_job_inputs.sql` migration; `scheduleFollowUpJob` copies `job_inputs`; `JobForm` writes `job_inputs`; `markLeadCustomerActive` hardened; estimate detail lead gate card |
+| Phase 5Q — Estimate conversion job_inputs + preferred-day default | ✅ Complete | `f8f4adc` — `convertToJob()` writes `job_inputs` from `estimate_inputs`; Scheduled Date defaults to next preferred service day; `isLeadGated` gate; `deriveJobInputsFromEstimateInputs()` helper |
 | Route balancing / auto-scheduling follow-up | ⏸ Future | `Property.schedule_anchor_date` reserved; do not implement until explicitly asked |
 | `schedule_anchor_date` — no UI yet | ⏸ Future | Column exists in schema; no read or write path built |
 | Weather/rain-day shifting for scheduling | ⏸ Future | Not planned |
 | Printable/downloadable portal invoice PDF | ⏸ Future | Portal invoice page is web-only; PDF export not yet added |
 | Job detail View Estimate link | ✅ Complete | `b8444dd` — conditional `View Estimate →` row on job detail when `job.estimate_id` is set |
-| Convert-to-job date/time pre-fill polish | ⏸ Future | Deferred — Phase 5 candidate |
+| Convert-to-job date/time pre-fill polish | ✅ Complete | Phase 5Q.4c — defaults to next `preferred_service_day` using `getClosestWeekdayNearDate`; `maxDays: 7`; falls back to local today |
+| `/jobs/new?estimate_id` → mark estimate converted | ⏸ Future | Deferred — `createJob()` from job form should mark source estimate `converted` |
+| Portal job_inputs display — service scope from structured data | ⏸ Future | Deferred — portal/invoice does not yet read `job_inputs` |
+| Approved estimate selector for generic New Job entry | ⏸ Future | Deferred — no estimate-prefill path from `/jobs/new` without `estimate_id` param |
 | Public quote page phone source | ⏸ Future | Uses separate data path; not updated in Phase 5B |
 | `JobActions` SMS business phone | ⏸ Future | On-my-way / day-before / job-complete SMS bodies; `businessPhone` not yet passed as prop |
 | Operational weekly summary improvements | ⏸ Future | Deferred — Phase 5 candidate |
@@ -1107,7 +1210,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
 | 3 | Public intake and lead workflow improvements | ✅ Complete — all listed tasks done through `ec48565`; payment bugfixes continued in Phase 4 |
 | 4 | Operations UX / workflow polish | ✅ Substantially complete — 4A–4D + cleanup batch done (`463e762`) |
-| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A ✅, 5B ✅, 5C ✅, 5D ✅, 5E ✅, 5F ✅, 5G ✅, 5H ✅, 5I ✅, 5J ✅, 5K ✅, 5L ✅, 5M ✅, 5N ✅, 5O ✅ complete (`0e91bf9`); next TBD |
+| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A–5O ✅, 5P ✅, 5Q ✅ complete (`f8f4adc`); next TBD |
 
 **Permanent Future-Handoff Requirements** (mandatory — see Architecture.md §16):
 Every future handoff must instruct the next chat to read ARCHITECTURE.md and HANDOFF.md first, remind it to update those docs after any verified/committed change, state the latest commit, current phase status, open items, workflow guardrails, and known security follow-ups (no secret values).
@@ -1116,65 +1219,27 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Phase 5P — next area TBD**
+**Phase 5R — next area TBD**
 
-Phase 5A–5O are all production-verified and complete as of `0e91bf9`.
+Phase 5A–5Q are all production-verified and complete as of `f8f4adc`.
 
-**Completed Phase 5A–5N work:**
-- ✅ Customers list unpaid balance badges
-- ✅ Customer detail Outstanding Balance section
-- ✅ Balance reminder SMS with portal link
-- ✅ Portal service history payment clarity
-- ✅ Estimate conversion duplicate guard + View Job link
-- ✅ Estimate SMS business name from `businesses.name`
-- ✅ Business-scoped phone — Settings field, formatting, all customer-facing surfaces
-- ✅ Portal invoice page `/portal/[token]/invoice/[jobId]` (token-scoped, double-scoped)
-- ✅ Portal service history → View Invoice links
-- ✅ Completion SMS includes portal invoice URL
-- ✅ Later payment receipt SMS (`buildPaymentReceiptSms`)
-- ✅ `not_billable` suppresses owed display and SMS
-- ✅ Repeated partial payment FormData submission fixed (permanent `useActionState` invariant)
-- ✅ Follow-up date anchored from `completed_at` (prevents drift on early/late completions)
-- ✅ Optional scheduling helper chips — cadence, preferred day (bidirectional snap), lighter workload
-- ✅ `getClosestWeekdayNearDate` — correct backward+forward preferred-day logic in `src/lib/date.ts`
-- ✅ `/leads/new` captures Preferred Service Day; `createLead()` saves it to property
-- ✅ Property detail summary card displays Preferred day (null → "Any day"; set → title-cased)
-- ✅ Today dashboard Collected today + This week stat cards
-- ✅ Today dashboard Needs Follow-up action section
-- ✅ Today dashboard Approved Estimates Waiting action section
-- ✅ Today stat grid compact format — `count · $amount` for Jobs today and This week; no duplicate cards
-- ✅ Section reorder — Overdue before Completed Today; helper text on Needs Follow-up and Approved Estimates Waiting
-- ✅ Needs Follow-up false-positive suppression — completed recurring jobs hidden when same property already has an upcoming active recurring job
-- ✅ Estimate conversion `job_type` derived from `estimate.frequency` — weekly/biweekly → recurring; one_time/null/other → one_time
-- ✅ Estimate convert panel includes Time Window select; saves to `job.scheduled_time_window`
-- ✅ Needs Follow-up days-since uses local date-only comparison; completed-today shows "today"
-- ✅ `/today` runtime crash from raw ISO string to `getLocalDateStr` hotfixed
-- ✅ Completed job detail Payment Summary card — aggregate-only, explicit per-status branches, `not_billable` safe, human-readable method labels
-- ✅ Duplicate partial status text removed from `JobActions.tsx`
-- ✅ New Job form prefills price / service package / job type from property defaults
-- ✅ New Job `job_type` select is controlled — updates dynamically on property change
-- ✅ Estimate conversion opt-in "Save as default price" checkbox with current-value hint
-- ✅ `markPaid()` stores `amount_paid=0` (not null) when job has no price
-- ✅ Today Unpaid shows "No price set" for null-price jobs; Pay Reminder SMS suppressed when balance unknown
-- ✅ Complete Job panel static price hint text
-- ✅ Payment Summary shows "Price · Not set" for null-price completed jobs
-- ✅ Customer and property detail pages have `+ New Estimate` header buttons with contextual `customer_id`/`property_id` params
-- ✅ Property info card shows linked `View Customer` row — no new query
-- ✅ Job detail shows conditional `View Estimate →` row when `job.estimate_id` is set — no new query
-- ✅ Estimate summary card Customer and Property rows are clickable links
-- ✅ Estimate action buttons labeled "View Customer" / "View Property"; inner card heading "Manage Estimate"
-- ✅ Estimate detail shows per-status banners: draft, sent, approved (existing), converted, declined
-- ✅ Converted estimate banner includes inline View Job → link
-- ✅ Schedule Visit and Send to Customer cards hidden for converted and declined estimates
-- ✅ Customer detail Outstanding Balance tracks no-price unpaid/partial jobs separately — muted note; no phantom $0 total; SMS button unchanged
-- ✅ Today Completed Today balance null-aware — no-price jobs do not show `$0 owed`
+**Completed Phase 5P–5Q work (most recent):**
+- ✅ `jobs.job_inputs` JSONB column added — structured service scope source of truth
+- ✅ `scheduleFollowUpJob()` copies `job_inputs` from parent job
+- ✅ `JobForm` writes `job_inputs` from service booleans + levels on new job creation
+- ✅ `markLeadCustomerActive()` hardened with `.eq('status', 'lead')` guard
+- ✅ Estimate detail lead activation gate — Convert to Job hidden when customer is still a lead; amber card prompts activation first
+- ✅ `convertToJob()` writes `job_inputs` derived from `estimate_inputs` via `deriveJobInputsFromEstimateInputs()`
+- ✅ Null `estimate_inputs` safely produces null `job_inputs` — legacy estimates convert cleanly
+- ✅ Estimate conversion Scheduled Date defaults to next matching `preferred_service_day` (max 7 days out); falls back to local today
+- ✅ Estimate conversion date default is operator-overridable
 
-**Completed Phase 5O work:**
-- ✅ Customer detail Outstanding Balance tracks no-price unpaid jobs separately as `noPriceUnpaidJobs`; shows muted note; no phantom `$0.00` total; SMS button gated on calculable priced balances only
-- ✅ Today Completed Today balance null-aware; no-price jobs do not show `$0 owed`
-- ✅ Property pages, finances, customer list, SMS bodies, payment actions, schema, RLS — all unchanged
+**Remaining Phase 5Q deferred items:**
+1. `/jobs/new?estimate_id` → mark source estimate `converted` on job creation
+2. Portal/invoice — display service scope from `job_inputs` instead of legacy `service_package`
+3. Approved estimate selector in generic New Job entry (no `estimate_id` param path)
 
-**Next Phase 5P candidates:**
+**Next Phase 5R candidates:**
 1. `JobActions` SMS business phone — wire `businessPhone` into on-my-way / day-before / job-complete SMS
 2. Portal enhancements — customer-facing UX improvements
 3. Revenue/expense reporting — more useful Finances page analytics

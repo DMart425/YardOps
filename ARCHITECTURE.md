@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-31
-Current checkpoint commit: `0e91bf9` (Fix no-price outstanding balance displays — Phase 5O)
+Current checkpoint commit: `f8f4adc` (Default estimate conversion to preferred day — Phase 5Q complete)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -250,6 +250,7 @@ Business-owned tables use `public.is_business_member(business_id)` in all SELECT
 - `scheduled_date` (`YYYY-MM-DD`), `scheduled_time_window`
 - `completed_at` (ISO timestamp), `started_at`, `actual_minutes`
 - `service_package`, `title`, `job_type` (`'recurring'` | `'one_time'`)
+- `job_inputs` (nullable JSONB — structured service scope; added Phase 5Q migration `20260531120000_add_jobs_job_inputs.sql`)
 - `recurrence_source` (parent job ID), `next_job_created_id` (child job ID)
 - `completion_notes`, `internal_notes`, `customer_notes`
 - `skipped_reason`, `reschedule_count`, `reschedule_log`, `rescheduled_from`
@@ -331,24 +332,43 @@ Business-owned tables use `public.is_business_member(business_id)` in all SELECT
 
 ## 8. Service Selection Model
 
-### Property Booleans — Source of Truth
+### `job_inputs` JSONB — Source of Truth for New Jobs (Phase 5Q+)
 
-After property save, the canonical service scope is stored in four boolean columns:
+`jobs.job_inputs` is a nullable JSONB column added in Phase 5Q. It stores structured service scope for jobs created or converted after that migration.
+
+```
+{
+  svcMowing: boolean,        svcWeedEating: boolean,
+  svcEdging: boolean,        svcBlowOff: boolean,
+  baggingLevel: string,      stickPickupLevel: string,
+  leafCleanupLevel: string,  haulOffLevel: string,
+  shrubSmallCount: number,   shrubMediumCount: number,  shrubLargeCount: number
+}
+```
+
+- Written by `JobForm` on new job creation.
+- Written by `convertToJob()` via `deriveJobInputsFromEstimateInputs()` on estimate conversion.
+- Copied by `scheduleFollowUpJob()` from parent job when non-null.
+- `null` on legacy jobs is acceptable — display falls back to `service_package`.
+
+### Property Booleans — Property-Level Defaults
+
+After property save, the service scope defaults are stored in four boolean columns:
 - `default_mowing_enabled`
 - `default_weed_eating_enabled`
 - `default_edging_enabled`
 - `default_blow_off_enabled`
 
-`null` = not yet reviewed. `true`/`false` = explicitly set.
+`null` = not yet reviewed. `true`/`false` = explicitly set. These are prefill hints for new jobs — not locked scope.
 
 `default_service_package` is **soft-retired** and must not be dropped yet. Existing values preserved on update. New properties get `null`.
 
-### Service Display Priority (Job Cards)
+### Service Display Priority (Job Detail and Today)
 
-1. **Property booleans** (if any are `true`) → itemized list: e.g., "Mowing, Blow Off"
-2. **`job.service_package`** code → friendly label (legacy fallback)
+1. **`job.job_inputs`** (if present) → `🌿 Services`: itemized from `svcMowing`/`svcWeedEating`/`svcEdging`/`svcBlowOff`; `✨ Add-ons` row shown when any level is non-`'none'`
+2. **`job.service_package`** code → friendly label (legacy fallback when `job_inputs` is null)
 3. **No 🌿 line** if neither is available
-4. **`job_type`** (`'recurring'`, `'one_time'`) is **never** displayed as a service label
+4. **`job_type`** (`'recurring'`, `'one_time'`) is **never** displayed as a service label — UI should use `property.service_frequency` instead
 
 ### Helpers in `jobs/page.tsx`
 
@@ -360,12 +380,25 @@ After property save, the canonical service scope is stored in four boolean colum
 
 - `deriveServicePackageFromBooleans(prop)` — maps boolean columns to a `service_package` code for storage in follow-up jobs created by `scheduleFollowUpJob`
 
+### Helpers in `estimates/actions.ts`
+
+- `deriveJobInputsFromEstimateInputs(raw)` — maps `estimate_inputs` JSONB to a `JobInputs` object; null/non-object input returns `null` safely; individual missing keys fall back to `false` / `'none'` / `0`
+
+### Job Creation Paths and job_inputs Coverage
+
+| Path | job_inputs written? | Notes |
+|------|---------------------|-------|
+| `/jobs/new` (JobForm) | ✅ Always | From form checkboxes/selects |
+| `convertToJob()` direct estimate convert | ✅ Phase 5Q.4b+ | From `deriveJobInputsFromEstimateInputs(estimate_inputs)` |
+| `/jobs/new?estimate_id=` (estimate prefill) | ✅ Phase 5Q.3b+ | Via JobForm with `estimatePrefill` props |
+| `scheduleFollowUpJob()` | ✅ Phase 5Q.2b+ | Copied from parent job when non-null |
+| Legacy jobs (pre-5Q.1) | ❌ null | Display falls back to `service_package` |
+
 ### Follow-up Job Service Carryover
 
-`scheduleFollowUpJob` uses a three-level fallback for `service_package`:
-1. Parent job's `service_package`
-2. Property's `default_service_package` (legacy)
-3. Derived from property booleans via `deriveServicePackageFromBooleans()`
+`scheduleFollowUpJob` now uses a two-level strategy:
+1. **`job_inputs`** copied from parent job (when non-null) — structured scope preserved
+2. **`service_package`** three-level fallback (parent `service_package` → property `default_service_package` → derived from property booleans) — legacy path when `job_inputs` is null
 
 `internal_notes` from the parent job is also copied to the follow-up job.
 
@@ -417,6 +450,10 @@ Website/manual intake address, frequency, and service interests are written into
 - **User tests** before commit.
 - **Commit migration file** only after explicit user approval.
 - **Confirm project ref** is `lewzqavgvltzwfeypvam` before any SQL execution.
+
+### Known Migration History Drift
+
+`20260531120000_add_jobs_job_inputs.sql` (adds `jobs.job_inputs` nullable JSONB) was applied directly to the Supabase project via `npx supabase db query --linked` rather than through Supabase CLI migration tracking. The migration file exists in `supabase/migrations/` but is **not tracked in the remote migration history**. Running `supabase db push` would attempt to replay it and fail. This is a known state — do not attempt to repair it by pushing. All future migrations must continue to use `npx supabase db query --linked --file`.
 
 ---
 
@@ -498,6 +535,20 @@ Website/manual intake address, frequency, and service interests are written into
 | Customer/property navigation polish | ✅ Phase 5M | `b8444dd` + `67b9e80` — contextual `+ New Estimate` buttons on customer and property detail; `View Customer` linked row in property info card; `View Estimate →` link on job detail; clickable Customer/Property rows in estimate summary; `View Customer`/`View Property` action buttons; `Manage Estimate` card heading |
 | Estimate detail state polish | ✅ Phase 5N | `e2d42a1` — per-status top banners; Schedule Visit and Send to Customer hidden for `converted`/`declined`; no action/SMS/schema changes |
 | Financial summary null-price display fixes | ✅ Phase 5O | `0e91bf9` — customer detail Outstanding Balance tracks no-price unpaid jobs separately; muted note; no phantom $0 total; Today Completed Today balance null-aware; no-price jobs do not show `$0 owed`; no schema/SMS/payment-action changes |
+| Job service scope inputs (job_inputs foundation) | ✅ Phase 5Q.1 | `14c3d83` + `2fa58a4` — nullable JSONB `jobs.job_inputs`; JobForm replaced package dropdown with service checkboxes + add-on fields; new jobs write structured scope |
+| Job service scope display + frequency label | ✅ Phase 5Q.2 | `958e876` + `5a8b489` + `6ec4305` — job detail shows 🌿 Services from job_inputs; ✨ Add-ons row; property frequency shown instead of job_type; Today prefers property booleans |
+| Estimate-linked job_inputs backfill + follow-up copy | ✅ Phase 5Q.2b | SQL applied directly + `7c1768c` — 5 historical jobs backfilled; `scheduleFollowUpJob` now copies job_inputs from parent |
+| New job prefill source note | ✅ Phase 5Q.3a | `9563c76` — JobForm shows contextual note for manual entry / property defaults / estimate prefill states |
+| Exact estimate prefill for /jobs/new | ✅ Phase 5Q.3b | `53c51b2` — `/jobs/new?estimate_id=` validates and prefills all scope from approved estimate |
+| Lead gate for estimate conversion | ✅ Phase 5Q.4a | `0f81d6d` — approved estimate for lead customer shows Mark as Active Customer; Convert to Job hidden until active |
+| Direct estimate conversion writes job_inputs | ✅ Phase 5Q.4b | `e3f241f` — `convertToJob()` now writes job_inputs from estimate_inputs via `deriveJobInputsFromEstimateInputs()` |
+| Estimate conversion preferred-day default | ✅ Phase 5Q.4c | `f8f4adc` — convert panel defaults scheduled date to next preferred_service_day (maxDays: 7); operator can override |
+| Approved estimate + New Job entry point integration | ⏸ Deferred | Customer/property page + New Job buttons do not yet pass `estimate_id`; operator uses `/estimates/[id]` Convert to Job for estimate-linked jobs |
+| `/jobs/new?source_job_id` reviewable follow-up creation | ⏸ Deferred | Phase 5Q deferred |
+| `createJob` from /jobs/new marks estimate converted | ⏸ Deferred | Route exists but `/jobs/new?estimate_id=` does not auto-link the estimate unless future phase wires it |
+| Portal/invoice service scope from job_inputs | ⏸ Deferred | Portal still uses `service_package`/`title`; job_inputs display on portal deferred |
+| Package-only historical job backfill | ⏸ Deferred | No approximation backfill without estimate_inputs source |
+| Follow-up job_inputs copy runtime test | ⏸ Pending | Code committed; no qualifying completed job with non-null job_inputs has been followed up in production yet |
 
 ### RLS Hardening Checklist (future — not yet applied)
 
@@ -1374,6 +1425,88 @@ Display condition updated from `balance > 0 && ...` to `balance != null && balan
 #### No schema/migration/SMS/payment-action changes
 
 No routes added. No nav items added. No schema migrations. No RLS changes. No env var changes. No SMS body changes. No payment action changes.
+
+---
+
+### Phase 5Q — Job Service Scope (job_inputs) ✅
+
+**Goal:** Replace the legacy `service_package` string with structured job service scope (`job_inputs`) that stores individual service flags and add-on levels. Improve the estimate → job conversion workflow end to end.
+
+**Latest commit:** `f8f4adc` (Default estimate conversion to preferred day)
+
+#### Phase 5Q.1 — job_inputs foundation
+
+**Commits:** `14c3d83` (migration), `2fa58a4` (JobForm)
+
+- Migration `20260531120000_add_jobs_job_inputs.sql` adds `job_inputs` as nullable JSONB on `jobs`. Applied directly to `lewzqavgvltzwfeypvam` via `npx supabase db query --linked` due to known remote migration history drift. Migration file committed; not in remote migration tracking history.
+- `JobForm.tsx` updated: package dropdown replaced with four service checkboxes (Mowing, Weed Eating, Edging, Blow Off) + add-on selects (bagging, stick/limb pickup, leaf cleanup, haul-off, shrub counts by size).
+- New jobs write `job_inputs` on creation; legacy `service_package` still derived for backward compatibility.
+
+#### Phase 5Q.2 — Service scope display
+
+**Commits:** `5a8b489` (frequency label), `958e876` (job detail scope), `6ec4305` (Today fix)
+
+- Job detail shows `🌿 Services` from `job_inputs` when present; conditional `✨ Add-ons` row for non-`'none'` levels; falls back to `pkgLabel` (legacy `service_package`) for old jobs.
+- Job detail shows Frequency (from property `service_frequency`) when available — internal `job_type` no longer shown as a visible service label.
+- Today page `deriveServiceLabel()` now checks property boolean columns first before falling back to `service_package`.
+
+#### Phase 5Q.2b — Historical backfill + follow-up copy
+
+**Commits:** `7c1768c` (follow-up copy); SQL applied directly
+
+- Estimate-linked job_inputs backfill applied directly to `lewzqavgvltzwfeypvam` for 5 historical jobs. Before: 1 of 14 jobs had `job_inputs`. After: 6 of 14. One legacy `full_service` mismatch corrected (c3fe16fd: mowing + blow off only, matching `estimate_inputs`).
+- `scheduleFollowUpJob` in `jobs/actions.ts` now copies `job_inputs` from parent job when non-null.
+
+#### Phase 5Q.3a — New job prefill source note
+
+**Commit:** `9563c76`
+
+- `JobForm.tsx` displays a contextual note: manual entry / property defaults / manual/no-defaults / estimate prefill states — so operator can see where the current scope came from.
+
+#### Phase 5Q.3b — Exact estimate prefill
+
+**Commit:** `53c51b2`
+
+- `/jobs/new?estimate_id=[id]` validates the estimate server-side (must be approved, same business, non-null customer/property).
+- Valid approved estimate prefills all fields: customer, property, price, job_type/frequency, core services, add-ons, shrub counts via `EstimatePrefill` interface.
+- Invalid `estimate_id` shows a warning and does not silently fall through to property defaults.
+
+#### Phase 5Q.4a — Active customer gate for estimate conversion
+
+**Commit:** `0f81d6d`
+
+- `markLeadCustomerActive` hardened with `.eq('status', 'lead')` guard — never overwrites active/inactive/archived customers.
+- `estimates/[id]/page.tsx` fetches customer `status` and passes to `EstimateStatusActions`.
+- `EstimateStatusActions.tsx`: when `estimate.status === 'approved'` and `customer.status === 'lead'`, amber gate card shows "Customer is still a lead" + "Mark as Active Customer" button; Convert to Job hidden.
+- `markLeadCustomerActive` accepts optional `estimate_id` from formData to revalidate the estimate page immediately after activation.
+
+#### Phase 5Q.4b — Direct conversion writes job_inputs
+
+**Commit:** `e3f241f`
+
+- `estimates/actions.ts`: added `deriveJobInputsFromEstimateInputs(raw: unknown)` helper — returns `null` for null/non-object input; maps keys with safe defaults for missing fields; never throws.
+- `convertToJob()` now writes `job_inputs: jobInputs` alongside `service_package`. Converted job detail immediately shows structured Services/Add-ons.
+
+#### Phase 5Q.4c — Preferred-day default on conversion
+
+**Commit:** `f8f4adc`
+
+- `estimates/[id]/page.tsx`: `preferred_service_day` added to properties select; `defaultScheduledDate` computed via `getClosestWeekdayNearDate(localToday, preferredServiceDay, { minDate: localToday, maxDays: 7 })`.
+- `EstimateStatusActions.tsx`: convert panel date input uses `defaultValue={defaultScheduledDate ?? today}`. Operator can override.
+- `maxDays: 7` ensures the next occurrence within the week is always found. `minDate: localToday` excludes past occurrences.
+
+#### Current live DB state (Phase 5Q)
+
+- `jobs.job_inputs` column: exists, type `jsonb`, nullable, no default, no constraints.
+- 6 of 14 live jobs have `job_inputs`. 8 are legacy (`null`). Legacy jobs display `service_package` fallback.
+- All new jobs and converted estimates (post-5Q) write `job_inputs`.
+
+#### Known pending
+
+- Runtime test: follow-up job `job_inputs` copy — code committed; no qualifying completed job (non-null `job_inputs`, `job_type=recurring`) has been followed up in production yet.
+- `/jobs/new?estimate_id=` does not auto-mark estimate converted — that linkage is a future phase.
+
+No RLS changes. No env var changes beyond the migration.
 
 ---
 

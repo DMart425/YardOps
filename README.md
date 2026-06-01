@@ -2,7 +2,7 @@
 
 Private operations app for Wicksburg Lawn Service.
 
-Verified checkpoint commit: `0e91bf9` (Fix no-price outstanding balance displays — Phase 5O).
+Verified checkpoint commit: `f8f4adc` (Default estimate conversion to preferred day — Phase 5Q complete).
 
 ## Read First
 
@@ -26,6 +26,20 @@ Before making changes, read:
 5. Saving property from lead context returns to lead detail.
 6. Estimate is built from that lead/customer + property and remains editable.
 
+## Service Scope Model
+
+Jobs store structured service scope in `jobs.job_inputs` (nullable JSONB — added Phase 5Q):
+
+```
+{ svcMowing, svcWeedEating, svcEdging, svcBlowOff,
+  baggingLevel, stickPickupLevel, leafCleanupLevel, haulOffLevel,
+  shrubSmallCount, shrubMediumCount, shrubLargeCount }
+```
+
+- `job_inputs` is the source of truth for new jobs and converted estimates.
+- `service_package` is a legacy fallback — still written but not the primary source.
+- `JobForm` does not calculate price — only `property.default_price` is a permitted prefill.
+
 ## Defaults + Frequency Rules
 
 - Property service booleans are source of truth after property save:
@@ -35,6 +49,7 @@ Before making changes, read:
 	- `default_blow_off_enabled`
 - Website service interests are intake hints and only prefill before property booleans exist.
 - `default_service_package` is soft-retired and must not be dropped yet.
+- `job_type` (`recurring`/`one_time`) is an internal scheduling field — never display it as a service label.
 
 Canonical YardOps frequencies:
 
