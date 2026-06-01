@@ -274,6 +274,7 @@ export async function scheduleFollowUpJob(
                                ?? existing.properties?.default_service_package
                                ?? deriveServicePackageFromBooleans(existing.properties)
                                ?? null,
+      job_inputs:            existing.job_inputs ?? null,
       scheduled_date:        nextDate,
       scheduled_time_window: storedNextTimeWindow,
       price:                 existing.price ?? existing.properties?.default_price ?? null,
