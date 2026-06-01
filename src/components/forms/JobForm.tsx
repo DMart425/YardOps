@@ -69,6 +69,18 @@ function deriveJobTypeFromFrequency(frequency?: string | null): string {
   return frequency === 'weekly' || frequency === 'biweekly' ? 'recurring' : 'one_time'
 }
 
+// Returns true if the property has any useful defaults that would prefill the form.
+function hasPropertyDefaults(p: PropertyOption): boolean {
+  if (p.default_price != null) return true
+  if (p.service_frequency && p.service_frequency !== '') return true
+  if (p.default_mowing_enabled != null) return true
+  if (p.default_weed_eating_enabled != null) return true
+  if (p.default_edging_enabled != null) return true
+  if (p.default_blow_off_enabled != null) return true
+  if (p.default_service_package) return true
+  return false
+}
+
 function getPropertyDefaults(properties: PropertyOption[], propertyId?: string) {
   if (!propertyId) return null
   return properties.find((property) => property.id === propertyId) ?? null
@@ -150,6 +162,12 @@ export function JobForm({
     ? formatFrequencyLabel(selectedProperty.service_frequency)
     : null
 
+  const prefillNote: { text: string; isDefaults: boolean } = selectedProperty
+    ? hasPropertyDefaults(selectedProperty)
+      ? { text: 'Using property defaults — edit any field before creating the job.', isDefaults: true }
+      : { text: 'Manual entry — this property has no defaults set.', isDefaults: false }
+    : { text: 'Manual entry — choose a property to load defaults, or fill the job manually.', isDefaults: false }
+
   return (
     <form action={formAction} className="form">
       <Toast message={state.success} />
@@ -194,6 +212,20 @@ export function JobForm({
           ))}
         </select>
       </div>
+
+      {/* Prefill source note */}
+      <p
+        className="text-small text-muted"
+        style={{
+          marginTop: '-4px',
+          marginBottom: '4px',
+          paddingLeft: '2px',
+          fontStyle: 'italic',
+          color: prefillNote.isDefaults ? 'var(--color-primary)' : undefined,
+        }}
+      >
+        {prefillNote.isDefaults ? '✦ ' : ''}{prefillNote.text}
+      </p>
 
       {/* Date + Time Window */}
       <div className="form-row">
