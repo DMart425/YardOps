@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-05-31 (f8f4adc)
+Last updated: 2026-05-31 (ca4a01e)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-05-31 (f8f4adc)
 
 ## Current Checkpoint
 
-- **Latest commit:** `f8f4adc` — Default estimate conversion to preferred day (Phase 5Q complete)
+- **Latest commit:** `ca4a01e` — New Job source selector (Phase 5S complete)
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -1147,6 +1147,22 @@ All of the following were user-tested and confirmed working as of `289b732`:
 - ✅ `maxDays: 7` ensures the next weekday occurrence is always found within a week — `maxDays: 4` default was insufficient for days 5–7 away
 - ✅ Operator can override the pre-filled conversion date in the Convert to Job panel — default is a suggestion only
 - ✅ `estimates/[id]/page.tsx` selects `customers(status)` and `properties(preferred_service_day)` — `EstimateWithRelations` type extended accordingly; `defaultScheduledDate` computed server-side and passed as prop
+- ✅ `/jobs/new?estimate_id=` now fully equivalent to direct `convertToJob()` — `createJob()` validates estimate (business scope, `status === 'approved'`, customer match, property match), writes `estimate_id`, marks estimate `converted`, promotes lead→active, clears approval notification (`ee0f6e3`)
+- ✅ `createJob()` estimate validation is a hard stop — mismatched customer/property, wrong status, or unknown business returns a form error; no silent fallback (`ee0f6e3`)
+- ✅ Hidden `estimate_id` field rendered in `JobForm` only when `isEstimateActive` — removed from DOM when operator switches property or changes source, preventing accidental conversion (`ee0f6e3`)
+- ✅ "Review & Create Job" button added to `EstimateStatusActions.tsx` between Convert to Job and Mark Declined — both job-creation paths grouped visually; link target `/jobs/new?estimate_id={id}` (`06575b2` + `13be6a0`)
+- ✅ "Review & Create Job" is lead-gated — not shown when `isLeadGated` (`customer.status === 'lead'`); same gate as Convert to Job (`13be6a0`)
+- ✅ Approved banner on `estimates/[id]/page.tsx` simplified to single `<div className="font-bold">Customer approved</div>` — redundant "ready to schedule" subtext removed (`5a80b37`)
+- ✅ "Opens the full job form prefilled from this estimate." paragraph removed from `EstimateStatusActions.tsx` — button label is self-explanatory (`5a80b37`)
+- ✅ New Job source selector (Estimate / Property defaults / Custom) added to `JobForm.tsx` — radio group shown only when `propertyEstimates.length > 0` for selected property (`ca4a01e`)
+- ✅ Source selector initializes from context: `?estimate_id=` → Estimate; property with defaults → Property defaults; otherwise → Custom (`ca4a01e`)
+- ✅ Selecting Estimate source renders hidden `estimate_id` field and applies estimate fields (price, job_type, all 11 scope fields) via `applyEstimateFields()` (`ca4a01e`)
+- ✅ Estimate picker `<select>` shown below Estimate radio — labels: `"Estimate #N · $X · Frequency"`; changes apply new estimate fields immediately (`ca4a01e`)
+- ✅ Selecting Property defaults calls `applyPropertyFields()` — applies price + service booleans, resets add-ons to `none`/`0`; `estimate_id` field removed from DOM (`ca4a01e`)
+- ✅ Selecting Custom leaves current form values as-is; only clears `selectedEstimateId`; `estimate_id` field removed from DOM (`ca4a01e`)
+- ✅ Property change clears `selectedEstimateId`, switches source away from Estimate, re-filters `propertyEstimates` for new property (`ca4a01e`)
+- ✅ `allApprovedEstimates` loaded server-side in parallel with customers and properties — no new API endpoint; filter is client-side by `propertyId` (`ca4a01e`)
+- ✅ `buildEstimatePrefill()` helper extracted in `jobs/new/page.tsx` — shared by bulk fetch and `?estimate_id=` validation path; no duplication (`ca4a01e`)
 
 ---
 
@@ -1183,15 +1199,17 @@ All of the following were user-tested and confirmed working as of `289b732`:
 | Phase 5O — Financial summary no-price display fixes | ✅ Complete | `0e91bf9` — customer detail Outstanding Balance tracks no-price unpaid jobs separately; muted note; no phantom $0 total; Today Completed Today balance null-aware; no schema/SMS/payment-action changes |
 | Phase 5P — Lead activation gate + job_inputs foundation | ✅ Complete | `20260531120000_add_jobs_job_inputs.sql` migration; `scheduleFollowUpJob` copies `job_inputs`; `JobForm` writes `job_inputs`; `markLeadCustomerActive` hardened; estimate detail lead gate card |
 | Phase 5Q — Estimate conversion job_inputs + preferred-day default | ✅ Complete | `f8f4adc` — `convertToJob()` writes `job_inputs` from `estimate_inputs`; Scheduled Date defaults to next preferred service day; `isLeadGated` gate; `deriveJobInputsFromEstimateInputs()` helper |
+| Phase 5R — Reviewed estimate-created jobs | ✅ Complete | `ee0f6e3` + `06575b2` + `13be6a0` + `5a80b37` — `/jobs/new?estimate_id=` fully converts estimate on job create; Review & Create Job button grouped with Convert to Job in `EstimateStatusActions`; helper text cleanup |
+| Phase 5S — New Job source selector | ✅ Complete | `ca4a01e` — Estimate / Property defaults / Custom radio group; estimate picker; `applyEstimateFields` / `applyPropertyFields`; server-side parallel load of approved estimates |
 | Route balancing / auto-scheduling follow-up | ⏸ Future | `Property.schedule_anchor_date` reserved; do not implement until explicitly asked |
 | `schedule_anchor_date` — no UI yet | ⏸ Future | Column exists in schema; no read or write path built |
 | Weather/rain-day shifting for scheduling | ⏸ Future | Not planned |
 | Printable/downloadable portal invoice PDF | ⏸ Future | Portal invoice page is web-only; PDF export not yet added |
 | Job detail View Estimate link | ✅ Complete | `b8444dd` — conditional `View Estimate →` row on job detail when `job.estimate_id` is set |
 | Convert-to-job date/time pre-fill polish | ✅ Complete | Phase 5Q.4c — defaults to next `preferred_service_day` using `getClosestWeekdayNearDate`; `maxDays: 7`; falls back to local today |
-| `/jobs/new?estimate_id` → mark estimate converted | ⏸ Future | Deferred — `createJob()` from job form should mark source estimate `converted` |
+| `/jobs/new?estimate_id` → mark estimate converted | ✅ Complete | Phase 5R `ee0f6e3` — `createJob()` validates and marks estimate converted with full side effects |
+| Approved estimate selector for generic New Job entry | ✅ Complete | Phase 5S `ca4a01e` — source selector with estimate picker; shown when approved estimates exist for selected property |
 | Portal job_inputs display — service scope from structured data | ⏸ Future | Deferred — portal/invoice does not yet read `job_inputs` |
-| Approved estimate selector for generic New Job entry | ⏸ Future | Deferred — no estimate-prefill path from `/jobs/new` without `estimate_id` param |
 | Public quote page phone source | ⏸ Future | Uses separate data path; not updated in Phase 5B |
 | `JobActions` SMS business phone | ⏸ Future | On-my-way / day-before / job-complete SMS bodies; `businessPhone` not yet passed as prop |
 | Operational weekly summary improvements | ⏸ Future | Deferred — Phase 5 candidate |
@@ -1210,7 +1228,7 @@ Full roadmap lives in Architecture.md §16. Summary:
 | 2G | Defense-in-depth cleanup (exports, legacy fields, scoping) | ✅ Active cleanup complete — cron multi-business scoping deferred |
 | 3 | Public intake and lead workflow improvements | ✅ Complete — all listed tasks done through `ec48565`; payment bugfixes continued in Phase 4 |
 | 4 | Operations UX / workflow polish | ✅ Substantially complete — 4A–4D + cleanup batch done (`463e762`) |
-| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A–5O ✅, 5P ✅, 5Q ✅ complete (`f8f4adc`); next TBD |
+| 5 | Reporting, automation, and growth features | ⏸ In Progress — Phase 5A–5O ✅, 5P ✅, 5Q ✅, 5R ✅, 5S ✅ complete (`ca4a01e`); next TBD |
 
 **Permanent Future-Handoff Requirements** (mandatory — see Architecture.md §16):
 Every future handoff must instruct the next chat to read ARCHITECTURE.md and HANDOFF.md first, remind it to update those docs after any verified/committed change, state the latest commit, current phase status, open items, workflow guardrails, and known security follow-ups (no secret values).
@@ -1219,29 +1237,27 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Phase 5R — next area TBD**
+**Phase 5T — next area TBD**
 
-Phase 5A–5Q are all production-verified and complete as of `f8f4adc`.
+Phase 5A–5S are all complete as of `ca4a01e`.
 
-**Completed Phase 5P–5Q work (most recent):**
-- ✅ `jobs.job_inputs` JSONB column added — structured service scope source of truth
-- ✅ `scheduleFollowUpJob()` copies `job_inputs` from parent job
-- ✅ `JobForm` writes `job_inputs` from service booleans + levels on new job creation
-- ✅ `markLeadCustomerActive()` hardened with `.eq('status', 'lead')` guard
-- ✅ Estimate detail lead activation gate — Convert to Job hidden when customer is still a lead; amber card prompts activation first
-- ✅ `convertToJob()` writes `job_inputs` derived from `estimate_inputs` via `deriveJobInputsFromEstimateInputs()`
-- ✅ Null `estimate_inputs` safely produces null `job_inputs` — legacy estimates convert cleanly
-- ✅ Estimate conversion Scheduled Date defaults to next matching `preferred_service_day` (max 7 days out); falls back to local today
-- ✅ Estimate conversion date default is operator-overridable
+**Completed Phase 5R–5S work (most recent):**
+- ✅ `/jobs/new?estimate_id=` fully converts estimate — `createJob()` validates, marks `converted`, promotes lead→active, clears notification
+- ✅ "Review & Create Job" secondary button on estimate detail — grouped with Convert to Job in `EstimateStatusActions`; lead-gated
+- ✅ Approved banner simplified; redundant helper text removed
+- ✅ New Job source selector — Estimate / Property defaults / Custom; shown when approved estimates exist for selected property
+- ✅ Estimate picker with `#N · $X · Frequency` labels
+- ✅ Source switching correctly clears `estimate_id` from DOM; only Estimate source converts estimates
+- ✅ `allApprovedEstimates` loaded server-side in parallel; `buildEstimatePrefill()` helper shared between bulk fetch and `?estimate_id=` path
 
-**Remaining Phase 5Q deferred items:**
-1. `/jobs/new?estimate_id` → mark source estimate `converted` on job creation
-2. Portal/invoice — display service scope from `job_inputs` instead of legacy `service_package`
-3. Approved estimate selector in generic New Job entry (no `estimate_id` param path)
+**Remaining deferred items from Phase 5Q–5S:**
+1. Portal/invoice — display service scope from `job_inputs` instead of legacy `service_package`
+2. Follow-up `job_inputs` copy runtime test — code committed; no qualifying production follow-up yet
+3. Customer/property page `+ New Job` buttons still don't pass `estimate_id` — source selector handles this ad-hoc
 
-**Next Phase 5R candidates:**
+**Next Phase 5T candidates:**
 1. `JobActions` SMS business phone — wire `businessPhone` into on-my-way / day-before / job-complete SMS
-2. Portal enhancements — customer-facing UX improvements
+2. Portal enhancements — customer-facing UX improvements, `job_inputs` display
 3. Revenue/expense reporting — more useful Finances page analytics
 4. Bulk job actions — mark multiple jobs paid, batch scheduling
 5. Printable portal invoice PDF — web-only currently

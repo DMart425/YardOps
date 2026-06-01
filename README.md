@@ -2,7 +2,7 @@
 
 Private operations app for Wicksburg Lawn Service.
 
-Verified checkpoint commit: `f8f4adc` (Default estimate conversion to preferred day — Phase 5Q complete).
+Verified checkpoint commit: `ca4a01e` (New Job source selector — Phase 5S complete).
 
 ## Read First
 
@@ -39,6 +39,7 @@ Jobs store structured service scope in `jobs.job_inputs` (nullable JSONB — add
 - `job_inputs` is the source of truth for new jobs and converted estimates.
 - `service_package` is a legacy fallback — still written but not the primary source.
 - `JobForm` does not calculate price — only `property.default_price` is a permitted prefill.
+- `/jobs/new` source selector (Phase 5S): when approved estimates exist for the selected property, a radio group offers **Estimate / Property defaults / Custom**. Selecting Estimate adds a hidden `estimate_id` field; the `createJob` action validates it and marks the source estimate `converted`. Switching away from Estimate removes `estimate_id` — Property defaults and Custom never convert estimates.
 
 ## Defaults + Frequency Rules
 

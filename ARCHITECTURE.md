@@ -5,7 +5,7 @@
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
 Last updated: 2026-05-31
-Current checkpoint commit: `f8f4adc` (Default estimate conversion to preferred day — Phase 5Q complete)
+Current checkpoint commit: `ca4a01e` (New Job source selector — Phase 5S complete)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -390,8 +390,10 @@ After property save, the service scope defaults are stored in four boolean colum
 |------|---------------------|-------|
 | `/jobs/new` (JobForm) | ✅ Always | From form checkboxes/selects |
 | `convertToJob()` direct estimate convert | ✅ Phase 5Q.4b+ | From `deriveJobInputsFromEstimateInputs(estimate_inputs)` |
-| `/jobs/new?estimate_id=` (estimate prefill) | ✅ Phase 5Q.3b+ | Via JobForm with `estimatePrefill` props |
+| `/jobs/new?estimate_id=` (estimate prefill) | ✅ Phase 5Q.3b+ | Via JobForm with `estimatePrefill` props; Phase 5R: also marks estimate `converted`, promotes lead→active, clears approval notification |
 | `scheduleFollowUpJob()` | ✅ Phase 5Q.2b+ | Copied from parent job when non-null |
+| `/jobs/new` source selector (Estimate option) | ✅ Phase 5S | Operator selects an approved estimate via picker; hidden `estimate_id` field added; same validation + conversion side effects as `?estimate_id=` path |
+| `/jobs/new` source selector (Property/Custom) | ✅ Phase 5R/5S | Estimate source not selected; `estimate_id` absent; no conversion side effects |
 | Legacy jobs (pre-5Q.1) | ❌ null | Display falls back to `service_package` |
 
 ### Follow-up Job Service Carryover
@@ -543,9 +545,11 @@ Website/manual intake address, frequency, and service interests are written into
 | Lead gate for estimate conversion | ✅ Phase 5Q.4a | `0f81d6d` — approved estimate for lead customer shows Mark as Active Customer; Convert to Job hidden until active |
 | Direct estimate conversion writes job_inputs | ✅ Phase 5Q.4b | `e3f241f` — `convertToJob()` now writes job_inputs from estimate_inputs via `deriveJobInputsFromEstimateInputs()` |
 | Estimate conversion preferred-day default | ✅ Phase 5Q.4c | `f8f4adc` — convert panel defaults scheduled date to next preferred_service_day (maxDays: 7); operator can override |
-| Approved estimate + New Job entry point integration | ⏸ Deferred | Customer/property page + New Job buttons do not yet pass `estimate_id`; operator uses `/estimates/[id]` Convert to Job for estimate-linked jobs |
+| `createJob` from /jobs/new marks estimate converted | ✅ Phase 5R | `ee0f6e3` — `createJob()` validates `estimate_id`, marks estimate `converted`, promotes lead→active, clears approval notification; equivalent to direct `convertToJob()` outcome |
+| Review & Create Job button on estimate detail | ✅ Phase 5R | `06575b2` + `13be6a0` + `5a80b37` — secondary job creation path from estimate detail; grouped with Convert to Job in `EstimateStatusActions`; lead-gated |
+| New Job source selector (Estimate / Property / Custom) | ✅ Phase 5S | `ca4a01e` — radio group shown when approved estimates exist for selected property; Estimate option adds hidden `estimate_id`; switching away removes it |
+| Approved estimate + New Job entry point integration | ⏸ Deferred | Customer/property page + New Job buttons do not yet pass `estimate_id`; source selector handles this ad-hoc when operator selects the property |
 | `/jobs/new?source_job_id` reviewable follow-up creation | ⏸ Deferred | Phase 5Q deferred |
-| `createJob` from /jobs/new marks estimate converted | ⏸ Deferred | Route exists but `/jobs/new?estimate_id=` does not auto-link the estimate unless future phase wires it |
 | Portal/invoice service scope from job_inputs | ⏸ Deferred | Portal still uses `service_package`/`title`; job_inputs display on portal deferred |
 | Package-only historical job backfill | ⏸ Deferred | No approximation backfill without estimate_inputs source |
 | Follow-up job_inputs copy runtime test | ⏸ Pending | Code committed; no qualifying completed job with non-null job_inputs has been followed up in production yet |
@@ -1501,12 +1505,111 @@ No routes added. No nav items added. No schema migrations. No RLS changes. No en
 - 6 of 14 live jobs have `job_inputs`. 8 are legacy (`null`). Legacy jobs display `service_package` fallback.
 - All new jobs and converted estimates (post-5Q) write `job_inputs`.
 
-#### Known pending
+#### Known pending / completed in follow-on phases
 
 - Runtime test: follow-up job `job_inputs` copy — code committed; no qualifying completed job (non-null `job_inputs`, `job_type=recurring`) has been followed up in production yet.
-- `/jobs/new?estimate_id=` does not auto-mark estimate converted — that linkage is a future phase.
+- `/jobs/new?estimate_id=` auto-marking estimate converted — ✅ completed in Phase 5R (`ee0f6e3`).
+- Approved estimate selector for generic `/jobs/new` entry — ✅ completed in Phase 5S (`ca4a01e`).
 
 No RLS changes. No env var changes beyond the migration.
+
+---
+
+### Phase 5R — Reviewed Estimate-Created Jobs ✅
+
+**Goal:** When an operator creates a job via `/jobs/new?estimate_id=` (the "Review & Create Job" path), treat it as a full estimate conversion — equivalent in outcome to the direct "Convert to Job" panel.
+
+**Commits:** `ee0f6e3` (core linkage) · `06575b2` (Review & Create Job button on estimate detail) · `13be6a0` (group actions in EstimateStatusActions) · `5a80b37` (remove redundant helper text)
+
+#### Core linkage (`ee0f6e3`)
+
+**`src/app/(protected)/jobs/actions.ts` — `createJob()`:**
+
+1. Reads `estimate_id` from `FormData` (submitted via hidden field in `JobForm`).
+2. Validates: looks up estimate by `id + business_id`; verifies `status === 'approved'`; verifies `customer_id` matches selected customer; verifies `property_id` matches selected property. Returns a hard error on any mismatch — no silent fallback.
+3. Job insert includes `estimate_id: validatedEstimateId` when present.
+4. Post-insert side effects (mirrors `convertToJob()`):
+   - `estimates` → `status = 'converted'`
+   - `customers` → `status = 'active'` where `status = 'lead'` (scoped by business — never touches non-lead customers)
+   - `app_notifications` → `is_reviewed = true`, `reviewed_at = now()` where `estimate_id` matches, `is_reviewed = false`, `notification_type = 'estimate_approved'`
+   - `revalidatePath('/estimates/[id]')`, `/estimates`, `/leads`
+
+**`src/components/forms/JobForm.tsx`:**
+
+- Hidden `<input type="hidden" name="estimate_id" value={activeEstimate!.estimateId} />` is rendered **only** when `isEstimateActive === true`.
+- `isEstimateActive = source === 'estimate' && activeEstimate != null && activeEstimate.propertyId === selectedPropertyId` (Phase 5S generalization; in Phase 5R it was `estimatePrefill && selectedPropertyId === estimatePrefill.propertyId`).
+
+#### Review & Create Job button (`06575b2` → `13be6a0` → `5a80b37`)
+
+- Button added to `EstimateStatusActions.tsx` between Convert to Job and Mark Declined — so both job-creation choices are grouped visually.
+- Only shown when `estimate.status === 'approved' && !isLeadGated` — same gate as Convert to Job.
+- Link target: `/jobs/new?estimate_id=${estimate.id}`.
+- Redundant banner subtext removed from approved banner in `estimates/[id]/page.tsx`; "Opens the full job form prefilled from this estimate." helper paragraph removed from `EstimateStatusActions.tsx`.
+
+#### Conversion outcome equivalence
+
+| Outcome | `convertToJob()` (direct) | `createJob()` from `/jobs/new` |
+|---------|---------------------------|-------------------------------|
+| `job_inputs` written | ✅ | ✅ (from form checkboxes) |
+| `estimate.status = 'converted'` | ✅ | ✅ |
+| Lead → active promotion | ✅ | ✅ |
+| Approval notification cleared | ✅ | ✅ |
+| Operator date/time override | ✅ | ✅ (full form) |
+| Operator can review/edit scope | ❌ (locked to estimate total) | ✅ (full JobForm) |
+
+No schema migrations. No RLS changes. No env var changes.
+
+---
+
+### Phase 5S — New Job Source Selector ✅
+
+**Goal:** When creating a new job at `/jobs/new`, give the operator an explicit source selector to choose whether scope and price come from an approved estimate, from property defaults, or are manually entered.
+
+**Commits:** `ca4a01e` (source selector)
+
+#### Data loading (`jobs/new/page.tsx`)
+
+- `buildEstimatePrefill(est)` helper extracted — shared by the bulk approved-estimates fetch and the explicit `?estimate_id=` validation path (no duplication).
+- Third parallel fetch added to `Promise.all`: all `status = 'approved'` estimates for the business with `customer_id` and `property_id` set.
+- `allApprovedEstimates: EstimatePrefill[]` passed to `JobForm` as `approvedEstimates`.
+
+#### Source selector (`JobForm.tsx`)
+
+**New type:**
+```ts
+type JobSource = 'estimate' | 'property' | 'custom'
+```
+
+**Initialization logic:**
+- If `estimatePrefill` present (URL `?estimate_id=`) → `source = 'estimate'`
+- Else if initial property exists and has defaults → `source = 'property'`
+- Else → `source = 'custom'`
+
+**`propertyEstimates`:** `allEstimates.filter(e => e.propertyId === selectedPropertyId)` — filtered client-side on property selection change.
+
+**Selector visibility:** shown only when `selectedPropertyId && propertyEstimates.length > 0`. When no approved estimates exist for the property, the selector is hidden and form behaves as property defaults / custom.
+
+**Source switching behavior:**
+
+| Source selected | Fields applied | `estimate_id` field |
+|----------------|----------------|---------------------|
+| Estimate | `applyEstimateFields(ep)` — price, job_type, all 11 scope fields | ✅ hidden field emitted |
+| Property defaults | `applyPropertyFields(p)` — price, job_type, service booleans; add-ons reset to `none`/`0` | ❌ removed from DOM |
+| Custom / Manual | Fields left as-is; only `selectedEstimateId` cleared | ❌ removed from DOM |
+
+**Estimate picker:** `<select>` shown below the Estimate radio when `source === 'estimate' && propertyEstimates.length > 0`. Label format: `"Estimate #N · $X · Frequency"`.
+
+**On property change:** `selectedEstimateId` cleared; if source was `'estimate'`, source switches to `'property'` (or `'custom'` if no defaults); property fields applied.
+
+**`isEstimateActive`:** `source === 'estimate' && activeEstimate != null && activeEstimate.propertyId === selectedPropertyId` — gates the hidden `estimate_id` input. False when property changes or source switches away from Estimate.
+
+#### Invariants
+
+- Property defaults and Custom sources never submit `estimate_id` — hidden field is absent from DOM.
+- `createJob()` server-side validation is a hard stop regardless; the UI constraint is defense-in-depth.
+- Switching to Custom leaves current form values as-is — does not reset fields the operator may have already edited.
+
+No schema migrations. No RLS changes. No env var changes.
 
 ---
 

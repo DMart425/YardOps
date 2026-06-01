@@ -8,7 +8,7 @@ YardOps is the private operations app for Wicksburg Lawn Service.
 
 Current verified YardOps checkpoint commit:
 
-`f8f4adc` (Default estimate conversion to preferred day — Phase 5Q complete)
+`ca4a01e` (New Job source selector — Phase 5S complete)
 
 The public website repo is separate:
 
@@ -202,3 +202,9 @@ These rules were learned from production bugs and must be preserved across refac
 * Do not invent historical service scope for jobs that have no `estimate_inputs` and no usable `service_package`. Null `job_inputs` on legacy jobs is acceptable — backfilling with guessed values is forbidden.
 * Estimate conversion scheduled date should default to the next matching `property.preferred_service_day` on or after `localToday`, using `getClosestWeekdayNearDate(localToday, preferredServiceDay, { minDate: localToday, maxDays: 7 })`. Fall back to `localToday` when no preferred day is set. Operator must always be able to override.
 * Supabase migration history drift is a known state. **Do not run `supabase db push`** — it will fail or produce unexpected results. Always use `npx supabase db query --linked --file "<file>"` with explicit project-ref confirmation.
+* The Estimate source in the New Job source selector (`JobSource = 'estimate' | 'property' | 'custom'`) is the **only** source that may submit `estimate_id` to `createJob`. The hidden `estimate_id` input must only be rendered when `source === 'estimate' && activeEstimate != null && activeEstimate.propertyId === selectedPropertyId`. Do not render it for Property defaults or Custom sources.
+* Switching away from the Estimate source (to Property defaults or Custom) must clear `selectedEstimateId` and cause the `estimate_id` hidden field to be removed from the DOM before the form submits. `createJob` performs server-side validation regardless, but the UI must not leave a stale `estimate_id` in the form.
+* Property defaults and Custom sources in `JobForm` must never trigger estimate conversion side effects (`status = 'converted'`, lead→active promotion, notification clear). Those side effects are only valid when `estimate_id` is present, validated, and matches the selected customer + property.
+* The New Job source selector should only be shown when it is useful: display the Estimate radio option only when `propertyEstimates.length > 0` (approved estimates exist for the currently selected property). When no approved estimates exist for the property, suppress the entire source selector; the form behaves as if Property defaults or Custom is selected.
+* The "Review & Create Job" path (`/jobs/new?estimate_id=`) and the direct "Convert to Job" path (`convertToJob()`) must be equivalent in conversion outcomes: both write `job_inputs`, mark the estimate `converted`, promote lead customers to `active`, and clear unreviewed `estimate_approved` notifications. Do not introduce asymmetry between these two conversion paths without explicit approval.
+* Keep helper text minimal on estimate detail pages. Avoid adding explanatory paragraphs beneath buttons when the button label is already self-explanatory. The "Review & Create Job" button and the "Convert to Job" panel do not need helper text that re-states what the button does.
