@@ -47,8 +47,19 @@ export async function geocodeAddress(parts: {
     if (!res.ok) return null
     const data = (await res.json()) as NominatimResult[]
     if (!data || data.length === 0) {
-      // Fall back to free-form query (city/state level if street not found)
-      return geocodeFreeform([parts.address, parts.city, parts.state, parts.postalCode].filter(Boolean).join(', '))
+      // Fallback 1: free-form full-address query (handles formatting variants)
+      const freeformResult = await geocodeFreeform(
+        [parts.address, parts.city, parts.state, parts.postalCode].filter(Boolean).join(', ')
+      )
+      if (freeformResult) return freeformResult
+
+      // Fallback 2: city/ZIP centroid — for rural addresses not in OSM street data.
+      // Drops the street number so Nominatim can at least resolve the town.
+      // Result is a town-level approximation, good enough for weather.
+      const cityQuery = [parts.city, parts.state, parts.postalCode].filter(Boolean).join(', ')
+      if (cityQuery) return geocodeFreeform(cityQuery)
+
+      return null
     }
     const top = data[0]
     return {
