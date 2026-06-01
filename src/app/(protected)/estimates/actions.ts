@@ -54,6 +54,41 @@ function deriveJobTypeFromFrequency(frequency: string | null): 'one_time' | 'rec
   return 'one_time'
 }
 
+type JobInputs = {
+  svcMowing: boolean
+  svcWeedEating: boolean
+  svcEdging: boolean
+  svcBlowOff: boolean
+  baggingLevel: string
+  stickPickupLevel: string
+  leafCleanupLevel: string
+  haulOffLevel: string
+  shrubSmallCount: number
+  shrubMediumCount: number
+  shrubLargeCount: number
+}
+
+// Maps estimate_inputs → structured job_inputs for the jobs table.
+// Returns null only when estimate_inputs is absent or not an object.
+// Missing individual keys fall back to safe defaults (false / 'none' / 0).
+function deriveJobInputsFromEstimateInputs(raw: unknown): JobInputs | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const ei = raw as Record<string, unknown>
+  return {
+    svcMowing:        ((ei.mowingMinutes   as number ?? 0)      > 0),
+    svcWeedEating:    ((ei.weedEatingLevel as string ?? 'none') !== 'none'),
+    svcEdging:        ((ei.edgingLevel     as string ?? 'none') !== 'none'),
+    svcBlowOff:       ((ei.blowOffLevel    as string ?? 'none') !== 'none'),
+    baggingLevel:     (ei.baggingLevel     as string) ?? 'none',
+    stickPickupLevel: (ei.stickPickupLevel as string) ?? 'none',
+    leafCleanupLevel: (ei.leafCleanupLevel as string) ?? 'none',
+    haulOffLevel:     (ei.haulOffLevel     as string) ?? 'none',
+    shrubSmallCount:  (ei.shrubSmallCount  as number) ?? 0,
+    shrubMediumCount: (ei.shrubMediumCount as number) ?? 0,
+    shrubLargeCount:  (ei.shrubLargeCount  as number) ?? 0,
+  }
+}
+
 function deriveJobScopeFromEstimate(estimate: { estimate_inputs: Record<string, unknown> | null; estimated_minutes: number | null }): JobScope {
   const rawInputs = estimate.estimate_inputs
   if (!rawInputs) {
@@ -347,7 +382,8 @@ export async function convertToJob(
     return { error: 'This estimate has already been converted to a job.' }
   }
 
-  const scope = deriveJobScopeFromEstimate(estimate)
+  const scope     = deriveJobScopeFromEstimate(estimate)
+  const jobInputs = deriveJobInputsFromEstimateInputs(estimate.estimate_inputs)
 
   const { data: job, error } = await supabase
     .from('jobs')
@@ -359,6 +395,7 @@ export async function convertToJob(
       estimate_id:     estimateId,
       title:              scope.title,
       service_package:    scope.servicePackage,
+      job_inputs:         jobInputs,
       job_type:           deriveJobTypeFromFrequency(estimate.frequency),
       scheduled_date:     str(formData, 'scheduled_date'),
       scheduled_time_window: str(formData, 'scheduled_time_window'),
