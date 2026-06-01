@@ -37,13 +37,16 @@ function deriveServiceLabel(
     default_blow_off_enabled?: boolean | null
   } | null
 ): string {
-  if (pkg) return servicePackageLabel(pkg)
+  // Property booleans are more accurate than legacy package codes — prefer them first.
   const parts: string[] = []
   if (prop?.default_mowing_enabled)      parts.push('Mowing')
   if (prop?.default_weed_eating_enabled) parts.push('Weed Eating')
   if (prop?.default_edging_enabled)      parts.push('Edging')
   if (prop?.default_blow_off_enabled)    parts.push('Blow Off')
-  return parts.length > 0 ? parts.join(', ') : 'Lawn Service'
+  if (parts.length > 0) return parts.join(', ')
+  // Fall back to legacy service_package code for old jobs/properties without booleans.
+  if (pkg) return servicePackageLabel(pkg)
+  return 'Lawn Service'
 }
 
 export default async function TodayPage() {
