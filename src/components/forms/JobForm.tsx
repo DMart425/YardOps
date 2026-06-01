@@ -4,6 +4,7 @@ import { useActionState, useState } from 'react'
 import Link from 'next/link'
 import type { FormState } from '@/types/database'
 import { Toast } from '@/components/Toast'
+import { formatFrequencyLabel } from '@/lib/frequency'
 
 interface CustomerOption {
   id: string; first_name: string; last_name: string | null; status: string
@@ -140,6 +141,15 @@ export function JobForm({
 
   const today = localToday
 
+  // Derived frequency label — shown read-only to operator; updates when property changes.
+  // Falls back to prompt text when no property is selected yet.
+  const selectedProperty = selectedPropertyId
+    ? (properties.find(p => p.id === selectedPropertyId) ?? null)
+    : null
+  const frequencyLabel = selectedProperty
+    ? formatFrequencyLabel(selectedProperty.service_frequency)
+    : null
+
   return (
     <form action={formAction} className="form">
       <Toast message={state.success} />
@@ -208,14 +218,18 @@ export function JobForm({
         </div>
       </div>
 
-      {/* Job Type */}
+      {/* Job type — derived from property frequency; not operator-editable.
+           Submitted as a hidden field so today-page gap detection and
+           Needs Follow-up queries (which filter on job_type = 'recurring') continue
+           to work correctly without any action changes. */}
+      <input type="hidden" name="job_type" value={jobType} />
+
+      {/* Frequency display — read-only context for the operator */}
       <div className="form-field">
-        <label className="form-label" htmlFor="jf_type">Job Type</label>
-        <select id="jf_type" name="job_type" className="form-select"
-          value={jobType} onChange={e => setJobType(e.target.value)}>
-          <option value="recurring">Recurring</option>
-          <option value="one_time">One-time</option>
-        </select>
+        <label className="form-label">Frequency</label>
+        <p className="text-small text-muted" style={{ marginTop: '2px' }}>
+          {frequencyLabel ?? 'Choose a property to load its service frequency.'}
+        </p>
       </div>
 
       {/* Service Scope */}

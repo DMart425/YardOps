@@ -9,6 +9,7 @@ import { ScheduleFollowUpCard } from '@/components/ScheduleFollowUpCard'
 import type { Job } from '@/types/database'
 import { requireBusinessContext } from '@/lib/business/context'
 import { formatPhoneInput } from '@/lib/format'
+import { formatFrequencyLabel } from '@/lib/frequency'
 import { getOrCreatePortalToken } from '@/app/(protected)/customers/[id]/portal-actions'
 
 type JobDetail = Job & {
@@ -254,8 +255,12 @@ export default async function JobDetailPage({
             <span className="text-small">{pkgLabel}</span>
           </div>
           <div className="card-row">
-            <span className="text-small text-muted">🔄 Type</span>
-            <span className="text-small">{JOB_TYPE_LABELS[job.job_type ?? ''] ?? job.job_type}</span>
+            <span className="text-small text-muted">🔁 Frequency</span>
+            <span className="text-small">
+              {property.service_frequency
+                ? formatFrequencyLabel(property.service_frequency)
+                : (JOB_TYPE_LABELS[job.job_type ?? ''] ?? job.job_type)}
+            </span>
           </div>
           {job.estimate_id && (
             <div className="card-row">
