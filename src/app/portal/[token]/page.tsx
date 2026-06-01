@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { formatTimestampDate, resolveTimeZone } from '@/lib/date'
 import { formatPhoneInput } from '@/lib/format'
+import { parseJobInputs, resolveServiceLabel, formatAddonsForCustomer } from '@/lib/jobScope'
 
 function fmtDate(d: string) {
   return new Date(d + 'T12:00:00').toLocaleDateString('en-US', {
@@ -11,33 +12,6 @@ function fmtDate(d: string) {
 
 function fmt$(n: number) {
   return '$' + n.toFixed(2).replace(/\.00$/, '')
-}
-
-const SERVICE_LABELS: Record<string, string> = {
-  mow_only:      'Mow Only',
-  mow_trim_blow: 'Mow, Trim & Blow',
-  trim_cleanup:  'Trim & Cleanup',
-  full_service:  'Full Service',
-}
-
-type PropertyBooleans = {
-  default_mowing_enabled?: boolean | null
-  default_weed_eating_enabled?: boolean | null
-  default_edging_enabled?: boolean | null
-  default_blow_off_enabled?: boolean | null
-}
-
-function serviceLabel(pkg: string | null | undefined, prop: PropertyBooleans | null | undefined): string {
-  if (prop) {
-    const parts: string[] = []
-    if (prop.default_mowing_enabled)      parts.push('Mowing')
-    if (prop.default_weed_eating_enabled) parts.push('Weed Eating')
-    if (prop.default_edging_enabled)      parts.push('Edging')
-    if (prop.default_blow_off_enabled)    parts.push('Blow Off')
-    if (parts.length > 0) return parts.join(', ')
-  }
-  if (!pkg) return 'Lawn Service'
-  return SERVICE_LABELS[pkg] ?? pkg.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
 }
 
 export default async function CustomerPortalPage({
@@ -66,7 +40,6 @@ export default async function CustomerPortalPage({
     { data: businessRow },
     { data: jobs },
     { data: pricing },
-    { data: properties },
   ] = await Promise.all([
     supabase
       .from('customers')
@@ -85,7 +58,7 @@ export default async function CustomerPortalPage({
       .single(),
     supabase
       .from('jobs')
-      .select('id, status, payment_status, price, amount_paid, scheduled_date, completed_at, service_package, property_id')
+      .select('id, status, payment_status, price, amount_paid, scheduled_date, completed_at, service_package, property_id, job_inputs')
       .eq('customer_id', customer_id)
       .eq('business_id', business_id)
       .order('scheduled_date', { ascending: false })
@@ -95,11 +68,6 @@ export default async function CustomerPortalPage({
       .select('venmo_handle, time_zone')
       .eq('user_id', created_by)
       .maybeSingle(),
-    supabase
-      .from('properties')
-      .select('id, default_mowing_enabled, default_weed_eating_enabled, default_edging_enabled, default_blow_off_enabled')
-      .eq('customer_id', customer_id)
-      .eq('business_id', business_id),
   ])
 
   if (!customer) notFound()
@@ -109,10 +77,6 @@ export default async function CustomerPortalPage({
   const businessPhone   = rawBusinessPhone ? formatPhoneInput(rawBusinessPhone) : null
   const venmoHandle   = (pricing?.venmo_handle as string | null) ?? null
   const timeZone = resolveTimeZone(pricing?.time_zone)
-
-  const propertyMap = new Map<string, PropertyBooleans>(
-    (properties ?? []).map(p => [p.id as string, p as PropertyBooleans])
-  )
 
   const allJobs  = jobs ?? []
   const upcoming = allJobs.filter(j => j.status === 'scheduled' || j.status === 'in_progress')
@@ -221,7 +185,10 @@ export default async function CustomerPortalPage({
           }}>
             Upcoming
           </div>
-          {upcoming.map(j => (
+          {upcoming.map(j => {
+            const parsedInputs = parseJobInputs(j.job_inputs as Record<string, unknown> | null)
+            const addonsLine   = parsedInputs ? formatAddonsForCustomer(parsedInputs) : null
+            return (
             <div key={j.id} style={{
               background: 'var(--color-surface)',
               border: '1px solid var(--color-border)',
@@ -234,8 +201,13 @@ export default async function CustomerPortalPage({
             }}>
               <div>
                 <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: 'var(--color-text)' }}>
-                  {serviceLabel(j.service_package, propertyMap.get(j.property_id as string) ?? null)}
+                  {resolveServiceLabel(j.job_inputs as Record<string, unknown> | null, j.service_package, null)}
                 </div>
+                {addonsLine && (
+                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '1px' }}>
+                    {addonsLine}
+                  </div>
+                )}
                 <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>
                   {j.scheduled_date ? fmtDate(j.scheduled_date) : 'Date TBD'}
                 </div>
@@ -255,7 +227,8 @@ export default async function CustomerPortalPage({
                 </span>
               )}
             </div>
-          ))}
+          )
+          })}
         </div>
       )}
 
@@ -273,10 +246,12 @@ export default async function CustomerPortalPage({
             Service History
           </div>
           {history.map(j => {
-            const price     = Number(j.price ?? 0)
-            const amtPaid   = Number(j.amount_paid ?? 0)
-            const remaining = Math.max(0, price - amtPaid)
-            const ps        = j.payment_status as string | null
+            const price         = Number(j.price ?? 0)
+            const amtPaid       = Number(j.amount_paid ?? 0)
+            const remaining     = Math.max(0, price - amtPaid)
+            const ps            = j.payment_status as string | null
+            const parsedInputs  = parseJobInputs(j.job_inputs as Record<string, unknown> | null)
+            const addonsLine    = parsedInputs ? formatAddonsForCustomer(parsedInputs) : null
 
             let amountLine  = ''
             let subtextLine: string | null = null
@@ -331,8 +306,13 @@ export default async function CustomerPortalPage({
               }}>
                 <div>
                   <div style={{ fontWeight: 500, fontSize: '0.9375rem', color: 'var(--color-text)' }}>
-                    {serviceLabel(j.service_package, propertyMap.get(j.property_id as string) ?? null)}
+                    {resolveServiceLabel(j.job_inputs as Record<string, unknown> | null, j.service_package, null)}
                   </div>
+                  {addonsLine && (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '1px' }}>
+                      {addonsLine}
+                    </div>
+                  )}
                   <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>
                     {j.completed_at
                       ? formatTimestampDate(j.completed_at, timeZone, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })

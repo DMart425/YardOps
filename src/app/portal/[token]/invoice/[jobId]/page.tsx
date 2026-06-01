@@ -3,22 +3,10 @@ import Link from 'next/link'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { formatTimestampDate, formatDateOnly, resolveTimeZone } from '@/lib/date'
 import { formatPhoneInput } from '@/lib/format'
+import { parseJobInputs, resolveServiceLabel, formatAddonsForCustomer } from '@/lib/jobScope'
 
 function fmt$(n: number): string {
   return '$' + n.toFixed(2).replace(/\.00$/, '')
-}
-
-const SERVICE_LABELS: Record<string, string> = {
-  mow_only:      'Mow Only',
-  mow_trim_blow: 'Mow, Trim & Blow',
-  trim_cleanup:  'Trim & Cleanup',
-  full_service:  'Full Service',
-}
-
-function serviceLabel(pkg: string | null | undefined, title: string | null | undefined): string {
-  if (pkg && SERVICE_LABELS[pkg]) return SERVICE_LABELS[pkg]
-  if (pkg) return pkg.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-  return title ?? 'Lawn Service'
 }
 
 export default async function PortalInvoicePage({
@@ -44,7 +32,7 @@ export default async function PortalInvoicePage({
   //    A valid token for Customer A cannot access jobs belonging to Customer B.
   const { data: job } = await supabase
     .from('jobs')
-    .select('id, title, status, payment_status, price, amount_paid, completed_at, scheduled_date, service_package, completion_notes, payment_method, property_id')
+    .select('id, title, status, payment_status, price, amount_paid, completed_at, scheduled_date, service_package, completion_notes, payment_method, property_id, job_inputs')
     .eq('id', jobId)
     .eq('customer_id', customer_id)
     .eq('business_id', business_id)
@@ -103,7 +91,13 @@ export default async function PortalInvoicePage({
     ? `${property.service_address}${property.city ? ', ' + property.city : ''}`
     : null
   const refNumber     = job.id.slice(0, 8).toUpperCase()
-  const svcLabel      = serviceLabel(job.service_package as string | null, job.title as string | null)
+  const svcLabel      = resolveServiceLabel(
+    job.job_inputs as Record<string, unknown> | null,
+    job.service_package as string | null,
+    job.title as string | null,
+  )
+  const parsedJobInputs = parseJobInputs(job.job_inputs as Record<string, unknown> | null)
+  const addonsLabel     = parsedJobInputs ? formatAddonsForCustomer(parsedJobInputs) : null
 
   const jobPrice    = job.price  != null ? Number(job.price)      : null
   const amtPaid     = job.amount_paid != null ? Number(job.amount_paid) : 0
@@ -225,6 +219,12 @@ export default async function PortalInvoicePage({
           <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>Service</span>
           <span style={{ fontSize: '0.9375rem', fontWeight: 500, textAlign: 'right', maxWidth: '60%' }}>{svcLabel}</span>
         </div>
+        {addonsLabel && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>Add-ons</span>
+            <span style={{ fontSize: '0.875rem', textAlign: 'right', maxWidth: '60%' }}>{addonsLabel}</span>
+          </div>
+        )}
         {dateDisplay && (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
