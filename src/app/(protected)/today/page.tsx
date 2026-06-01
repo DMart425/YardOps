@@ -487,16 +487,22 @@ export default async function TodayPage() {
                       {job.scheduled_time_window && <div className="card-meta">🗓 {job.scheduled_time_window}</div>}
                       <div className="card-meta">🌿 {deriveServiceLabel(job.service_package, property)}</div>
                       {job.price != null && <div className="card-meta">💵 ${Number(job.price).toFixed(0)}</div>}
-                      {fc && (
-                        <div className="card-meta" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span>{fc.emoji}</span>
-                          <span>{fc.tempHi}° / {fc.tempLo}° · {fc.summary}</span>
-                          {fc.precipChance > 0 && (
-                            <span style={{ color: wetRisk ? 'var(--color-overdue)' : undefined, fontWeight: wetRisk ? 600 : undefined }}>
-                              · {fc.precipChance}% rain
-                            </span>
-                          )}
-                        </div>
+                      {property?.latitude != null && property.longitude != null && (
+                        fc ? (
+                          <div className="card-meta" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span>{fc.emoji}</span>
+                            <span>{fc.tempHi}° / {fc.tempLo}° · {fc.summary}</span>
+                            {fc.precipChance > 0 && (
+                              <span style={{ color: wetRisk ? 'var(--color-overdue)' : undefined, fontWeight: wetRisk ? 600 : undefined }}>
+                                · {fc.precipChance}% rain
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="card-meta" style={{ color: 'var(--color-text-muted)', fontSize: '0.8125rem' }}>
+                            Weather unavailable for this property.
+                          </div>
+                        )
                       )}
                     </div>
                   </div>
