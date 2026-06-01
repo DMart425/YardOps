@@ -7,6 +7,60 @@ import type { FormState } from '@/types/database'
 import { requireBusinessContext } from '@/lib/business/context'
 import { getLocalDateStr, resolveTimeZone } from '@/lib/date'
 
+// ---------------------------------------------------------------------------
+// Job Inputs: structured service scope stored in jobs.job_inputs (Phase 5Q.2+)
+// ---------------------------------------------------------------------------
+
+interface JobInputs {
+  svcMowing: boolean
+  svcWeedEating: boolean
+  svcEdging: boolean
+  svcBlowOff: boolean
+  baggingLevel: string
+  stickPickupLevel: string
+  leafCleanupLevel: string
+  haulOffLevel: string
+  shrubSmallCount: number
+  shrubMediumCount: number
+  shrubLargeCount: number
+}
+
+// Parse service scope fields from a job creation FormData into a JobInputs object.
+// Checkboxes submit 'on' when checked, absent when unchecked — absent treated as false.
+// Selects default to 'none'. Shrub counts clamp to 0 on invalid/negative input.
+function parseJobInputs(formData: FormData): JobInputs {
+  const clampCount = (raw: FormDataEntryValue | null): number => {
+    const n = parseInt((raw as string) ?? '0', 10)
+    return isNaN(n) || n < 0 ? 0 : n
+  }
+  return {
+    svcMowing:        formData.get('svc_mowing') === 'on',
+    svcWeedEating:    formData.get('svc_weed_eating') === 'on',
+    svcEdging:        formData.get('svc_edging') === 'on',
+    svcBlowOff:       formData.get('svc_blow_off') === 'on',
+    baggingLevel:     (formData.get('bagging_level') as string) || 'none',
+    stickPickupLevel: (formData.get('stick_pickup_level') as string) || 'none',
+    leafCleanupLevel: (formData.get('leaf_cleanup_level') as string) || 'none',
+    haulOffLevel:     (formData.get('haul_off_level') as string) || 'none',
+    shrubSmallCount:  clampCount(formData.get('shrub_small_count')),
+    shrubMediumCount: clampCount(formData.get('shrub_medium_count')),
+    shrubLargeCount:  clampCount(formData.get('shrub_large_count')),
+  }
+}
+
+// Derives a legacy service_package code from JobInputs core service booleans.
+// Written alongside job_inputs to maintain backward compat with display paths
+// that still read service_package (portal, job detail — to be updated in Phase 5Q.5).
+function derivePackageFromJobInputs(inputs: JobInputs): string | null {
+  const { svcMowing: m, svcWeedEating: w, svcEdging: e, svcBlowOff: b } = inputs
+  if (!m && !w && !e && !b) return null
+  if (m && !w && !e && !b)  return 'mow_only'
+  if (m && w && !e && b)    return 'mow_trim_blow'
+  if (!m && (w || e || b))  return 'trim_cleanup'
+  if (m && (w || e || b))   return 'full_service'
+  return null
+}
+
 // Derives a service_package code from a property's individual service booleans.
 // Used as a fallback when neither the parent job nor default_service_package is set.
 function deriveServicePackageFromBooleans(prop: {
@@ -50,6 +104,8 @@ export async function createJob(
   const priceRaw = formData.get('price') as string
   const price    = priceRaw ? parseFloat(priceRaw) : null
 
+  const jobInputs = parseJobInputs(formData)
+
   const { data: job, error } = await supabase
     .from('jobs')
     .insert({
@@ -59,7 +115,8 @@ export async function createJob(
       property_id:           propertyId,
       title:                 'Lawn Service',
       job_type:              (formData.get('job_type') as string) || 'one_time',
-      service_package:       (formData.get('service_package') as string) || null,
+      service_package:       derivePackageFromJobInputs(jobInputs),
+      job_inputs:            jobInputs,
       scheduled_date:        (formData.get('scheduled_date') as string) || null,
       scheduled_time_window: (formData.get('scheduled_time_window') as string) || null,
       price:                 price && !isNaN(price) ? price : null,

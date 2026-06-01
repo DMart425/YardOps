@@ -30,18 +30,38 @@ interface JobFormProps {
   defaultValues?: Record<string, string | number | boolean | null>
 }
 
-function deriveServicePackageFromBooleans(p: PropertyOption | null): string {
-  if (!p) return ''
-  const hasMow  = Boolean(p.default_mowing_enabled)
-  const hasWeed = Boolean(p.default_weed_eating_enabled)
-  const hasEdge = Boolean(p.default_edging_enabled)
-  const hasBlow = Boolean(p.default_blow_off_enabled)
-  if (!hasMow && !hasWeed && !hasEdge && !hasBlow) return ''
-  if (hasMow && !hasWeed && !hasEdge && !hasBlow)  return 'mow_only'
-  if (hasMow && hasWeed && !hasEdge && hasBlow)    return 'mow_trim_blow'
-  if (!hasMow && (hasWeed || hasEdge || hasBlow))  return 'trim_cleanup'
-  if (hasMow && (hasWeed || hasEdge || hasBlow))   return 'full_service'
-  return ''
+type SvcCheckboxes = { mow: boolean; weed: boolean; edge: boolean; blow: boolean }
+
+// Expand a legacy service_package code into individual service booleans.
+// Used as fallback when a property has no per-service booleans saved yet.
+function checkboxesFromPackage(pkg: string | null): SvcCheckboxes {
+  switch (pkg) {
+    case 'mow_only':      return { mow: true,  weed: false, edge: false, blow: false }
+    case 'mow_trim_blow': return { mow: true,  weed: true,  edge: false, blow: true  }
+    case 'trim_cleanup':  return { mow: false, weed: true,  edge: true,  blow: false }
+    case 'full_service':  return { mow: true,  weed: true,  edge: true,  blow: true  }
+    default:              return { mow: true,  weed: false, edge: false, blow: false }
+  }
+}
+
+// Derive initial service checkbox state from a property.
+// Prefers per-service booleans; falls back to legacy default_service_package.
+function getPropertyCheckboxDefaults(p: PropertyOption | null): SvcCheckboxes {
+  if (!p) return { mow: true, weed: false, edge: false, blow: false }
+  const hasBooleans =
+    p.default_mowing_enabled != null ||
+    p.default_weed_eating_enabled != null ||
+    p.default_edging_enabled != null ||
+    p.default_blow_off_enabled != null
+  if (hasBooleans) {
+    return {
+      mow:  Boolean(p.default_mowing_enabled),
+      weed: Boolean(p.default_weed_eating_enabled),
+      edge: Boolean(p.default_edging_enabled),
+      blow: Boolean(p.default_blow_off_enabled),
+    }
+  }
+  return checkboxesFromPackage(p.default_service_package ?? null)
 }
 
 function deriveJobTypeFromFrequency(frequency?: string | null): string {
@@ -60,6 +80,7 @@ export function JobForm({
 }: JobFormProps) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(action, { error: null })
   const initialProperty = getPropertyDefaults(properties, defaultPropertyId)
+  const initialCheckboxes = getPropertyCheckboxDefaults(initialProperty)
 
   const [selectedCustomerId, setSelectedCustomerId] = useState(defaultCustomerId ?? '')
   const [selectedPropertyId, setSelectedPropertyId] = useState(defaultPropertyId ?? '')
@@ -67,18 +88,26 @@ export function JobForm({
     if (defaultValues?.price != null) return String(defaultValues.price)
     return initialProperty?.default_price != null ? String(initialProperty.default_price) : ''
   })
-  const [servicePackage, setServicePackage] = useState(() => {
-    if (typeof defaultValues?.service_package === 'string') return defaultValues.service_package
-    if (initialProperty) {
-      return deriveServicePackageFromBooleans(initialProperty) || initialProperty.default_service_package || ''
-    }
-    return ''
-  })
   const [jobType, setJobType] = useState(() => {
     if (defaultValues?.job_type) return String(defaultValues.job_type)
     if (initialProperty) return deriveJobTypeFromFrequency(initialProperty.service_frequency)
     return 'one_time'
   })
+
+  // Core service checkboxes — source of truth for service scope on new jobs
+  const [svcMowing,     setSvcMowing]     = useState(initialCheckboxes.mow)
+  const [svcWeedEating, setSvcWeedEating] = useState(initialCheckboxes.weed)
+  const [svcEdging,     setSvcEdging]     = useState(initialCheckboxes.edge)
+  const [svcBlowOff,    setSvcBlowOff]    = useState(initialCheckboxes.blow)
+
+  // Add-on selections
+  const [baggingLevel,     setBaggingLevel]     = useState('none')
+  const [stickPickupLevel, setStickPickupLevel] = useState('none')
+  const [leafCleanupLevel, setLeafCleanupLevel] = useState('none')
+  const [haulOffLevel,     setHaulOffLevel]     = useState('none')
+  const [shrubSmallCount,  setShrubSmallCount]  = useState(0)
+  const [shrubMediumCount, setShrubMediumCount] = useState(0)
+  const [shrubLargeCount,  setShrubLargeCount]  = useState(0)
 
   const filteredProperties = selectedCustomerId
     ? properties.filter(p => p.customer_id === selectedCustomerId)
@@ -99,11 +128,14 @@ export function JobForm({
     if (!property) return
     // Price: only prefill if a default exists; leave operator input untouched otherwise
     if (property.default_price != null) setPrice(String(property.default_price))
-    // Package: prefer boolean source-of-truth, fallback to legacy default_service_package
-    const pkgFromBooleans = deriveServicePackageFromBooleans(property)
-    setServicePackage(pkgFromBooleans || property.default_service_package || '')
     // Job type: derive from property frequency
     setJobType(deriveJobTypeFromFrequency(property.service_frequency))
+    // Service checkboxes: prefer per-service booleans, fall back to legacy package
+    const cbs = getPropertyCheckboxDefaults(property)
+    setSvcMowing(cbs.mow)
+    setSvcWeedEating(cbs.weed)
+    setSvcEdging(cbs.edge)
+    setSvcBlowOff(cbs.blow)
   }
 
   const today = localToday
@@ -176,31 +208,153 @@ export function JobForm({
         </div>
       </div>
 
-      {/* Job Type + Package */}
-      <div className="form-row">
-        <div className="form-field">
-          <label className="form-label" htmlFor="jf_type">Job Type</label>
-          <select id="jf_type" name="job_type" className="form-select"
-            value={jobType} onChange={e => setJobType(e.target.value)}>
-            <option value="recurring">Recurring</option>
-            <option value="one_time">One-time</option>
-          </select>
+      {/* Job Type */}
+      <div className="form-field">
+        <label className="form-label" htmlFor="jf_type">Job Type</label>
+        <select id="jf_type" name="job_type" className="form-select"
+          value={jobType} onChange={e => setJobType(e.target.value)}>
+          <option value="recurring">Recurring</option>
+          <option value="one_time">One-time</option>
+        </select>
+      </div>
+
+      {/* Service Scope */}
+      <div className="form-field">
+        <label className="form-label">Services</label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 24px', paddingTop: '4px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              name="svc_mowing"
+              checked={svcMowing}
+              onChange={e => setSvcMowing(e.target.checked)}
+            />
+            Mowing
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              name="svc_weed_eating"
+              checked={svcWeedEating}
+              onChange={e => setSvcWeedEating(e.target.checked)}
+            />
+            Weed eating
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              name="svc_edging"
+              checked={svcEdging}
+              onChange={e => setSvcEdging(e.target.checked)}
+            />
+            Edging
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              name="svc_blow_off"
+              checked={svcBlowOff}
+              onChange={e => setSvcBlowOff(e.target.checked)}
+            />
+            Blow off
+          </label>
         </div>
-        <div className="form-field">
-          <label className="form-label" htmlFor="jf_package">Package</label>
-          <select
-            id="jf_package"
-            name="service_package"
-            className="form-select"
-            value={servicePackage}
-            onChange={e => setServicePackage(e.target.value)}
-          >
-            <option value="">Standard mow</option>
-            <option value="mow_trim_blow">Mow, Trim &amp; Blow</option>
-            <option value="mow_only">Mow Only</option>
-            <option value="trim_cleanup">Trim &amp; Cleanup</option>
-            <option value="full_service">Full Service</option>
-          </select>
+      </div>
+
+      {/* Add-ons */}
+      <div className="form-field">
+        <label className="form-label">
+          Add-ons{' '}
+          <span style={{ fontWeight: 400, opacity: 0.6 }}>(optional)</span>
+        </label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div className="form-row">
+            <div className="form-field" style={{ marginBottom: 0 }}>
+              <label className="form-label" htmlFor="jf_bagging" style={{ fontSize: '0.85rem' }}>Bagging</label>
+              <select id="jf_bagging" name="bagging_level" className="form-select"
+                value={baggingLevel} onChange={e => setBaggingLevel(e.target.value)}>
+                <option value="none">None</option>
+                <option value="light">Light</option>
+                <option value="normal">Normal</option>
+                <option value="heavy">Heavy</option>
+              </select>
+            </div>
+            <div className="form-field" style={{ marginBottom: 0 }}>
+              <label className="form-label" htmlFor="jf_stick" style={{ fontSize: '0.85rem' }}>Stick / limb pickup</label>
+              <select id="jf_stick" name="stick_pickup_level" className="form-select"
+                value={stickPickupLevel} onChange={e => setStickPickupLevel(e.target.value)}>
+                <option value="none">None</option>
+                <option value="light">Light</option>
+                <option value="normal">Normal</option>
+                <option value="heavy">Heavy</option>
+              </select>
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-field" style={{ marginBottom: 0 }}>
+              <label className="form-label" htmlFor="jf_leaf" style={{ fontSize: '0.85rem' }}>Leaf cleanup</label>
+              <select id="jf_leaf" name="leaf_cleanup_level" className="form-select"
+                value={leafCleanupLevel} onChange={e => setLeafCleanupLevel(e.target.value)}>
+                <option value="none">None</option>
+                <option value="small">Small</option>
+                <option value="medium">Medium</option>
+                <option value="large">Large</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+            <div className="form-field" style={{ marginBottom: 0 }}>
+              <label className="form-label" htmlFor="jf_haul" style={{ fontSize: '0.85rem' }}>Haul-off</label>
+              <select id="jf_haul" name="haul_off_level" className="form-select"
+                value={haulOffLevel} onChange={e => setHaulOffLevel(e.target.value)}>
+                <option value="none">None</option>
+                <option value="small">Small</option>
+                <option value="medium">Medium</option>
+                <option value="large">Large</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="form-label" style={{ fontSize: '0.85rem', marginBottom: '6px', display: 'block' }}>Shrub trimming</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+              <div>
+                <label className="form-label" htmlFor="jf_shrub_sm" style={{ fontSize: '0.8rem', opacity: 0.7 }}>Small</label>
+                <input
+                  id="jf_shrub_sm"
+                  name="shrub_small_count"
+                  type="number"
+                  min="0"
+                  className="form-input"
+                  value={shrubSmallCount}
+                  onChange={e => setShrubSmallCount(Math.max(0, parseInt(e.target.value) || 0))}
+                />
+              </div>
+              <div>
+                <label className="form-label" htmlFor="jf_shrub_md" style={{ fontSize: '0.8rem', opacity: 0.7 }}>Medium</label>
+                <input
+                  id="jf_shrub_md"
+                  name="shrub_medium_count"
+                  type="number"
+                  min="0"
+                  className="form-input"
+                  value={shrubMediumCount}
+                  onChange={e => setShrubMediumCount(Math.max(0, parseInt(e.target.value) || 0))}
+                />
+              </div>
+              <div>
+                <label className="form-label" htmlFor="jf_shrub_lg" style={{ fontSize: '0.8rem', opacity: 0.7 }}>Large</label>
+                <input
+                  id="jf_shrub_lg"
+                  name="shrub_large_count"
+                  type="number"
+                  min="0"
+                  className="form-input"
+                  value={shrubLargeCount}
+                  onChange={e => setShrubLargeCount(Math.max(0, parseInt(e.target.value) || 0))}
+                />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
