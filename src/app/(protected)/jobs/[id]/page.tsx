@@ -54,6 +54,69 @@ function formatPaymentMethod(method: string): string {
   return PAYMENT_METHOD_LABELS[method] ?? method.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
 }
 
+// ── Job inputs helpers (Phase 5Q.2+) ────────────────────────────────────────
+
+interface ParsedJobInputs {
+  svcMowing: boolean
+  svcWeedEating: boolean
+  svcEdging: boolean
+  svcBlowOff: boolean
+  baggingLevel: string
+  stickPickupLevel: string
+  leafCleanupLevel: string
+  haulOffLevel: string
+  shrubSmallCount: number
+  shrubMediumCount: number
+  shrubLargeCount: number
+}
+
+// Safely reads a job_inputs JSONB value into a typed structure.
+// Returns null for old jobs that pre-date Phase 5Q.2 (job_inputs = null).
+function parseJobInputs(raw: Record<string, unknown> | null | undefined): ParsedJobInputs | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  if (!('svcMowing' in raw)) return null // not a Phase 5Q.2+ job_inputs object
+  return {
+    svcMowing:        Boolean(raw.svcMowing),
+    svcWeedEating:    Boolean(raw.svcWeedEating),
+    svcEdging:        Boolean(raw.svcEdging),
+    svcBlowOff:       Boolean(raw.svcBlowOff),
+    baggingLevel:     typeof raw.baggingLevel === 'string' ? raw.baggingLevel : 'none',
+    stickPickupLevel: typeof raw.stickPickupLevel === 'string' ? raw.stickPickupLevel : 'none',
+    leafCleanupLevel: typeof raw.leafCleanupLevel === 'string' ? raw.leafCleanupLevel : 'none',
+    haulOffLevel:     typeof raw.haulOffLevel === 'string' ? raw.haulOffLevel : 'none',
+    shrubSmallCount:  typeof raw.shrubSmallCount === 'number' ? raw.shrubSmallCount : 0,
+    shrubMediumCount: typeof raw.shrubMediumCount === 'number' ? raw.shrubMediumCount : 0,
+    shrubLargeCount:  typeof raw.shrubLargeCount === 'number' ? raw.shrubLargeCount : 0,
+  }
+}
+
+function capFirst(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+// Returns comma-separated core service names, or 'None selected' if none checked.
+function formatCoreServices(inputs: ParsedJobInputs): string {
+  const services: string[] = []
+  if (inputs.svcMowing)     services.push('Mowing')
+  if (inputs.svcWeedEating) services.push('Weed eating')
+  if (inputs.svcEdging)     services.push('Edging')
+  if (inputs.svcBlowOff)    services.push('Blow off')
+  return services.length > 0 ? services.join(', ') : 'None selected'
+}
+
+// Returns comma-separated add-on descriptions, or null when no add-ons are selected.
+function formatAddons(inputs: ParsedJobInputs): string | null {
+  const parts: string[] = []
+  if (inputs.baggingLevel     && inputs.baggingLevel     !== 'none') parts.push(`Bagging clippings: ${capFirst(inputs.baggingLevel)}`)
+  if (inputs.stickPickupLevel && inputs.stickPickupLevel !== 'none') parts.push(`Stick / limb pickup: ${capFirst(inputs.stickPickupLevel)}`)
+  if (inputs.leafCleanupLevel && inputs.leafCleanupLevel !== 'none') parts.push(`Leaf cleanup: ${capFirst(inputs.leafCleanupLevel)}`)
+  if (inputs.haulOffLevel     && inputs.haulOffLevel     !== 'none') parts.push(`Haul-off: ${capFirst(inputs.haulOffLevel)}`)
+  if (inputs.shrubSmallCount  > 0) parts.push(`Small shrubs: ${inputs.shrubSmallCount}`)
+  if (inputs.shrubMediumCount > 0) parts.push(`Medium shrubs: ${inputs.shrubMediumCount}`)
+  if (inputs.shrubLargeCount  > 0) parts.push(`Large shrubs: ${inputs.shrubLargeCount}`)
+  return parts.length > 0 ? parts.join(', ') : null
+}
+
 export default async function JobDetailPage({
   params,
 }: {
@@ -184,6 +247,10 @@ export default async function JobDetailPage({
     ? (SERVICE_LABELS[job.service_package] ?? job.service_package.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()))
     : 'Standard Mow'
 
+  const parsedJobInputs  = parseJobInputs(job.job_inputs)
+  const coreServicesLabel = parsedJobInputs ? formatCoreServices(parsedJobInputs) : null
+  const addonsLabel       = parsedJobInputs ? formatAddons(parsedJobInputs)       : null
+
   // ── Payment row display ──
   const ps            = job.payment_status
   const payPrice      = job.price != null ? Number(job.price) : null
@@ -251,9 +318,15 @@ export default async function JobDetailPage({
             </div>
           )}
           <div className="card-row">
-            <span className="text-small text-muted">🌿 Package</span>
-            <span className="text-small">{pkgLabel}</span>
+            <span className="text-small text-muted">🌿 Services</span>
+            <span className="text-small">{coreServicesLabel ?? pkgLabel}</span>
           </div>
+          {addonsLabel && (
+            <div className="card-row">
+              <span className="text-small text-muted">✨ Add-ons</span>
+              <span className="text-small">{addonsLabel}</span>
+            </div>
+          )}
           <div className="card-row">
             <span className="text-small text-muted">🔁 Frequency</span>
             <span className="text-small">
