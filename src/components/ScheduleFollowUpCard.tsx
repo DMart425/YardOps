@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useState } from 'react'
+import Link from 'next/link'
 import type { FormState } from '@/types/database'
 import { scheduleFollowUpJob } from '@/app/(protected)/jobs/actions'
 import { addDays, getClosestWeekdayNearDate } from '@/lib/date'
@@ -29,6 +30,7 @@ export function ScheduleFollowUpCard({
   jobType,
   preferredServiceDay,
   scheduledJobDates,
+  reviewFollowUpHref,
 }: {
   jobId: string
   scheduledDate: string | null
@@ -37,6 +39,7 @@ export function ScheduleFollowUpCard({
   jobType?: string | null
   preferredServiceDay?: string | null
   scheduledJobDates?: string[]
+  reviewFollowUpHref?: string
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(
     scheduleFollowUpJob.bind(null, jobId),
@@ -232,6 +235,14 @@ export function ScheduleFollowUpCard({
           {pending ? 'Scheduling...' : 'Schedule Follow-up'}
         </button>
       </form>
+
+      {reviewFollowUpHref && (
+        <div style={{ marginTop: '8px' }}>
+          <Link href={reviewFollowUpHref} className="btn btn-sm btn-secondary btn-full">
+            Review &amp; Schedule Follow-up →
+          </Link>
+        </div>
+      )}
     </div>
   )
 }

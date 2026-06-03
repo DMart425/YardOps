@@ -345,7 +345,7 @@ export function JobForm({
 
   // Prefill source note — reflects current source selection.
   const prefillNote: { text: string; isDefaults: boolean } = isSourceJobActive
-    ? { text: 'Prefilled from previous job — edit any field before creating the follow-up.', isDefaults: true }
+    ? { text: 'Using previous job — edit anything before creating.', isDefaults: true }
     : isEstimateActive
       ? {
           text: `Prefilled from Estimate${activeEstimate!.estimateNumber ? ` #${activeEstimate!.estimateNumber}` : ''} — edit any field before creating the job.`,
@@ -421,7 +421,7 @@ export function JobForm({
            fill the form from a previous job, an estimate, property defaults, or manually. */}
       {selectedPropertyId && (sourcePrefill != null || propertyEstimates.length > 0) && (
         <div className="form-field" style={{ marginTop: '-2px', marginBottom: '4px' }}>
-          <label className="form-label">Job source</label>
+          <label className="form-label">Start from</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {/* Previous Job option — only shown when sourcePrefill is present */}
             {sourcePrefill != null && (

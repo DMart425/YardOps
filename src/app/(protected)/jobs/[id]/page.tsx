@@ -507,29 +507,16 @@ export default async function JobDetailPage({
 
       {/* Follow-up scheduling (completed jobs only) */}
       {job.status === 'completed' && !job.next_job_created_id && (
-        <>
-          {/* Quick follow-up — date/time only, creates immediately */}
-          <ScheduleFollowUpCard
-            jobId={job.id}
-            scheduledDate={job.scheduled_date}
-            completedDate={completedDateLocal}
-            serviceFrequency={property.service_frequency}
-            jobType={job.job_type}
-            preferredServiceDay={property.preferred_service_day ?? null}
-            scheduledJobDates={scheduledJobDates}
-          />
-
-          {/* Reviewable follow-up — opens full New Job form prefilled from this job */}
-          <div className="card" style={{ marginBottom: '1rem' }}>
-            <div className="section-heading" style={{ marginBottom: '0.5rem' }}>Review &amp; Schedule Follow-up</div>
-            <p className="text-small text-muted" style={{ marginBottom: '0.75rem' }}>
-              Open the full job form to review or adjust scope, price, and date before scheduling the next visit.
-            </p>
-            <Link href={`/jobs/new?source_job_id=${job.id}`} className="btn btn-sm btn-secondary">
-              Review &amp; Schedule Follow-up →
-            </Link>
-          </div>
-        </>
+        <ScheduleFollowUpCard
+          jobId={job.id}
+          scheduledDate={job.scheduled_date}
+          completedDate={completedDateLocal}
+          serviceFrequency={property.service_frequency}
+          jobType={job.job_type}
+          preferredServiceDay={property.preferred_service_day ?? null}
+          scheduledJobDates={scheduledJobDates}
+          reviewFollowUpHref={`/jobs/new?source_job_id=${job.id}`}
+        />
       )}
 
       {job.status === 'completed' && job.next_job_created_id && (
