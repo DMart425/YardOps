@@ -134,6 +134,34 @@ export async function createJob(
     validatedEstimateId      = est.id as string
     linkedEstimateCustomerId = est.customer_id as string
   }
+  // ── Source job linkage validation ───────────────────────────────────────
+  // If a hidden source_job_id field is present (injected by JobForm when
+  // source === 'previous_job'), validate and record the recurrence link.
+  const sourceJobIdRaw = (formData.get('source_job_id') as string | null)?.trim() || null
+  let validatedSourceJobId: string | null = null
+
+  if (sourceJobIdRaw) {
+    const { data: srcJob } = await supabase
+      .from('jobs')
+      .select('id, status, customer_id, property_id')
+      .eq('id', sourceJobIdRaw)
+      .eq('business_id', businessId)
+      .maybeSingle()
+
+    if (!srcJob) {
+      return { error: 'Source job not found or does not belong to this account.' }
+    }
+    if (srcJob.status !== 'completed') {
+      return { error: `Source job must be completed to create a follow-up. Current status: "${srcJob.status}".` }
+    }
+    if (srcJob.customer_id !== customerId) {
+      return { error: 'Source job customer does not match the selected customer.' }
+    }
+    if (srcJob.property_id !== propertyId) {
+      return { error: 'Source job property does not match the selected property.' }
+    }
+    validatedSourceJobId = srcJob.id as string
+  }
   // ───────────────────────────────────────────────────────────────────────
 
   const priceRaw = formData.get('price') as string
@@ -149,6 +177,7 @@ export async function createJob(
       customer_id:           customerId,
       property_id:           propertyId,
       ...(validatedEstimateId ? { estimate_id: validatedEstimateId } : {}),
+      ...(validatedSourceJobId ? { recurrence_source: validatedSourceJobId } : {}),
       title:                 'Lawn Service',
       job_type:              (formData.get('job_type') as string) || 'one_time',
       service_package:       derivePackageFromJobInputs(jobInputs),
@@ -196,6 +225,20 @@ export async function createJob(
     revalidatePath(`/estimates/${validatedEstimateId}`)
     revalidatePath('/estimates')
     revalidatePath('/leads')
+  }
+  // ───────────────────────────────────────────────────────────────────────
+
+  // ── Source job link-back ────────────────────────────────────────────────
+  // Set next_job_created_id on the source job so the detail page reflects
+  // the new follow-up and the ScheduleFollowUpCard is replaced by the summary.
+  if (validatedSourceJobId) {
+    await supabase
+      .from('jobs')
+      .update({ next_job_created_id: job.id })
+      .eq('id', validatedSourceJobId)
+      .eq('business_id', businessId)
+
+    revalidatePath(`/jobs/${validatedSourceJobId}`)
   }
   // ───────────────────────────────────────────────────────────────────────
 
