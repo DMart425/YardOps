@@ -42,33 +42,11 @@ export interface EstimatePrefill {
   shrubLargeCount: number
 }
 
-// Structured prefill data derived from a completed source job.
-// Passed from jobs/new page when ?source_job_id= is present and valid.
-export interface SourceJobPrefill {
-  sourceJobId: string
-  customerId: string
-  propertyId: string
-  price: number | null
-  jobType: string       // from source job.job_type
-  svcMowing: boolean
-  svcWeedEating: boolean
-  svcEdging: boolean
-  svcBlowOff: boolean
-  baggingLevel: string
-  stickPickupLevel: string
-  leafCleanupLevel: string
-  haulOffLevel: string
-  shrubSmallCount: number
-  shrubMediumCount: number
-  shrubLargeCount: number
-}
-
 // Source of prefill data for the new job form.
-// 'estimate'     — uses a selected approved estimate; submits hidden estimate_id.
-// 'property'     — uses property defaults; no estimate linked.
-// 'custom'       — manual entry; fields left as-is; no estimate linked.
-// 'previous_job' — prefilled from a completed source job; submits hidden source_job_id.
-type JobSource = 'estimate' | 'property' | 'custom' | 'previous_job'
+// 'estimate'  — uses a selected approved estimate; submits hidden estimate_id.
+// 'property'  — uses property defaults; no estimate linked.
+// 'custom'    — manual entry; fields left as-is; no estimate linked.
+type JobSource = 'estimate' | 'property' | 'custom'
 
 interface JobFormProps {
   action: (prevState: FormState, formData: FormData) => Promise<FormState>
@@ -85,9 +63,6 @@ interface JobFormProps {
   // All currently approved estimates for this business. Used to populate the
   // source selector dropdown when a property with approved estimates is selected.
   approvedEstimates?: EstimatePrefill[]
-  // Prefill data from a completed source job (?source_job_id=).
-  sourcePrefill?: SourceJobPrefill | null
-  sourceJobWarning?: string | null
 }
 
 type SvcCheckboxes = { mow: boolean; weed: boolean; edge: boolean; blow: boolean }
@@ -151,7 +126,6 @@ export function JobForm({
   defaultCustomerId, defaultPropertyId, localToday, defaultValues,
   estimatePrefill, estimateWarning,
   approvedEstimates,
-  sourcePrefill, sourceJobWarning,
 }: JobFormProps) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(action, { error: null })
   const initialProperty = getPropertyDefaults(properties, defaultPropertyId)
@@ -160,13 +134,11 @@ export function JobForm({
   const [selectedCustomerId, setSelectedCustomerId] = useState(defaultCustomerId ?? '')
   const [selectedPropertyId, setSelectedPropertyId] = useState(defaultPropertyId ?? '')
   const [price, setPrice] = useState(() => {
-    if (sourcePrefill?.price != null) return String(sourcePrefill.price)
     if (estimatePrefill?.price != null) return String(estimatePrefill.price)
     if (defaultValues?.price != null) return String(defaultValues.price)
     return initialProperty?.default_price != null ? String(initialProperty.default_price) : ''
   })
   const [jobType, setJobType] = useState(() => {
-    if (sourcePrefill?.jobType) return sourcePrefill.jobType
     if (estimatePrefill?.frequency) return deriveJobTypeFromFrequency(estimatePrefill.frequency)
     if (defaultValues?.job_type) return String(defaultValues.job_type)
     if (initialProperty) return deriveJobTypeFromFrequency(initialProperty.service_frequency)
@@ -175,7 +147,6 @@ export function JobForm({
 
   // Source selector state — which data source is driving the form fields.
   const [source, setSource] = useState<JobSource>(() => {
-    if (sourcePrefill) return 'previous_job'
     if (estimatePrefill) return 'estimate'
     if (initialProperty && hasPropertyDefaults(initialProperty)) return 'property'
     return 'custom'
@@ -186,29 +157,21 @@ export function JobForm({
   )
 
   // Core service checkboxes — source of truth for service scope on new jobs
-  const [svcMowing,     setSvcMowing]     = useState(sourcePrefill ? sourcePrefill.svcMowing     : estimatePrefill ? estimatePrefill.svcMowing     : initialCheckboxes.mow)
-  const [svcWeedEating, setSvcWeedEating] = useState(sourcePrefill ? sourcePrefill.svcWeedEating : estimatePrefill ? estimatePrefill.svcWeedEating : initialCheckboxes.weed)
-  const [svcEdging,     setSvcEdging]     = useState(sourcePrefill ? sourcePrefill.svcEdging     : estimatePrefill ? estimatePrefill.svcEdging     : initialCheckboxes.edge)
-  const [svcBlowOff,    setSvcBlowOff]    = useState(sourcePrefill ? sourcePrefill.svcBlowOff    : estimatePrefill ? estimatePrefill.svcBlowOff    : initialCheckboxes.blow)
+  const [svcMowing,     setSvcMowing]     = useState(estimatePrefill ? estimatePrefill.svcMowing     : initialCheckboxes.mow)
+  const [svcWeedEating, setSvcWeedEating] = useState(estimatePrefill ? estimatePrefill.svcWeedEating : initialCheckboxes.weed)
+  const [svcEdging,     setSvcEdging]     = useState(estimatePrefill ? estimatePrefill.svcEdging     : initialCheckboxes.edge)
+  const [svcBlowOff,    setSvcBlowOff]    = useState(estimatePrefill ? estimatePrefill.svcBlowOff    : initialCheckboxes.blow)
 
   // Add-on selections
-  const [baggingLevel,     setBaggingLevel]     = useState(sourcePrefill?.baggingLevel     ?? estimatePrefill?.baggingLevel     ?? 'none')
-  const [stickPickupLevel, setStickPickupLevel] = useState(sourcePrefill?.stickPickupLevel ?? estimatePrefill?.stickPickupLevel ?? 'none')
-  const [leafCleanupLevel, setLeafCleanupLevel] = useState(sourcePrefill?.leafCleanupLevel ?? estimatePrefill?.leafCleanupLevel ?? 'none')
-  const [haulOffLevel,     setHaulOffLevel]     = useState(sourcePrefill?.haulOffLevel     ?? estimatePrefill?.haulOffLevel     ?? 'none')
-  const [shrubSmallCount,  setShrubSmallCount]  = useState(sourcePrefill?.shrubSmallCount  ?? estimatePrefill?.shrubSmallCount  ?? 0)
-  const [shrubMediumCount, setShrubMediumCount] = useState(sourcePrefill?.shrubMediumCount ?? estimatePrefill?.shrubMediumCount ?? 0)
-  const [shrubLargeCount,  setShrubLargeCount]  = useState(sourcePrefill?.shrubLargeCount  ?? estimatePrefill?.shrubLargeCount  ?? 0)
+  const [baggingLevel,     setBaggingLevel]     = useState(estimatePrefill?.baggingLevel     ?? 'none')
+  const [stickPickupLevel, setStickPickupLevel] = useState(estimatePrefill?.stickPickupLevel ?? 'none')
+  const [leafCleanupLevel, setLeafCleanupLevel] = useState(estimatePrefill?.leafCleanupLevel ?? 'none')
+  const [haulOffLevel,     setHaulOffLevel]     = useState(estimatePrefill?.haulOffLevel     ?? 'none')
+  const [shrubSmallCount,  setShrubSmallCount]  = useState(estimatePrefill?.shrubSmallCount  ?? 0)
+  const [shrubMediumCount, setShrubMediumCount] = useState(estimatePrefill?.shrubMediumCount ?? 0)
+  const [shrubLargeCount,  setShrubLargeCount]  = useState(estimatePrefill?.shrubLargeCount  ?? 0)
 
   // ── Derived values ────────────────────────────────────────────────────────
-  // When sourcePrefill is present, customer and property are locked to the source job.
-  const lockedCustomer = sourcePrefill
-    ? (customers.find(c => c.id === sourcePrefill.customerId) ?? null)
-    : null
-  const lockedProperty = sourcePrefill
-    ? (properties.find(p => p.id === sourcePrefill.propertyId) ?? null)
-    : null
-
   const allEstimates = approvedEstimates ?? []
   // Estimates available for the currently selected property.
   const propertyEstimates = allEstimates.filter(e => e.propertyId === selectedPropertyId)
@@ -217,10 +180,6 @@ export function JobForm({
   // Estimate source is fully active only when source=estimate, an estimate is selected,
   // and it belongs to the currently selected property.
   const isEstimateActive = source === 'estimate' && activeEstimate != null && activeEstimate.propertyId === selectedPropertyId
-
-  // Previous job source is active when source=previous_job and the source job's property
-  // still matches the currently selected property (operator hasn't switched properties).
-  const isSourceJobActive = source === 'previous_job' && sourcePrefill != null && selectedPropertyId === sourcePrefill.propertyId
 
   const filteredProperties = selectedCustomerId
     ? properties.filter(p => p.customer_id === selectedCustomerId)
@@ -243,23 +202,6 @@ export function JobForm({
     setShrubSmallCount(ep.shrubSmallCount)
     setShrubMediumCount(ep.shrubMediumCount)
     setShrubLargeCount(ep.shrubLargeCount)
-  }
-
-  // Apply all scope fields from a previous completed job.
-  const applySourceJobFields = (sp: SourceJobPrefill) => {
-    if (sp.price != null) setPrice(String(sp.price))
-    setJobType(sp.jobType)
-    setSvcMowing(sp.svcMowing)
-    setSvcWeedEating(sp.svcWeedEating)
-    setSvcEdging(sp.svcEdging)
-    setSvcBlowOff(sp.svcBlowOff)
-    setBaggingLevel(sp.baggingLevel)
-    setStickPickupLevel(sp.stickPickupLevel)
-    setLeafCleanupLevel(sp.leafCleanupLevel)
-    setHaulOffLevel(sp.haulOffLevel)
-    setShrubSmallCount(sp.shrubSmallCount)
-    setShrubMediumCount(sp.shrubMediumCount)
-    setShrubLargeCount(sp.shrubLargeCount)
   }
 
   // Apply property defaults and reset add-ons to none/0.
@@ -293,8 +235,8 @@ export function JobForm({
     setSelectedPropertyId(propertyId)
     // Reset estimate selection whenever the property changes.
     setSelectedEstimateId(null)
-    // If estimate or previous_job source was active, fall back to property defaults.
-    if (source === 'estimate' || source === 'previous_job') setSource('property')
+    // If estimate source was active, fall back to property defaults.
+    if (source === 'estimate') setSource('property')
     const property = getPropertyDefaults(properties, propertyId)
     if (!property) return
     // Price: only prefill if a default exists; leave operator input untouched otherwise
@@ -313,10 +255,7 @@ export function JobForm({
   const handleSourceChange = (newSource: JobSource) => {
     if (newSource === source) return
     setSource(newSource)
-    if (newSource === 'previous_job') {
-      // Restore prefill from the source job.
-      if (sourcePrefill) applySourceJobFields(sourcePrefill)
-    } else if (newSource === 'estimate') {
+    if (newSource === 'estimate') {
       // Auto-select the first available estimate when switching to Estimate source.
       const target = activeEstimate ?? propertyEstimates[0] ?? null
       if (target) {
@@ -352,9 +291,7 @@ export function JobForm({
     : null
 
   // Prefill source note — reflects current source selection.
-  const prefillNote: { text: string; isDefaults: boolean } = isSourceJobActive
-    ? { text: 'Using previous job — edit anything before creating.', isDefaults: true }
-    : isEstimateActive
+  const prefillNote: { text: string; isDefaults: boolean } = isEstimateActive
       ? {
           text: `Prefilled from Estimate${activeEstimate!.estimateNumber ? ` #${activeEstimate!.estimateNumber}` : ''} — edit any field before creating the job.`,
           isDefaults: true,
@@ -377,103 +314,63 @@ export function JobForm({
         </div>
       )}
 
-      {/* Customer — locked when creating a follow-up from a previous job */}
+      {/* Customer */}
       <div className="form-field">
-        <label className="form-label">Customer *</label>
-        {lockedCustomer ? (
-          <>
-            <p className="text-small" style={{ marginTop: '4px', fontWeight: 500 }}>
-              {lockedCustomer.first_name}{lockedCustomer.last_name ? ' ' + lockedCustomer.last_name : ''}
-            </p>
-            <input type="hidden" name="customer_id" value={sourcePrefill!.customerId} />
-          </>
-        ) : (
-          <select
-            id="jf_customer"
-            name="customer_id"
-            className="form-select"
-            required
-            value={selectedCustomerId}
-            onChange={handleCustomerChange}
-          >
-            <option value="">— Select customer —</option>
-            {customers.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.first_name}{c.last_name ? ' ' + c.last_name : ''}
-              </option>
-            ))}
-          </select>
-        )}
+        <label className="form-label" htmlFor="jf_customer">Customer *</label>
+        <select
+          id="jf_customer"
+          name="customer_id"
+          className="form-select"
+          required
+          value={selectedCustomerId}
+          onChange={handleCustomerChange}
+        >
+          <option value="">— Select customer —</option>
+          {customers.map(c => (
+            <option key={c.id} value={c.id}>
+              {c.first_name}{c.last_name ? ' ' + c.last_name : ''}
+            </option>
+          ))}
+        </select>
       </div>
 
-      {/* Property — locked when creating a follow-up from a previous job */}
+      {/* Property */}
       <div className="form-field">
-        <label className="form-label">Property *</label>
-        {lockedProperty ? (
-          <>
-            <p className="text-small" style={{ marginTop: '4px', fontWeight: 500 }}>
-              {lockedProperty.property_name ?? lockedProperty.service_address}
-              {lockedProperty.city ? `, ${lockedProperty.city}` : ''}
-            </p>
-            <input type="hidden" name="property_id" value={sourcePrefill!.propertyId} />
-          </>
-        ) : (
-          <select
-            id="jf_property"
-            name="property_id"
-            className="form-select"
-            required
-            value={selectedPropertyId}
-            onChange={handlePropertyChange}
-          >
-            <option value="">— Select property —</option>
-            {filteredProperties.map(p => (
-              <option key={p.id} value={p.id}>
-                {p.property_name ?? p.service_address}{p.city ? ', ' + p.city : ''}
-              </option>
-            ))}
-          </select>
-        )}
+        <label className="form-label" htmlFor="jf_property">Property *</label>
+        <select
+          id="jf_property"
+          name="property_id"
+          className="form-select"
+          required
+          value={selectedPropertyId}
+          onChange={handlePropertyChange}
+        >
+          <option value="">— Select property —</option>
+          {filteredProperties.map(p => (
+            <option key={p.id} value={p.id}>
+              {p.property_name ?? p.service_address}{p.city ? ', ' + p.city : ''}
+            </option>
+          ))}
+        </select>
       </div>
 
-      {/* Source job warning — shown when next_job_created_id is already set */}
-      {sourceJobWarning && (
-        <div className="alert alert-error" style={{ marginBottom: '12px' }}>
-          ⚠ {sourceJobWarning}
-        </div>
-      )}
-
-      {/* Source selector — shown when the property has approved estimates OR when
-           a source job prefill is active. Lets the operator choose whether to
-           fill the form from a previous job, an estimate, property defaults, or manually. */}
-      {selectedPropertyId && (sourcePrefill != null || propertyEstimates.length > 0) && (
+      {/* Source selector — shown only when a property is selected AND it has
+           at least one approved estimate. Lets the operator choose whether to
+           fill the form from an estimate, property defaults, or manually. */}
+      {selectedPropertyId && propertyEstimates.length > 0 && (
         <div className="form-field" style={{ marginTop: '-2px', marginBottom: '4px' }}>
           <label className="form-label">Start from</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {/* Previous Job option — only shown when sourcePrefill is present */}
-            {sourcePrefill != null && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                <input
-                  type="radio"
-                  name="jf_source"
-                  checked={source === 'previous_job'}
-                  onChange={() => handleSourceChange('previous_job')}
-                />
-                <span className="text-small">Previous job</span>
-              </label>
-            )}
             {/* Estimate option */}
-            {propertyEstimates.length > 0 && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                <input
-                  type="radio"
-                  name="jf_source"
-                  checked={source === 'estimate'}
-                  onChange={() => handleSourceChange('estimate')}
-                />
-                <span className="text-small">Estimate</span>
-              </label>
-            )}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input
+                type="radio"
+                name="jf_source"
+                checked={source === 'estimate'}
+                onChange={() => handleSourceChange('estimate')}
+              />
+              <span className="text-small">Estimate</span>
+            </label>
             {source === 'estimate' && propertyEstimates.length > 0 && (
               <select
                 className="form-select"
@@ -563,15 +460,6 @@ export function JobForm({
            If operator switches source or changes property the field is removed. */}
       {isEstimateActive && (
         <input type="hidden" name="estimate_id" value={activeEstimate!.estimateId} />
-      )}
-
-      {/* Previous job source — included only while isSourceJobActive is true.
-           Removed from DOM when operator switches source or changes property,
-           so createJob never receives it accidentally. Submitting this field
-           causes createJob to set recurrence_source on the new job and update
-           next_job_created_id on the source job. Never coexists with estimate_id. */}
-      {isSourceJobActive && (
-        <input type="hidden" name="source_job_id" value={sourcePrefill!.sourceJobId} />
       )}
 
       {/* Frequency display — read-only context for the operator */}

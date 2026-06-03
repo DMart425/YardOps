@@ -515,7 +515,6 @@ export default async function JobDetailPage({
           jobType={job.job_type}
           preferredServiceDay={property.preferred_service_day ?? null}
           scheduledJobDates={scheduledJobDates}
-          reviewFollowUpHref={`/jobs/new?source_job_id=${job.id}`}
         />
       )}
 

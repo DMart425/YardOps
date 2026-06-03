@@ -134,36 +134,6 @@ export async function createJob(
     validatedEstimateId      = est.id as string
     linkedEstimateCustomerId = est.customer_id as string
   }
-  // ── Source job linkage validation ───────────────────────────────────────
-  // If a hidden source_job_id field is present (injected by JobForm when
-  // source === 'previous_job'), validate and record the recurrence link.
-  const sourceJobIdRaw = (formData.get('source_job_id') as string | null)?.trim() || null
-  let validatedSourceJobId: string | null = null
-
-  if (sourceJobIdRaw) {
-    const { data: srcJob } = await supabase
-      .from('jobs')
-      .select('id, status, customer_id, property_id')
-      .eq('id', sourceJobIdRaw)
-      .eq('business_id', businessId)
-      .maybeSingle()
-
-    if (!srcJob) {
-      return { error: 'Source job not found or does not belong to this account.' }
-    }
-    if (srcJob.status !== 'completed') {
-      return { error: `Source job must be completed to create a follow-up. Current status: "${srcJob.status}".` }
-    }
-    if (srcJob.customer_id !== customerId) {
-      return { error: 'Source job customer does not match the selected customer.' }
-    }
-    if (srcJob.property_id !== propertyId) {
-      return { error: 'Source job property does not match the selected property.' }
-    }
-    validatedSourceJobId = srcJob.id as string
-  }
-  // ───────────────────────────────────────────────────────────────────────
-
   const priceRaw = formData.get('price') as string
   const price    = priceRaw ? parseFloat(priceRaw) : null
 
@@ -177,7 +147,6 @@ export async function createJob(
       customer_id:           customerId,
       property_id:           propertyId,
       ...(validatedEstimateId ? { estimate_id: validatedEstimateId } : {}),
-      ...(validatedSourceJobId ? { recurrence_source: validatedSourceJobId } : {}),
       title:                 'Lawn Service',
       job_type:              (formData.get('job_type') as string) || 'one_time',
       service_package:       derivePackageFromJobInputs(jobInputs),
@@ -225,20 +194,6 @@ export async function createJob(
     revalidatePath(`/estimates/${validatedEstimateId}`)
     revalidatePath('/estimates')
     revalidatePath('/leads')
-  }
-  // ───────────────────────────────────────────────────────────────────────
-
-  // ── Source job link-back ────────────────────────────────────────────────
-  // Set next_job_created_id on the source job so the detail page reflects
-  // the new follow-up and the ScheduleFollowUpCard is replaced by the summary.
-  if (validatedSourceJobId) {
-    await supabase
-      .from('jobs')
-      .update({ next_job_created_id: job.id })
-      .eq('id', validatedSourceJobId)
-      .eq('business_id', businessId)
-
-    revalidatePath(`/jobs/${validatedSourceJobId}`)
   }
   // ───────────────────────────────────────────────────────────────────────
 
@@ -383,14 +338,34 @@ export async function scheduleFollowUpJob(
       property_id:           existing.property_id,
       title:                 existing.title,
       job_type:              'recurring',
-      service_package:       existing.service_package
+      // Scope: prefer property defaults (the normal service plan) over last job's scope.
+      // Fall back to the previous job's scope only when no property defaults exist.
+      service_package:       deriveServicePackageFromBooleans(existing.properties)
                                ?? existing.properties?.default_service_package
-                               ?? deriveServicePackageFromBooleans(existing.properties)
+                               ?? existing.service_package
                                ?? null,
-      job_inputs:            existing.job_inputs ?? null,
+      job_inputs:            (
+                               existing.properties?.default_mowing_enabled != null ||
+                               existing.properties?.default_weed_eating_enabled != null ||
+                               existing.properties?.default_edging_enabled != null ||
+                               existing.properties?.default_blow_off_enabled != null
+                             ) ? {
+                               svcMowing:        Boolean(existing.properties?.default_mowing_enabled),
+                               svcWeedEating:    Boolean(existing.properties?.default_weed_eating_enabled),
+                               svcEdging:        Boolean(existing.properties?.default_edging_enabled),
+                               svcBlowOff:       Boolean(existing.properties?.default_blow_off_enabled),
+                               baggingLevel:     'none',
+                               stickPickupLevel: 'none',
+                               leafCleanupLevel: 'none',
+                               haulOffLevel:     'none',
+                               shrubSmallCount:  0,
+                               shrubMediumCount: 0,
+                               shrubLargeCount:  0,
+                             } : (existing.job_inputs ?? null),
       scheduled_date:        nextDate,
       scheduled_time_window: storedNextTimeWindow,
-      price:                 existing.price ?? existing.properties?.default_price ?? null,
+      // Price: property default first; previous job's price as fallback.
+      price:                 existing.properties?.default_price ?? existing.price ?? null,
       payment_status:        'unpaid',
       status:                'scheduled',
       recurrence_source:     id,
