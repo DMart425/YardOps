@@ -201,6 +201,14 @@ export function JobForm({
   const [shrubLargeCount,  setShrubLargeCount]  = useState(sourcePrefill?.shrubLargeCount  ?? estimatePrefill?.shrubLargeCount  ?? 0)
 
   // ── Derived values ────────────────────────────────────────────────────────
+  // When sourcePrefill is present, customer and property are locked to the source job.
+  const lockedCustomer = sourcePrefill
+    ? (customers.find(c => c.id === sourcePrefill.customerId) ?? null)
+    : null
+  const lockedProperty = sourcePrefill
+    ? (properties.find(p => p.id === sourcePrefill.propertyId) ?? null)
+    : null
+
   const allEstimates = approvedEstimates ?? []
   // Estimates available for the currently selected property.
   const propertyEstimates = allEstimates.filter(e => e.propertyId === selectedPropertyId)
@@ -369,44 +377,63 @@ export function JobForm({
         </div>
       )}
 
-      {/* Customer */}
+      {/* Customer — locked when creating a follow-up from a previous job */}
       <div className="form-field">
-        <label className="form-label" htmlFor="jf_customer">Customer *</label>
-        <select
-          id="jf_customer"
-          name="customer_id"
-          className="form-select"
-          required
-          value={selectedCustomerId}
-          onChange={handleCustomerChange}
-        >
-          <option value="">— Select customer —</option>
-          {customers.map(c => (
-            <option key={c.id} value={c.id}>
-              {c.first_name}{c.last_name ? ' ' + c.last_name : ''}
-            </option>
-          ))}
-        </select>
+        <label className="form-label">Customer *</label>
+        {lockedCustomer ? (
+          <>
+            <p className="text-small" style={{ marginTop: '4px', fontWeight: 500 }}>
+              {lockedCustomer.first_name}{lockedCustomer.last_name ? ' ' + lockedCustomer.last_name : ''}
+            </p>
+            <input type="hidden" name="customer_id" value={sourcePrefill!.customerId} />
+          </>
+        ) : (
+          <select
+            id="jf_customer"
+            name="customer_id"
+            className="form-select"
+            required
+            value={selectedCustomerId}
+            onChange={handleCustomerChange}
+          >
+            <option value="">— Select customer —</option>
+            {customers.map(c => (
+              <option key={c.id} value={c.id}>
+                {c.first_name}{c.last_name ? ' ' + c.last_name : ''}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
-      {/* Property */}
+      {/* Property — locked when creating a follow-up from a previous job */}
       <div className="form-field">
-        <label className="form-label" htmlFor="jf_property">Property *</label>
-        <select
-          id="jf_property"
-          name="property_id"
-          className="form-select"
-          required
-          value={selectedPropertyId}
-          onChange={handlePropertyChange}
-        >
-          <option value="">— Select property —</option>
-          {filteredProperties.map(p => (
-            <option key={p.id} value={p.id}>
-              {p.property_name ?? p.service_address}{p.city ? ', ' + p.city : ''}
-            </option>
-          ))}
-        </select>
+        <label className="form-label">Property *</label>
+        {lockedProperty ? (
+          <>
+            <p className="text-small" style={{ marginTop: '4px', fontWeight: 500 }}>
+              {lockedProperty.property_name ?? lockedProperty.service_address}
+              {lockedProperty.city ? `, ${lockedProperty.city}` : ''}
+            </p>
+            <input type="hidden" name="property_id" value={sourcePrefill!.propertyId} />
+          </>
+        ) : (
+          <select
+            id="jf_property"
+            name="property_id"
+            className="form-select"
+            required
+            value={selectedPropertyId}
+            onChange={handlePropertyChange}
+          >
+            <option value="">— Select property —</option>
+            {filteredProperties.map(p => (
+              <option key={p.id} value={p.id}>
+                {p.property_name ?? p.service_address}{p.city ? ', ' + p.city : ''}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* Source job warning — shown when next_job_created_id is already set */}
