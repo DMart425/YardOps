@@ -230,6 +230,8 @@ export interface Estimate {
   visit_scheduled_date: string | null
   visit_scheduled_time: string | null
   notes: string | null
+  source_job_id: string | null
+  satisfies_follow_up: boolean
   created_at: string
   updated_at: string
 }
