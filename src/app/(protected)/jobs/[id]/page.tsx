@@ -558,6 +558,22 @@ export default async function JobDetailPage({
         </div>
       )}
 
+      {/* Create Estimate for Extra Work (completed jobs only) */}
+      {job.status === 'completed' && (
+        <div className="card" style={{ marginBottom: '1rem' }}>
+          <div className="section-heading" style={{ marginBottom: '0.25rem' }}>Extra work or scope changes?</div>
+          <p className="text-small text-muted" style={{ marginBottom: '0.75rem' }}>
+            Use an estimate for changed price, add-ons, or one-time work.
+          </p>
+          <Link
+            href={`/estimates/new?customer_id=${job.customer_id}&property_id=${job.property_id}&source_job_id=${job.id}`}
+            className="btn btn-sm btn-secondary"
+          >
+            Create Estimate for Extra Work
+          </Link>
+        </div>
+      )}
+
       {/* Reschedule history */}
       {(job.reschedule_count ?? 0) > 0 && (
         <div className="card" style={{ marginTop: '1rem' }}>
