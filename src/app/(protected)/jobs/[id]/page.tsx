@@ -6,6 +6,7 @@ import { JobActions } from '@/components/JobActions'
 import { JobPhotos } from '@/components/JobPhotos'
 import { DownloadInvoiceButton } from '@/components/DownloadInvoiceButton'
 import { ScheduleFollowUpCard } from '@/components/ScheduleFollowUpCard'
+import { ConvertToRecurringCard } from '@/components/ConvertToRecurringCard'
 import type { Job } from '@/types/database'
 import { requireBusinessContext } from '@/lib/business/context'
 import { formatPhoneInput } from '@/lib/format'
@@ -25,6 +26,12 @@ type JobDetail = Job & {
     access_notes: string | null
     obstacle_notes: string | null
     parking_notes: string | null
+    default_price: number | null
+    default_service_package: string | null
+    default_mowing_enabled: boolean | null
+    default_weed_eating_enabled: boolean | null
+    default_edging_enabled: boolean | null
+    default_blow_off_enabled: boolean | null
   }
 }
 
@@ -131,7 +138,7 @@ export default async function JobDetailPage({
     .select(`
       *,
       customers ( first_name, last_name, phone, email ),
-      properties ( service_address, city, state, service_frequency, preferred_service_day, pet_warning, gate_code, access_notes, obstacle_notes, parking_notes )
+      properties ( service_address, city, state, service_frequency, preferred_service_day, pet_warning, gate_code, access_notes, obstacle_notes, parking_notes, default_price, default_service_package, default_mowing_enabled, default_weed_eating_enabled, default_edging_enabled, default_blow_off_enabled )
     `)
     .eq('id', id)
     .eq('business_id', businessId)
@@ -505,16 +512,32 @@ export default async function JobDetailPage({
         <JobActions job={job} venmoHandle={venmoHandle} customerPhone={customer.phone} customerFirstName={customer.first_name} businessName={businessName} businessPhone={businessPhone} portalInvoiceUrl={portalInvoiceUrl} />
       </div>
 
-      {/* Follow-up scheduling (completed jobs only) */}
-      {job.status === 'completed' && !job.next_job_created_id && (
+      {/* Follow-up scheduling / recurring conversion (completed jobs only, no follow-up yet) */}
+      {job.status === 'completed' && !job.next_job_created_id && job.job_type === 'recurring' && (
         <ScheduleFollowUpCard
           jobId={job.id}
           scheduledDate={job.scheduled_date}
           completedDate={completedDateLocal}
           serviceFrequency={property.service_frequency}
-          jobType={job.job_type}
           preferredServiceDay={property.preferred_service_day ?? null}
           scheduledJobDates={scheduledJobDates}
+        />
+      )}
+      {job.status === 'completed' && !job.next_job_created_id && job.job_type === 'one_time' && (
+        <ConvertToRecurringCard
+          jobId={job.id}
+          jobPrice={job.price != null ? Number(job.price) : null}
+          jobInputs={parsedJobInputs ? {
+            svcMowing:     parsedJobInputs.svcMowing,
+            svcWeedEating: parsedJobInputs.svcWeedEating,
+            svcEdging:     parsedJobInputs.svcEdging,
+            svcBlowOff:    parsedJobInputs.svcBlowOff,
+          } : null}
+          scheduledDate={job.scheduled_date}
+          completedDate={completedDateLocal}
+          preferredServiceDay={property.preferred_service_day ?? null}
+          scheduledJobDates={scheduledJobDates}
+          currentFrequency={property.service_frequency}
         />
       )}
 

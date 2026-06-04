@@ -2,11 +2,10 @@
 
 import { useActionState, useState } from 'react'
 import type { FormState } from '@/types/database'
-import { scheduleFollowUpJob } from '@/app/(protected)/jobs/actions'
+import { convertJobToRecurringService } from '@/app/(protected)/jobs/actions'
 import { addDays, getClosestWeekdayNearDate } from '@/lib/date'
 import { Toast } from '@/components/Toast'
 
-// Compact date label, e.g. "Jun 2"
 function formatSuggestionDate(dateStr: string): string {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {
     month: 'short',
@@ -21,75 +20,72 @@ type SuggestionChip = {
   emoji: string
 }
 
-export function ScheduleFollowUpCard({
+interface ParsedJobInputsSummary {
+  svcMowing: boolean
+  svcWeedEating: boolean
+  svcEdging: boolean
+  svcBlowOff: boolean
+}
+
+export function ConvertToRecurringCard({
   jobId,
+  jobPrice,
+  jobInputs,
   scheduledDate,
   completedDate,
-  serviceFrequency,
   preferredServiceDay,
   scheduledJobDates,
+  currentFrequency,
 }: {
   jobId: string
+  jobPrice: number | null
+  jobInputs: ParsedJobInputsSummary | null
   scheduledDate: string | null
   completedDate?: string | null
-  serviceFrequency: string | null
   preferredServiceDay?: string | null
   scheduledJobDates?: string[]
+  currentFrequency?: string | null
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(
-    scheduleFollowUpJob.bind(null, jobId),
+    convertJobToRecurringService.bind(null, jobId),
     { error: null }
   )
+  const [frequency, setFrequency] = useState<'weekly' | 'biweekly'>('weekly')
   const [nextTimeWindow, setNextTimeWindow] = useState('')
 
-  // Anchor from actual completion date when available; fall back to scheduled date.
-  // This prevents follow-up drift when a job is completed early or late.
-  // Future: may also snap to preferred_service_day / route-balanced weekday.
   const anchorDate = completedDate ?? scheduledDate
-
   const suggestedDate = anchorDate
-    ? (serviceFrequency === 'weekly'
-      ? addDays(anchorDate, 7)
-      : serviceFrequency === 'biweekly'
-        ? addDays(anchorDate, 14)
-        : '')
+    ? (frequency === 'weekly' ? addDays(anchorDate, 7) : addDays(anchorDate, 14))
     : ''
 
-  // Controlled date input — starts at cadence suggestion, operator can change freely.
-  // useState allows suggestion chips to fill the field via onClick without affecting form submission.
   const [nextScheduledDate, setNextScheduledDate] = useState(suggestedDate)
 
+  // Re-derive suggestion when frequency changes so the date input stays sensible
+  const effectiveSuggested = anchorDate
+    ? (frequency === 'weekly' ? addDays(anchorDate, 7) : addDays(anchorDate, 14))
+    : ''
+
   const todayLocal = new Intl.DateTimeFormat('en-CA').format(new Date())
-  // Past-date warning tracks the current controlled value, not just the initial cadence date.
   const suggestedIsPast = nextScheduledDate !== '' && nextScheduledDate < todayLocal
 
-  // ── Suggestion chips ─────────────────────────────────────────────────────
+  // Suggestion chips
   const chips: SuggestionChip[] = []
 
-  // 1. Cadence chip — always shown when cadence date is known
-  if (suggestedDate) {
-    const cadenceNote =
-      serviceFrequency === 'weekly'   ? '7-day cadence'  :
-      serviceFrequency === 'biweekly' ? '14-day cadence' :
-                                        'cadence'
+  if (effectiveSuggested) {
     chips.push({
-      date: suggestedDate,
-      label: formatSuggestionDate(suggestedDate),
-      note: cadenceNote,
+      date: effectiveSuggested,
+      label: formatSuggestionDate(effectiveSuggested),
+      note: frequency === 'weekly' ? '7-day cadence' : '14-day cadence',
       emoji: '📅',
     })
   }
 
-  // 2. Preferred day chip — closest matching weekday within ±4 days of cadence date.
-  // Searches both backward and forward; excludes dates before today (minDate).
-  // If cadence date is already on the preferred weekday, no chip is shown.
-  // If no valid candidate falls within the window, result === suggestedDate → no chip.
-  if (preferredServiceDay && suggestedDate) {
-    const prefDate = getClosestWeekdayNearDate(suggestedDate, preferredServiceDay, {
+  if (preferredServiceDay && effectiveSuggested) {
+    const prefDate = getClosestWeekdayNearDate(effectiveSuggested, preferredServiceDay, {
       minDate: todayLocal,
       maxDays: 4,
     })
-    if (prefDate !== suggestedDate) {
+    if (prefDate !== effectiveSuggested) {
       chips.push({
         date: prefDate,
         label: formatSuggestionDate(prefDate),
@@ -99,17 +95,14 @@ export function ScheduleFollowUpCard({
     }
   }
 
-  // 3. Lighter workload chip — forward-only scan (+1 to +6 days from cadence).
-  // Only shown when the candidate has ≥2 fewer jobs than the cadence date.
-  // Capped so total chips never exceed 3.
-  if (suggestedDate && scheduledJobDates && scheduledJobDates.length > 0 && chips.length < 3) {
+  if (effectiveSuggested && scheduledJobDates && scheduledJobDates.length > 0 && chips.length < 3) {
     const countByDate: Record<string, number> = {}
     for (const d of scheduledJobDates) {
       countByDate[d] = (countByDate[d] ?? 0) + 1
     }
-    const cadenceCount = countByDate[suggestedDate] ?? 0
+    const cadenceCount = countByDate[effectiveSuggested] ?? 0
     for (let offset = 1; offset <= 6; offset++) {
-      const candidate = addDays(suggestedDate, offset)
+      const candidate = addDays(effectiveSuggested, offset)
       if (chips.some(c => c.date === candidate)) continue
       const candidateCount = countByDate[candidate] ?? 0
       if (cadenceCount - candidateCount >= 2) {
@@ -124,16 +117,79 @@ export function ScheduleFollowUpCard({
     }
   }
 
+  // Build scope/price notice lines
+  const scopeLines: string[] = []
+  if (jobInputs) {
+    const services = [
+      jobInputs.svcMowing     && 'Mowing',
+      jobInputs.svcWeedEating && 'Weed eating',
+      jobInputs.svcEdging     && 'Edging',
+      jobInputs.svcBlowOff    && 'Blow off',
+    ].filter(Boolean) as string[]
+    scopeLines.push(`Scope: ${services.length > 0 ? services.join(', ') : 'None selected'}`)
+  }
+  if (jobPrice != null) {
+    scopeLines.push(`Price: $${Number(jobPrice).toFixed(2)}`)
+  }
+
   return (
     <div className="card" style={{ marginBottom: '1rem' }}>
-      <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Schedule Follow-up Visit</div>
+      <div className="section-heading" style={{ marginBottom: '0.5rem' }}>Convert to Recurring Service</div>
       <Toast message={state.success} />
       {state.error && <div className="alert alert-error">{state.error}</div>}
 
+      {/* Scope/price affirmation */}
+      {scopeLines.length > 0 ? (
+        <p className="text-small text-muted" style={{ marginBottom: '0.5rem' }}>
+          This will set the property&apos;s recurring defaults to: {scopeLines.join(' · ')}
+        </p>
+      ) : null}
+      {!jobInputs && (
+        <p className="text-small text-muted" style={{ marginBottom: '0.5rem' }}>
+          No structured scope recorded — property service defaults will remain unchanged.
+        </p>
+      )}
+      {jobPrice == null && (
+        <p className="text-small text-muted" style={{ marginBottom: '0.5rem' }}>
+          No price recorded — property default price will remain unchanged.
+        </p>
+      )}
+      {currentFrequency && currentFrequency !== 'one_time' && (
+        <p className="text-small text-muted" style={{ marginBottom: '0.5rem' }}>
+          Property is currently set to {currentFrequency}. Selecting a frequency below will update it.
+        </p>
+      )}
+
       <form action={action} className="form">
+        {/* Frequency */}
+        <div className="form-field" style={{ marginBottom: '0.75rem' }}>
+          <label className="form-label">Frequency *</label>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            {(['weekly', 'biweekly'] as const).map(f => (
+              <label key={f} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="frequency"
+                  value={f}
+                  checked={frequency === f}
+                  onChange={() => {
+                    setFrequency(f)
+                    // Reset date to new cadence suggestion when frequency changes
+                    const newSuggested = anchorDate
+                      ? (f === 'weekly' ? addDays(anchorDate, 7) : addDays(anchorDate, 14))
+                      : ''
+                    setNextScheduledDate(newSuggested)
+                  }}
+                />
+                <span className="text-small">{f === 'weekly' ? 'Weekly' : 'Bi-weekly'}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
         <div className="form-row">
           <div className="form-field">
-            <label className="form-label">Next Visit Date *</label>
+            <label className="form-label">First Recurring Visit Date *</label>
             <input
               name="next_scheduled_date"
               type="date"
@@ -160,7 +216,6 @@ export function ScheduleFollowUpCard({
           </div>
         </div>
 
-        {/* Suggestion chips — optional; only rendered when at least one chip applies */}
         {chips.length > 0 && (
           <div className="form-field">
             <span className="form-label" style={{ marginBottom: '6px', display: 'block' }}>Suggestions</span>
@@ -221,7 +276,7 @@ export function ScheduleFollowUpCard({
         )}
 
         <button type="submit" disabled={pending} className="btn btn-primary btn-full">
-          {pending ? 'Scheduling...' : 'Schedule Follow-up'}
+          {pending ? 'Converting...' : 'Convert to Recurring Service'}
         </button>
       </form>
     </div>

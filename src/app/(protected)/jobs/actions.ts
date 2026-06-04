@@ -395,6 +395,171 @@ export async function scheduleFollowUpJob(
   return { error: null, success: 'Follow-up visit scheduled.' }
 }
 
+export async function convertJobToRecurringService(
+  id: string,
+  prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const supabase = await createClient()
+  const { userId, businessId } = await requireBusinessContext()
+
+  const { data: existing } = await supabase
+    .from('jobs')
+    .select('*, properties(id, default_price, default_service_package, default_mowing_enabled, default_weed_eating_enabled, default_edging_enabled, default_blow_off_enabled)')
+    .eq('id', id)
+    .eq('business_id', businessId)
+    .single()
+
+  if (!existing) return { error: 'Job not found.' }
+  if (existing.status !== 'completed') return { error: 'Can only convert a completed job.' }
+  if (existing.job_type !== 'one_time') return { error: 'Can only convert one-time jobs to recurring service.' }
+  if (existing.next_job_created_id) return { error: null, success: 'A follow-up visit already exists for this job.' }
+  if (!existing.property_id) return { error: 'This job has no linked property.' }
+
+  const frequency = (formData.get('frequency') as string)?.trim()
+  if (frequency !== 'weekly' && frequency !== 'biweekly') {
+    return { error: 'Please select a frequency: weekly or biweekly.' }
+  }
+
+  const nextDate = (formData.get('next_scheduled_date') as string)?.trim() || ''
+  if (!nextDate) return { error: 'Next visit date is required.' }
+
+  const { data: tzSettings } = await supabase
+    .from('pricing_settings')
+    .select('time_zone')
+    .eq('user_id', userId)
+    .maybeSingle()
+  const todayStr = getLocalDateStr(resolveTimeZone(tzSettings?.time_zone ?? null))
+  if (nextDate < todayStr) return { error: 'Next visit date cannot be in the past.' }
+
+  const nextTimeWindowRaw  = (formData.get('next_time_window') as string)?.trim() || ''
+  const customNextTimeWindow = (formData.get('custom_next_time_window') as string)?.trim() || ''
+  if (nextTimeWindowRaw === 'custom' && !customNextTimeWindow) {
+    return { error: 'Custom time window is required.' }
+  }
+  const storedNextTimeWindow = nextTimeWindowRaw === 'custom' ? customNextTimeWindow : nextTimeWindowRaw || null
+
+  // Parse source job's job_inputs if present (Phase 5Q.2+ structured scope).
+  const rawInputs = existing.job_inputs as Record<string, unknown> | null
+  const hasJobInputs = rawInputs != null && typeof rawInputs === 'object' && 'svcMowing' in rawInputs
+
+  const svcMowing    = hasJobInputs ? Boolean(rawInputs!.svcMowing)    : null
+  const svcWeedEating= hasJobInputs ? Boolean(rawInputs!.svcWeedEating): null
+  const svcEdging    = hasJobInputs ? Boolean(rawInputs!.svcEdging)    : null
+  const svcBlowOff   = hasJobInputs ? Boolean(rawInputs!.svcBlowOff)   : null
+
+  // Build property update — always write service_frequency; conditionally update
+  // price and service booleans only when the source job has those values.
+  const propertyUpdate: Record<string, unknown> = { service_frequency: frequency }
+  if (existing.price != null) {
+    propertyUpdate.default_price = existing.price
+  }
+  if (hasJobInputs) {
+    propertyUpdate.default_mowing_enabled     = svcMowing
+    propertyUpdate.default_weed_eating_enabled = svcWeedEating
+    propertyUpdate.default_edging_enabled     = svcEdging
+    propertyUpdate.default_blow_off_enabled   = svcBlowOff
+    propertyUpdate.default_service_package    = deriveServicePackageFromBooleans({
+      default_mowing_enabled:     svcMowing,
+      default_weed_eating_enabled: svcWeedEating,
+      default_edging_enabled:     svcEdging,
+      default_blow_off_enabled:   svcBlowOff,
+    })
+  }
+
+  const { error: propErr } = await supabase
+    .from('properties')
+    .update(propertyUpdate)
+    .eq('id', existing.property_id)
+    .eq('business_id', businessId)
+
+  if (propErr) return { error: `Could not update property: ${propErr.message}` }
+
+  // Build job_inputs for the new recurring job from the (now-updated) scope.
+  // When source job_inputs existed, use those boolean values directly.
+  // Otherwise fall back to existing property defaults (before this conversion they
+  // were unchanged, so the property booleans are the best available scope).
+  const prop = existing.properties as {
+    default_mowing_enabled: boolean | null
+    default_weed_eating_enabled: boolean | null
+    default_edging_enabled: boolean | null
+    default_blow_off_enabled: boolean | null
+    default_price: number | null
+  } | null
+
+  const newJobMowing    = hasJobInputs ? svcMowing    : (prop?.default_mowing_enabled    ?? null)
+  const newJobWeedEating= hasJobInputs ? svcWeedEating: (prop?.default_weed_eating_enabled ?? null)
+  const newJobEdging    = hasJobInputs ? svcEdging    : (prop?.default_edging_enabled    ?? null)
+  const newJobBlowOff   = hasJobInputs ? svcBlowOff   : (prop?.default_blow_off_enabled   ?? null)
+
+  const anyBoolKnown = newJobMowing != null || newJobWeedEating != null || newJobEdging != null || newJobBlowOff != null
+  const newJobInputs = anyBoolKnown ? {
+    svcMowing:        Boolean(newJobMowing),
+    svcWeedEating:    Boolean(newJobWeedEating),
+    svcEdging:        Boolean(newJobEdging),
+    svcBlowOff:       Boolean(newJobBlowOff),
+    baggingLevel:     'none',
+    stickPickupLevel: 'none',
+    leafCleanupLevel: 'none',
+    haulOffLevel:     'none',
+    shrubSmallCount:  0,
+    shrubMediumCount: 0,
+    shrubLargeCount:  0,
+  } : null
+
+  const newJobServicePackage = deriveServicePackageFromBooleans({
+    default_mowing_enabled:     newJobMowing,
+    default_weed_eating_enabled: newJobWeedEating,
+    default_edging_enabled:     newJobEdging,
+    default_blow_off_enabled:   newJobBlowOff,
+  }) ?? existing.service_package ?? null
+
+  const { data: newJob, error: newJobError } = await supabase
+    .from('jobs')
+    .insert({
+      created_by:            userId,
+      business_id:           businessId,
+      customer_id:           existing.customer_id,
+      property_id:           existing.property_id,
+      title:                 existing.title ?? 'Lawn Service',
+      job_type:              'recurring',
+      service_package:       newJobServicePackage,
+      job_inputs:            newJobInputs,
+      scheduled_date:        nextDate,
+      scheduled_time_window: storedNextTimeWindow,
+      price:                 existing.price ?? prop?.default_price ?? null,
+      payment_status:        'unpaid',
+      status:                'scheduled',
+      recurrence_source:     id,
+      internal_notes:        existing.internal_notes ?? null,
+    })
+    .select('id')
+    .single()
+
+  if (newJobError || !newJob) {
+    return { error: newJobError?.message ?? 'Could not create recurring visit.' }
+  }
+
+  const { error: linkErr } = await supabase
+    .from('jobs')
+    .update({ next_job_created_id: newJob.id })
+    .eq('id', id)
+    .eq('business_id', businessId)
+    .is('next_job_created_id', null)
+
+  if (linkErr) {
+    return { error: `Recurring visit created, but link update failed: ${linkErr.message}` }
+  }
+
+  revalidatePath('/jobs')
+  revalidatePath(`/jobs/${id}`)
+  revalidatePath(`/jobs/${newJob.id}`)
+  revalidatePath(`/properties/${existing.property_id}`)
+  revalidatePath('/today')
+
+  return { error: null, success: 'Property converted to recurring service. First visit scheduled.' }
+}
+
 export async function markInProgress(
   id: string,
   prevState: FormState,
