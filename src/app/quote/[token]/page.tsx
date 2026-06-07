@@ -187,6 +187,25 @@ export default async function QuotePage({
             background: 'var(--q-surface)', borderRadius: '12px', border: '1px solid var(--q-border)',
             padding: '20px',
           }}>
+            {/* Agreement-replacement notice — only shown when this estimate updates the service agreement */}
+            {estimate.sets_property_defaults && (
+              <div style={{
+                background: 'rgba(59,130,246,0.08)',
+                border: '1px solid rgba(59,130,246,0.35)',
+                borderRadius: '8px',
+                padding: '14px 16px',
+                marginBottom: '20px',
+              }}>
+                <div style={{ fontWeight: 700, fontSize: '0.9375rem', color: '#93c5fd', marginBottom: '6px' }}>
+                  📋 This estimate updates your service agreement.
+                </div>
+                <div style={{ fontSize: '0.875rem', color: 'var(--q-text-muted)', lineHeight: 1.5 }}>
+                  By accepting, you agree that the service frequency, scope, and pricing shown on this estimate
+                  will become the ongoing service plan for this property and will replace any previous arrangement
+                  going forward.
+                </div>
+              </div>
+            )}
             <QuoteConfirmForm
               token={token}
               firstName={customer.first_name}

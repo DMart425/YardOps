@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import type { FormState } from '@/types/database'
 import { calculateEstimate, formatMinutes, type EstimateInputs } from '@/lib/pricing'
 import { requireBusinessContext } from '@/lib/business/context'
+import { applyPropertyDefaultsFromEstimate } from '@/lib/propertyDefaultsFromEstimate'
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function str(fd: FormData, key: string) {
@@ -366,7 +367,7 @@ export async function manuallyApproveEstimate(
 
   const { data: estimate, error: estimateError } = await supabase
     .from('estimates')
-    .select('id, status')
+    .select('id, status, property_id, frequency, total, estimate_inputs, sets_property_defaults')
     .eq('id', estimateId)
     .eq('business_id', businessId)
     .maybeSingle()
@@ -392,8 +393,19 @@ export async function manuallyApproveEstimate(
 
   if (error) return { error: error.message }
 
+  // Apply property defaults when this estimate replaces the service agreement.
+  // Best-effort — does not block approval if property update fails.
+  await applyPropertyDefaultsFromEstimate(supabase, businessId, {
+    property_id:           estimate.property_id,
+    frequency:             estimate.frequency,
+    total:                 estimate.total,
+    estimate_inputs:       estimate.estimate_inputs as Record<string, unknown> | null,
+    sets_property_defaults: estimate.sets_property_defaults ?? false,
+  })
+
   revalidatePath('/estimates')
   revalidatePath(`/estimates/${estimateId}`)
+  revalidatePath('/properties')
   revalidatePath('/today')
   return { error: null, success: 'Marked as approved.' }
 }
@@ -506,7 +518,7 @@ export async function updateEstimateStatus(
 
   const { data: estimate, error: estimateError } = await supabase
     .from('estimates')
-    .select('id, status')
+    .select('id, status, property_id, frequency, total, estimate_inputs, sets_property_defaults')
     .eq('id', estimateId)
     .eq('business_id', businessId)
     .maybeSingle()
@@ -542,8 +554,21 @@ export async function updateEstimateStatus(
 
   if (error) return { error: error.message }
 
+  // Apply property defaults when marking approved and estimate replaces service agreement.
+  // Best-effort — does not block status change if property update fails.
+  if (status === 'approved') {
+    await applyPropertyDefaultsFromEstimate(supabase, businessId, {
+      property_id:           estimate.property_id,
+      frequency:             estimate.frequency,
+      total:                 estimate.total,
+      estimate_inputs:       estimate.estimate_inputs as Record<string, unknown> | null,
+      sets_property_defaults: estimate.sets_property_defaults ?? false,
+    })
+  }
+
   revalidatePath('/estimates')
   revalidatePath(`/estimates/${estimateId}`)
+  revalidatePath('/properties')
   revalidatePath('/today')
   return { error: null, success: `Marked as ${status}.` }
 }

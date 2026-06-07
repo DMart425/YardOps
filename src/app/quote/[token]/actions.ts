@@ -3,6 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { sendPushToUser } from '@/lib/push'
+import { applyPropertyDefaultsFromEstimate } from '@/lib/propertyDefaultsFromEstimate'
 
 type QuoteEstimate = {
   id: string
@@ -12,6 +13,10 @@ type QuoteEstimate = {
   property_id: string
   created_by: string | null
   business_id: string
+  frequency: string | null
+  total: number | null
+  estimate_inputs: Record<string, unknown> | null
+  sets_property_defaults: boolean
 }
 
 type QuoteCustomer = {
@@ -43,7 +48,7 @@ export async function acceptEstimate(
   // 1. Fetch estimate by token
   const { data: estimateRaw } = await supabase
     .from('estimates')
-    .select('id, status, valid_until, customer_id, property_id, created_by, business_id')
+    .select('id, status, valid_until, customer_id, property_id, created_by, business_id, frequency, total, estimate_inputs, sets_property_defaults')
     .eq('public_token', token)
     .single()
 
@@ -121,6 +126,16 @@ export async function acceptEstimate(
     })
     .eq('id', estimate.id)
 
+  // 5a. Apply property defaults when estimate replaces the service agreement.
+  // Best-effort — does not block acceptance if property update fails.
+  await applyPropertyDefaultsFromEstimate(supabase, estimate.business_id, {
+    property_id:            estimate.property_id,
+    frequency:              estimate.frequency,
+    total:                  estimate.total,
+    estimate_inputs:        estimate.estimate_inputs,
+    sets_property_defaults: estimate.sets_property_defaults ?? false,
+  })
+
   if (estimate.created_by) {
     const fallbackName = `${firstName}${lastName ? ' ' + lastName : ''}`
     const dbCustomer = customer as QuoteCustomer | null
@@ -161,6 +176,7 @@ export async function acceptEstimate(
   revalidatePath(`/estimates/${estimate.id}`)
   revalidatePath('/leads')
   revalidatePath('/customers')
+  revalidatePath('/properties')
   revalidatePath('/today')
 
   return { success: true }
