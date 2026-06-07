@@ -232,6 +232,7 @@ export interface Estimate {
   notes: string | null
   source_job_id: string | null
   satisfies_follow_up: boolean
+  sets_property_defaults: boolean
   created_at: string
   updated_at: string
 }
