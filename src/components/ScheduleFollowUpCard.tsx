@@ -160,6 +160,14 @@ export function ScheduleFollowUpCard({
           </div>
         </div>
 
+        {/* No-cadence notice — shown when property has no recurring frequency set.
+            Guides operator to update the property so future suggestions work. */}
+        {!suggestedDate && anchorDate && (
+          <p className="text-small text-muted" style={{ marginBottom: '0.75rem' }}>
+            No recurring frequency set for this property — update the property to enable date suggestions.
+          </p>
+        )}
+
         {/* Suggestion chips — optional; only rendered when at least one chip applies */}
         {chips.length > 0 && (
           <div className="form-field">
