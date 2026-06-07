@@ -6,7 +6,6 @@ import { JobActions } from '@/components/JobActions'
 import { JobPhotos } from '@/components/JobPhotos'
 import { DownloadInvoiceButton } from '@/components/DownloadInvoiceButton'
 import { ScheduleFollowUpCard } from '@/components/ScheduleFollowUpCard'
-import { ConvertToRecurringCard } from '@/components/ConvertToRecurringCard'
 import type { Job } from '@/types/database'
 import { requireBusinessContext } from '@/lib/business/context'
 import { formatPhoneInput } from '@/lib/format'
@@ -512,8 +511,8 @@ export default async function JobDetailPage({
         <JobActions job={job} venmoHandle={venmoHandle} customerPhone={customer.phone} customerFirstName={customer.first_name} businessName={businessName} businessPhone={businessPhone} portalInvoiceUrl={portalInvoiceUrl} />
       </div>
 
-      {/* Follow-up scheduling / recurring conversion (completed jobs only, no follow-up yet) */}
-      {job.status === 'completed' && !job.next_job_created_id && job.job_type === 'recurring' && (
+      {/* Follow-up scheduling (completed jobs only, no follow-up yet) */}
+      {job.status === 'completed' && !job.next_job_created_id && (
         <ScheduleFollowUpCard
           jobId={job.id}
           scheduledDate={job.scheduled_date}
@@ -521,23 +520,6 @@ export default async function JobDetailPage({
           serviceFrequency={property.service_frequency}
           preferredServiceDay={property.preferred_service_day ?? null}
           scheduledJobDates={scheduledJobDates}
-        />
-      )}
-      {job.status === 'completed' && !job.next_job_created_id && job.job_type === 'one_time' && (
-        <ConvertToRecurringCard
-          jobId={job.id}
-          jobPrice={job.price != null ? Number(job.price) : null}
-          jobInputs={parsedJobInputs ? {
-            svcMowing:     parsedJobInputs.svcMowing,
-            svcWeedEating: parsedJobInputs.svcWeedEating,
-            svcEdging:     parsedJobInputs.svcEdging,
-            svcBlowOff:    parsedJobInputs.svcBlowOff,
-          } : null}
-          scheduledDate={job.scheduled_date}
-          completedDate={completedDateLocal}
-          preferredServiceDay={property.preferred_service_day ?? null}
-          scheduledJobDates={scheduledJobDates}
-          currentFrequency={property.service_frequency}
         />
       )}
 
@@ -581,18 +563,18 @@ export default async function JobDetailPage({
         </div>
       )}
 
-      {/* Create Estimate for Extra Work (completed jobs only) */}
+      {/* Create Estimate (completed jobs only) */}
       {job.status === 'completed' && (
         <div className="card" style={{ marginBottom: '1rem' }}>
-          <div className="section-heading" style={{ marginBottom: '0.25rem' }}>Extra work or scope changes?</div>
+          <div className="section-heading" style={{ marginBottom: '0.25rem' }}>Service change or extra work?</div>
           <p className="text-small text-muted" style={{ marginBottom: '0.75rem' }}>
-            Use an estimate for changed price, add-ons, or one-time work.
+            Use an estimate for frequency changes, price changes, add-ons, or one-time work. Customer must approve before changes take effect.
           </p>
           <Link
             href={`/estimates/new?customer_id=${job.customer_id}&property_id=${job.property_id}&source_job_id=${job.id}`}
             className="btn btn-sm btn-secondary"
           >
-            Create Estimate for Extra Work
+            Create Estimate
           </Link>
         </div>
       )}
