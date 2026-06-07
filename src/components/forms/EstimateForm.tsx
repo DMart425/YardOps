@@ -162,6 +162,10 @@ export function EstimateForm({
   localToday,
   submitLabel,
   cancelHref,
+  defaultSourceJobId,
+  sourceJobTitle,
+  sourceJobDateLabel,
+  sourceJobWarning,
 }: {
   action: (prevState: FormState, formData: FormData) => Promise<FormState>
   customers: CustomerOption[]
@@ -178,6 +182,13 @@ export function EstimateForm({
   localToday: string
   submitLabel?: string
   cancelHref?: string
+  // Source-job context — set when estimate is created from a completed job detail page.
+  // When defaultSourceJobId is present the form locks customer + property to the source
+  // job's values and persists source_job_id on submit.
+  defaultSourceJobId?: string | null
+  sourceJobTitle?: string | null
+  sourceJobDateLabel?: string | null
+  sourceJobWarning?: string | null
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(action, { error: null })
   const inlineEnabled = enableInlineEntry === true
@@ -208,6 +219,12 @@ export function EstimateForm({
   const [parcelLookupPending, setParcelLookupPending] = useState(false)
   const [importedEstimateParcel, setImportedEstimateParcel] = useState<ImportedParcel | null>(null)
   const userChangedPropertyRef = useRef(false)
+
+  // Source-job locking — when a source job is linked, customer + property are
+  // fixed to the source job's values and cannot be changed by the operator.
+  const isLocked = !!defaultSourceJobId
+  const lockedCustomer = isLocked ? (customers.find(c => c.id === customerId) ?? null) : null
+  const lockedProperty = isLocked ? (properties.find(p => p.id === propertyId) ?? null) : null
 
   const filteredProps = customerId ? properties.filter(p => p.customer_id === customerId) : properties
   const selectedProp  = properties.find(p => p.id === propertyId)
@@ -336,6 +353,25 @@ export function EstimateForm({
       {state.error && <div className="alert alert-error">{state.error}</div>}
       <input type="hidden" name="customer_mode" value={inlineEnabled ? customerMode : 'existing'} />
       <input type="hidden" name="property_mode" value={inlineEnabled ? propertyMode : 'existing'} />
+      {/* Hidden source_job_id — only present when form is locked to a source job */}
+      {isLocked && <input type="hidden" name="source_job_id" value={defaultSourceJobId!} />}
+
+      {/* Source job banner */}
+      {defaultSourceJobId && (
+        <div style={{
+          marginBottom: '1rem', padding: '8px 12px', borderRadius: '6px',
+          background: 'rgba(79,142,247,0.08)', border: '1px solid rgba(79,142,247,0.3)',
+          fontSize: '0.875rem',
+        }}>
+          📋 <strong>Linked to completed job:</strong>{' '}
+          {sourceJobTitle ?? 'Completed Job'}{sourceJobDateLabel ? ` · ${sourceJobDateLabel}` : ''}
+        </div>
+      )}
+      {sourceJobWarning && (
+        <div className="alert alert-warning" style={{ marginBottom: '1rem' }}>
+          ⚠ {sourceJobWarning}
+        </div>
+      )}
 
       <div className="form-section-label">Customer &amp; Property</div>
 
@@ -423,7 +459,17 @@ export function EstimateForm({
         </div>
       )}
 
-      {(!inlineEnabled || customerMode === 'existing') && (
+      {isLocked ? (
+        <div className="form-field">
+          <label className="form-label">Customer</label>
+          <div className="form-input" style={{ color: 'var(--text-muted, #888)', cursor: 'default', userSelect: 'none' }}>
+            {lockedCustomer
+              ? `${lockedCustomer.first_name}${lockedCustomer.last_name ? ' ' + lockedCustomer.last_name : ''}`
+              : customerId}
+          </div>
+          <input type="hidden" name="customer_id" value={customerId} />
+        </div>
+      ) : (!inlineEnabled || customerMode === 'existing') && (
         <div className="form-field">
           <label className="form-label">Customer *</label>
           <select
@@ -592,7 +638,17 @@ export function EstimateForm({
         </div>
       )}
 
-      {(!inlineEnabled || propertyMode === 'existing') && (
+      {isLocked ? (
+        <div className="form-field">
+          <label className="form-label">Property</label>
+          <div className="form-input" style={{ color: 'var(--text-muted, #888)', cursor: 'default', userSelect: 'none' }}>
+            {lockedProperty
+              ? `${lockedProperty.property_name ?? lockedProperty.service_address}${lockedProperty.city ? ', ' + lockedProperty.city : ''}`
+              : propertyId}
+          </div>
+          <input type="hidden" name="property_id" value={propertyId} />
+        </div>
+      ) : (!inlineEnabled || propertyMode === 'existing') && (
         <div className="form-field">
           <label className="form-label">Property *</label>
           <select
@@ -1040,6 +1096,15 @@ export function EstimateForm({
           </div>
         </div>
       </div>
+
+      {defaultSourceJobId && (
+        <div className="form-field" style={{ marginTop: '0.5rem' }}>
+          <label className="checkbox-label">
+            <input type="checkbox" name="satisfies_follow_up" />
+            This estimate satisfies the follow-up for that completed job
+          </label>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: '12px' }}>
         <Link href={cancelHref ?? '/estimates'} className="btn btn-secondary" style={{ flex: 1 }}>Cancel</Link>

@@ -241,13 +241,46 @@ export async function createEstimate(
     return { error: 'Selected property does not belong to the selected customer.' }
   }
 
+  // ── Source job validation (operator-internal, never exposed publicly) ───────
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const rawSourceJobId = formData.get('source_job_id')
+  const sourceJobId: string | null =
+    typeof rawSourceJobId === 'string' && UUID_RE.test(rawSourceJobId)
+      ? rawSourceJobId
+      : null
+  const satisfiesFollowUp: boolean = formData.get('satisfies_follow_up') === 'on'
+
+  if (sourceJobId) {
+    const { data: sourceJob, error: sourceJobError } = await supabase
+      .from('jobs')
+      .select('id, status, customer_id, property_id')
+      .eq('id', sourceJobId)
+      .eq('business_id', businessId)
+      .maybeSingle()
+
+    if (sourceJobError || !sourceJob) {
+      return { error: 'Source job not found or not accessible.' }
+    }
+    if (sourceJob.status !== 'completed') {
+      return { error: 'Source job must be completed before creating a follow-up estimate.' }
+    }
+    if (sourceJob.customer_id !== parsed.payload.customer_id) {
+      return { error: 'Source job customer does not match the selected customer.' }
+    }
+    if (sourceJob.property_id !== parsed.payload.property_id) {
+      return { error: 'Source job property does not match the selected property.' }
+    }
+  }
+
   const { data: estimate, error } = await supabase
     .from('estimates')
     .insert({
-      created_by:  userId,
-      business_id: businessId,
-      status:      'draft',
+      created_by:          userId,
+      business_id:         businessId,
+      status:              'draft',
       ...parsed.payload,
+      ...(sourceJobId ? { source_job_id: sourceJobId } : {}),
+      satisfies_follow_up: sourceJobId ? satisfiesFollowUp : false,
     })
     .select('id')
     .single()
