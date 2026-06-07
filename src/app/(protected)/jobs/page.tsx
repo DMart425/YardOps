@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { addDays, formatDateOnly, formatTimestampDate, getLocalDateStr, resolveTimeZone } from '@/lib/date'
+import { addDays, formatDateOnly, formatTimestampDate, getLocalDateStr, localMidnightUtcIso, resolveTimeZone } from '@/lib/date'
 import { requireBusinessContext } from '@/lib/business/context'
 
 type CustomerRelation = { first_name: string; last_name: string | null }
@@ -182,22 +182,22 @@ export default async function JobsPage({
       query = query.eq('status', 'completed').order('completed_at', { ascending: false })
       switch (filter) {
         case 'today':
-          query = query.gte('completed_at', `${today}T00:00:00`).lt('completed_at', `${tomorrowStr}T00:00:00`)
+          query = query.gte('completed_at', localMidnightUtcIso(today, timeZone)).lt('completed_at', localMidnightUtcIso(tomorrowStr, timeZone))
           break
         case 'week':
-          query = query.gte('completed_at', `${weekStartStr}T00:00:00`).lt('completed_at', `${nextWeekStartStr}T00:00:00`)
+          query = query.gte('completed_at', localMidnightUtcIso(weekStartStr, timeZone)).lt('completed_at', localMidnightUtcIso(nextWeekStartStr, timeZone))
           break
         case 'month':
-          query = query.gte('completed_at', `${monthStartStr}T00:00:00`).lt('completed_at', `${tomorrowStr}T00:00:00`)
+          query = query.gte('completed_at', localMidnightUtcIso(monthStartStr, timeZone)).lt('completed_at', localMidnightUtcIso(tomorrowStr, timeZone))
           break
         case 'ytd':
-          query = query.gte('completed_at', `${yearStartStr}T00:00:00`).lt('completed_at', `${tomorrowStr}T00:00:00`)
+          query = query.gte('completed_at', localMidnightUtcIso(yearStartStr, timeZone)).lt('completed_at', localMidnightUtcIso(tomorrowStr, timeZone))
           break
         case 'unpaid':
           query = query.in('payment_status', ['unpaid', 'partial'])
           break
         default:
-          query = query.gte('completed_at', `${today}T00:00:00`).lt('completed_at', `${tomorrowStr}T00:00:00`)
+          query = query.gte('completed_at', localMidnightUtcIso(today, timeZone)).lt('completed_at', localMidnightUtcIso(tomorrowStr, timeZone))
       }
     }
     query = query.range(completedFrom, completedTo)
@@ -239,7 +239,7 @@ export default async function JobsPage({
     .eq('business_id', businessId)
     .eq('status', 'completed')
     .in('payment_status', ['unpaid', 'partial'])
-    .lt('completed_at', `${sevenDaysAgoStr}T00:00:00`)
+    .lt('completed_at', localMidnightUtcIso(sevenDaysAgoStr, timeZone))
 
   // ── Overdue scheduled count (active status + scheduled_date before today) ──
   const { count: overdueScheduledCount } = await supabase

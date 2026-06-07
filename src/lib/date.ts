@@ -42,6 +42,46 @@ export function addDays(dateStr: string, days: number): string {
   return date.toISOString().slice(0, 10)
 }
 
+// Converts a local date string (YYYY-MM-DD) to a UTC ISO string representing
+// midnight in the given timezone. Use this for completed_at filter boundaries
+// so that jobs completed late evening local time (= early morning UTC the next
+// day) are correctly included within their local-date filter window.
+//
+// Example: localMidnightUtcIso('2026-06-07', 'America/Chicago')
+//   → '2026-06-07T05:00:00.000Z'  (CDT = UTC-5, so midnight CDT = 05:00 UTC)
+//
+// Handles DST transitions and half-hour / 45-minute UTC offsets via Intl.
+export function localMidnightUtcIso(localDateStr: string, timeZone: string): string {
+  const [y, m, d] = localDateStr.split('-').map(Number)
+  const utcMidnight = new Date(Date.UTC(y, m - 1, d, 0, 0, 0))
+
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  }).formatToParts(utcMidnight)
+
+  const get = (type: string) => parseInt(parts.find(p => p.type === type)!.value, 10)
+  const localDateAtUtcMidnight =
+    `${parts.find(p => p.type === 'year')!.value}-` +
+    `${parts.find(p => p.type === 'month')!.value}-` +
+    `${parts.find(p => p.type === 'day')!.value}`
+  const localH = get('hour') % 24   // guard against Intl returning 24 for midnight
+  const localM = get('minute')
+  const localS = get('second')
+
+  // UTC- timezone (e.g. CDT): at UTC midnight, local is still the previous day.
+  //   Local midnight is in the future → add remaining seconds to UTC midnight.
+  // UTC+ timezone: at UTC midnight, local has already passed midnight on the target day.
+  //   Local midnight is in the past → subtract elapsed seconds from UTC midnight.
+  const offsetMs = localDateAtUtcMidnight === localDateStr
+    ? -(localH * 3600 + localM * 60 + localS) * 1000
+    : (24 * 3600 - (localH * 3600 + localM * 60 + localS)) * 1000
+
+  return new Date(Date.UTC(y, m - 1, d, 0, 0, 0) + offsetMs).toISOString()
+}
+
 export function getLocalMonthKey(isoString: string, timeZone: string): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone,
