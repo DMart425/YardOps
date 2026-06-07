@@ -455,11 +455,31 @@ export async function convertToJob(
       internal_notes:  scope.internalNotes,
       customer_notes:  estimate.notes,
       status:          'scheduled',
+      // Follow-up linkage: wire new job as continuation of the source completed job
+      // when operator marked satisfies_follow_up = true on the estimate.
+      ...(estimate.satisfies_follow_up && estimate.source_job_id
+        ? { recurrence_source: estimate.source_job_id }
+        : {}),
     })
     .select('id')
     .single()
 
   if (error) return { error: error.message }
+
+  // Follow-up linkage: close source job's follow-up slot when satisfies_follow_up = true.
+  // Best-effort — does not block or fail the created job if the update fails.
+  // Guard: only updates source job when next_job_created_id is still null.
+  if (estimate.satisfies_follow_up && estimate.source_job_id) {
+    const { error: linkErr } = await supabase
+      .from('jobs')
+      .update({ next_job_created_id: job.id })
+      .eq('id', estimate.source_job_id)
+      .eq('business_id', businessId)
+      .is('next_job_created_id', null)
+    if (linkErr) {
+      console.error('[convertToJob] Failed to link source job follow-up:', linkErr)
+    }
+  }
 
   // Best-effort: save estimate total as property default price if operator checked the box.
   // Does not block conversion if this update fails.

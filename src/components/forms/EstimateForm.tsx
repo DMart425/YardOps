@@ -1105,8 +1105,11 @@ export function EstimateForm({
         <div className="form-field" style={{ marginTop: '0.5rem' }}>
           <label className="checkbox-label">
             <input type="checkbox" name="satisfies_follow_up" />
-            This estimate satisfies the follow-up for that completed job
+            Use the job created from this estimate as the follow-up for the completed job
           </label>
+          <p className="form-hint" style={{ marginTop: '4px' }}>
+            When the estimate is converted to a job, it will close the original job&apos;s follow-up slot.
+          </p>
         </div>
       )}
 

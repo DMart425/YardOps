@@ -15,7 +15,7 @@ export function EstimateStatusActions({
   customerStatus,
   defaultScheduledDate,
 }: {
-  estimate: { id: string; status: string; total: number; revision_number: number }
+  estimate: { id: string; status: string; total: number; revision_number: number; sets_property_defaults?: boolean }
   localToday: string
   propertyDefaultPrice?: number | null
   customerId: string
@@ -148,21 +148,27 @@ export function EstimateStatusActions({
                 <span className="text-small text-muted">Price from estimate</span>
                 <span className="font-bold">${Number(estimate.total).toFixed(2)}</span>
               </div>
-              <label style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', cursor: 'pointer', padding: '4px 0' }}>
-                <input
-                  type="checkbox"
-                  name="save_as_default_price"
-                  value="on"
-                  defaultChecked={propertyDefaultPrice == null}
-                  style={{ marginTop: '2px', flexShrink: 0 }}
-                />
-                <span className="text-small">
-                  Save ${Number(estimate.total).toFixed(2)}{' '}as this property&apos;s default price for future jobs
-                  {propertyDefaultPrice != null && (
-                    <span className="text-muted"> (currently ${Number(propertyDefaultPrice).toFixed(2)})</span>
-                  )}
-                </span>
-              </label>
+              {estimate.sets_property_defaults ? (
+                <p className="text-small text-muted" style={{ padding: '4px 0' }}>
+                  This estimate already updated the property&apos;s default service agreement when it was approved.
+                </p>
+              ) : (
+                <label style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', cursor: 'pointer', padding: '4px 0' }}>
+                  <input
+                    type="checkbox"
+                    name="save_as_default_price"
+                    value="on"
+                    defaultChecked={propertyDefaultPrice == null}
+                    style={{ marginTop: '2px', flexShrink: 0 }}
+                  />
+                  <span className="text-small">
+                    Save ${Number(estimate.total).toFixed(2)}{' '}as this property&apos;s default price for future jobs
+                    {propertyDefaultPrice != null && (
+                      <span className="text-muted"> (currently ${Number(propertyDefaultPrice).toFixed(2)})</span>
+                    )}
+                  </span>
+                </label>
+              )}
               <button type="submit" disabled={convertPending} className="btn btn-primary btn-full">
                 {convertPending ? 'Creating…' : 'Confirm — Create Job'}
               </button>

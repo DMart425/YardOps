@@ -109,11 +109,13 @@ export async function createJob(
   const estimateIdRaw = (formData.get('estimate_id') as string | null)?.trim() || null
   let validatedEstimateId: string | null = null
   let linkedEstimateCustomerId: string | null = null
+  let linkedEstimateSourceJobId: string | null = null
+  let linkedEstimateSatisfiesFollowUp = false
 
   if (estimateIdRaw) {
     const { data: est } = await supabase
       .from('estimates')
-      .select('id, status, business_id, customer_id, property_id')
+      .select('id, status, business_id, customer_id, property_id, source_job_id, satisfies_follow_up')
       .eq('id', estimateIdRaw)
       .eq('business_id', businessId)
       .maybeSingle()
@@ -131,8 +133,10 @@ export async function createJob(
       return { error: 'Estimate property does not match the selected property.' }
     }
 
-    validatedEstimateId      = est.id as string
-    linkedEstimateCustomerId = est.customer_id as string
+    validatedEstimateId             = est.id as string
+    linkedEstimateCustomerId        = est.customer_id as string
+    linkedEstimateSourceJobId       = (est.source_job_id as string | null) ?? null
+    linkedEstimateSatisfiesFollowUp = Boolean(est.satisfies_follow_up)
   }
   const priceRaw = formData.get('price') as string
   const price    = priceRaw ? parseFloat(priceRaw) : null
@@ -147,6 +151,9 @@ export async function createJob(
       customer_id:           customerId,
       property_id:           propertyId,
       ...(validatedEstimateId ? { estimate_id: validatedEstimateId } : {}),
+      ...(linkedEstimateSatisfiesFollowUp && linkedEstimateSourceJobId
+        ? { recurrence_source: linkedEstimateSourceJobId }
+        : {}),
       title:                 'Lawn Service',
       job_type:              (formData.get('job_type') as string) || 'one_time',
       service_package:       derivePackageFromJobInputs(jobInputs),
@@ -190,6 +197,21 @@ export async function createJob(
       .eq('estimate_id', validatedEstimateId)
       .eq('is_reviewed', false)
       .eq('notification_type', 'estimate_approved')
+
+    // Follow-up linkage: close source job's follow-up slot when satisfies_follow_up = true.
+    // Best-effort — does not fail job creation if linkage update fails.
+    // Guard: only updates source job when next_job_created_id is still null.
+    if (linkedEstimateSatisfiesFollowUp && linkedEstimateSourceJobId) {
+      const { error: linkErr } = await supabase
+        .from('jobs')
+        .update({ next_job_created_id: job.id })
+        .eq('id', linkedEstimateSourceJobId)
+        .eq('business_id', businessId)
+        .is('next_job_created_id', null)
+      if (linkErr) {
+        console.error('[createJob] Failed to link source job follow-up:', linkErr)
+      }
+    }
 
     revalidatePath(`/estimates/${validatedEstimateId}`)
     revalidatePath('/estimates')

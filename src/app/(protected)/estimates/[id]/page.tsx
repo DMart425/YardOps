@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { EstimateStatusActions } from '@/components/EstimateStatusActions'
 import { calculateEstimate, formatMinutes, DEFAULT_SETTINGS } from '@/lib/pricing'
-import { formatDateOnly, formatTimestampDate, getClosestWeekdayNearDate, getLocalDateStr, resolveTimeZone } from '@/lib/date'
+import { addDays, formatDateOnly, formatTimestampDate, getClosestWeekdayNearDate, getLocalDateStr, resolveTimeZone } from '@/lib/date'
 import type { EstimateInputs } from '@/lib/pricing'
 import type { Estimate } from '@/types/database'
 import { requireBusinessContext } from '@/lib/business/context'
@@ -51,9 +51,47 @@ export default async function EstimateDetailPage({
   const localToday = getLocalDateStr(timeZone)
 
   const preferredServiceDay = estimate.properties.preferred_service_day ?? null
-  const defaultScheduledDate = preferredServiceDay
-    ? getClosestWeekdayNearDate(localToday, preferredServiceDay, { minDate: localToday, maxDays: 7 })
-    : localToday
+
+  // Fetch source job anchor date for cadence-based conversion date suggestion.
+  // Only fires when estimate.source_job_id is set. Scoped by business_id + completed status.
+  let sourceJobAnchorDate: string | null = null
+  if (estimate.source_job_id) {
+    const { data: sourceJob } = await supabase
+      .from('jobs')
+      .select('completed_at, scheduled_date')
+      .eq('id', estimate.source_job_id)
+      .eq('business_id', businessId)
+      .eq('status', 'completed')
+      .maybeSingle()
+    if (sourceJob) {
+      // Prefer completed_at local date (avoids UTC-offset drift for late-evening completions)
+      sourceJobAnchorDate = sourceJob.completed_at
+        ? getLocalDateStr(timeZone, new Date(sourceJob.completed_at as string))
+        : ((sourceJob.scheduled_date as string | null) ?? null)
+    }
+  }
+
+  // Cadence offset from source anchor: weekly → +7d, biweekly → +14d, else no offset
+  const cadenceDays =
+    estimate.frequency === 'weekly'   ? 7  :
+    estimate.frequency === 'biweekly' ? 14 :
+    null
+
+  const cadenceDate = sourceJobAnchorDate && cadenceDays
+    ? addDays(sourceJobAnchorDate, cadenceDays)
+    : null
+
+  // defaultScheduledDate priority:
+  //   1. cadence date (from source job) → snap to preferred weekday ±4d if set
+  //   2. preferred weekday near today ±7d
+  //   3. today
+  const defaultScheduledDate = cadenceDate
+    ? (preferredServiceDay
+        ? getClosestWeekdayNearDate(cadenceDate, preferredServiceDay, { minDate: localToday, maxDays: 4 })
+        : cadenceDate)
+    : (preferredServiceDay
+        ? getClosestWeekdayNearDate(localToday, preferredServiceDay, { minDate: localToday, maxDays: 7 })
+        : localToday)
 
   const { data: profile } = await supabase
     .from('profiles')
