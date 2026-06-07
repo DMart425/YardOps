@@ -166,6 +166,7 @@ export function EstimateForm({
   sourceJobTitle,
   sourceJobDateLabel,
   sourceJobWarning,
+  defaultSetsPropertyDefaults,
 }: {
   action: (prevState: FormState, formData: FormData) => Promise<FormState>
   customers: CustomerOption[]
@@ -189,6 +190,9 @@ export function EstimateForm({
   sourceJobTitle?: string | null
   sourceJobDateLabel?: string | null
   sourceJobWarning?: string | null
+  // Operator intent: when true, approval of this estimate will replace the
+  // property's default service agreement (frequency, scope, price).
+  defaultSetsPropertyDefaults?: boolean
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(action, { error: null })
   const inlineEnabled = enableInlineEntry === true
@@ -1105,6 +1109,20 @@ export function EstimateForm({
           </label>
         </div>
       )}
+
+      <div className="form-field" style={{ marginTop: '0.5rem' }}>
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            name="sets_property_defaults"
+            defaultChecked={defaultSetsPropertyDefaults ?? false}
+          />
+          When approved, apply this estimate&apos;s frequency, scope, and price as the property&apos;s new default service agreement
+        </label>
+        <p className="form-hint" style={{ marginTop: '4px' }}>
+          Use this only when this estimate replaces the property&apos;s ongoing agreement.
+        </p>
+      </div>
 
       <div style={{ display: 'flex', gap: '12px' }}>
         <Link href={cancelHref ?? '/estimates'} className="btn btn-secondary" style={{ flex: 1 }}>Cancel</Link>

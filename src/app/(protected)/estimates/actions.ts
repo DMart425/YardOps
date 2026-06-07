@@ -249,6 +249,7 @@ export async function createEstimate(
       ? rawSourceJobId
       : null
   const satisfiesFollowUp: boolean = formData.get('satisfies_follow_up') === 'on'
+  const setsPropertyDefaults: boolean = formData.get('sets_property_defaults') === 'on'
 
   if (sourceJobId) {
     const { data: sourceJob, error: sourceJobError } = await supabase
@@ -281,6 +282,7 @@ export async function createEstimate(
       ...parsed.payload,
       ...(sourceJobId ? { source_job_id: sourceJobId } : {}),
       satisfies_follow_up: sourceJobId ? satisfiesFollowUp : false,
+      sets_property_defaults: setsPropertyDefaults,
     })
     .select('id')
     .single()
@@ -329,11 +331,14 @@ export async function updateEstimate(
     revisionUpdate.approval_note = null
   }
 
+  const setsPropertyDefaultsUpdate: boolean = formData.get('sets_property_defaults') === 'on'
+
   const { error } = await supabase
     .from('estimates')
     .update({
       ...parsed.payload,
       ...revisionUpdate,
+      sets_property_defaults: setsPropertyDefaultsUpdate,
     })
     .eq('id', estimateId)
     .eq('business_id', businessId)

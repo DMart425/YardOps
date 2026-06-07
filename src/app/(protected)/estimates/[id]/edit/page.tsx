@@ -141,6 +141,7 @@ export default async function EditEstimatePage({
         initialNotes={estimate.notes}
         initialPriceOverride={estimate.total}
         localToday={localToday}
+        defaultSetsPropertyDefaults={estimate.sets_property_defaults ?? false}
         submitLabel="Save Estimate"
         cancelHref={`/estimates/${id}`}
       />
