@@ -8,7 +8,7 @@ YardOps is the private operations app for Wicksburg Lawn Service.
 
 Current verified YardOps checkpoint commit:
 
-`43a198f` (Today weather reliability — current conditions, address geocode fallback, city/ZIP fallback — Phase 5V complete)
+`0cd8a60` (Link converted estimates to source follow-ups — Phase 5X.5 complete)
 
 The public website repo is separate:
 
@@ -221,3 +221,12 @@ These rules were learned from production bugs and must be preserved across refac
 * Today weather must display current/near-now conditions from Open-Meteo `current=temperature_2m,weather_code`, not the daily dominant `weather_code`. Daily `weather_code` represents the worst condition across the entire day (including overnight) and must not be shown as the live condition.
 * When effective coordinates exist (stored or geocoded) but the Open-Meteo fetch returns null, show `"Weather unavailable for this property."` so the operator sees that weather was attempted. Do not silently suppress it.
 * Completed Today cards do not show weather. Weather is relevant to jobs the operator is about to drive to. Do not add weather to Completed Today cards without explicit approval.
+* `estimates.source_job_id`, `estimates.satisfies_follow_up`, and `estimates.sets_property_defaults` are operator-internal fields. Do not expose them on the public quote page (`/quote/[token]`). The public quote page may show a disclosure notice when `sets_property_defaults` is true, but must never expose the source job ID or follow-up linkage details.
+* Approval is the single write point for property defaults from an estimate. When `estimates.sets_property_defaults = true`, the `applyPropertyDefaultsFromEstimate()` helper is called at customer acceptance, manual approval, and status approval. Conversion (`convertToJob()` and `createJob()`) must never re-apply property defaults regardless of this flag.
+* `estimates.satisfies_follow_up` linkage must be equivalent between the two conversion paths. Both `convertToJob()` (direct) and `createJob()` via `/jobs/new?estimate_id=` must write `recurrence_source` on the new job and update `next_job_created_id` on the source job when `satisfies_follow_up = true` and `source_job_id` is set. Do not introduce asymmetry between these paths.
+* The `next_job_created_id` update from `satisfies_follow_up` must be guarded by `.is('next_job_created_id', null)` to prevent double-write if the field was already set by a prior follow-up.
+* Do not infer follow-up satisfaction from arbitrary future jobs. `satisfies_follow_up` is an explicit operator intent flag on the estimate — it is not automatically inferred from job dates, frequencies, or customer matches.
+* Do not store `satisfies_follow_up` linkage in `internal_notes`, `completion_notes`, or `estimate_inputs`. Linkage is stored in `jobs.recurrence_source` (on the new job) and `jobs.next_job_created_id` (on the source job) only.
+* When `sets_property_defaults = true` on a converted estimate, the "Save as default price" checkbox in the Convert to Job panel must be replaced with an informational note stating the property agreement was already updated at approval. Do not show the checkbox — it implies the update hasn't happened yet.
+* Estimate conversion scheduled date may default from source job cadence: if `source_job_id` is set and the source job has `status = 'completed'`, use `completed_at` (converted to local date) as the anchor. weekly estimate → anchor + 7d; biweekly → anchor + 14d. Snap to `preferred_service_day` ±4d when set. Fall back to preferred-day-near-today or today when no source/cadence exists. Always wrap ISO strings in `new Date()` before passing to date helpers.
+* The public quote page must display a visible agreement-replacement notice when `estimate.sets_property_defaults = true`. This notice must state that accepting the estimate will replace the property's ongoing service plan. Do not remove this notice without explicit approval.

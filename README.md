@@ -2,7 +2,7 @@
 
 Private operations app for Wicksburg Lawn Service.
 
-Verified checkpoint commit: `43a198f` (Today weather reliability — current conditions, address geocode fallback, city/ZIP fallback — Phase 5V complete).
+Verified checkpoint commit: `0cd8a60` (Link converted estimates to source follow-ups — Phase 5X.5 complete).
 
 ## Read First
 
@@ -40,6 +40,22 @@ Jobs store structured service scope in `jobs.job_inputs` (nullable JSONB — add
 - `service_package` is a legacy fallback — still written but not the primary source.
 - `JobForm` does not calculate price — only `property.default_price` is a permitted prefill.
 - `/jobs/new` source selector (Phase 5S): when approved estimates exist for the selected property, a radio group offers **Estimate / Property defaults / Custom**. Selecting Estimate adds a hidden `estimate_id` field; the `createJob` action validates it and marks the source estimate `converted`. Switching away from Estimate removes `estimate_id` — Property defaults and Custom never convert estimates.
+
+## Estimate Source-Job Model (Phase 5X)
+
+Three operator-internal columns on `estimates` link an estimate to the job that prompted it and control property default updates:
+
+| Column | Type | Meaning |
+|--------|------|---------|
+| `source_job_id` | uuid FK → jobs | Completed job that prompted this estimate |
+| `satisfies_follow_up` | boolean | When true, the converted job closes the source job's follow-up slot |
+| `sets_property_defaults` | boolean | When true, approving the estimate updates the property's default service agreement |
+
+**Approval is the write point for property defaults.** When `sets_property_defaults = true`, approving the estimate (customer acceptance, manual approval, or status approval) calls `applyPropertyDefaultsFromEstimate()` — writes `service_frequency`, `default_price`, service booleans, and `default_service_package`. Conversion does **not** re-apply property defaults.
+
+**Follow-up linkage:** When `satisfies_follow_up = true` and `source_job_id` is set, converting the estimate (either via `convertToJob()` or `/jobs/new?estimate_id=`) writes `recurrence_source` on the new job and `next_job_created_id` on the source job (guarded by `.is('next_job_created_id', null)`).
+
+**Conversion date default:** If `source_job_id` is set and the source job is completed, the convert panel defaults the scheduled date to the source job's `completed_at` (local date) + cadence offset (weekly +7d, biweekly +14d), snapped to `preferred_service_day` ±4d when set.
 
 ### Shared scope helper — `src/lib/jobScope.ts` (Phase 5T)
 

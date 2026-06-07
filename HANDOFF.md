@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-06-01 (43a198f)
+Last updated: 2026-06-07 (0cd8a60)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-06-01 (43a198f)
 
 ## Current Checkpoint
 
-- **Latest commit:** `43a198f` — Today weather reliability — current conditions, address geocode fallback, city/ZIP fallback (Phase 5V complete)
+- **Latest commit:** `0cd8a60` — Link converted estimates to source follow-ups (Phase 5X.5 complete)
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -954,6 +954,94 @@ No migrations. No DB writes. No RLS changes. No env var changes.
 
 ---
 
+### Phase 5W — Follow-up Scheduling Product Direction
+
+**Status:** ✅ Clarified (product direction — no new code commits)
+
+The `/jobs/new?source_job_id` reviewable follow-up creation path (deferred since Phase 5Q) was formally evaluated and is not being built.
+
+**Final behavior:**
+- Follow-up scheduling continues exclusively through `ScheduleFollowUpCard` on the completed job detail page.
+- Operators who want to change scope, frequency, or price for the next visit create a new estimate. The estimate → job conversion flow is the canonical path for agreement changes.
+- Service/frequency/price changes on follow-ups do **not** have a dedicated "edit follow-up" UI — all such changes flow through estimates.
+
+No new code. No migrations. No schema changes.
+
+---
+
+### Phase 5X — Estimate Source-Job Model ✅
+
+**Latest commit:** `0cd8a60`
+
+Three new operator-internal columns on `estimates`:
+
+| Column | Type | Meaning |
+|--------|------|---------|
+| `source_job_id` | uuid FK → jobs ON DELETE SET NULL | Completed job that prompted this estimate |
+| `satisfies_follow_up` | boolean NOT NULL DEFAULT false | Converted job closes source job's follow-up slot |
+| `sets_property_defaults` | boolean NOT NULL DEFAULT false | Approving estimate updates property default service agreement |
+
+#### Phase 5X.3 — Estimate source-job awareness (`49524a9`)
+
+- Migration added `source_job_id` and `satisfies_follow_up` columns to `estimates`.
+- `EstimateForm.tsx`: property locked ternary; `satisfies_follow_up` checkbox (conditional on `source_job_id`).
+- `createEstimate()`: validates `source_job_id` (completed, business-scoped); persists both columns.
+- `src/types/database.ts`: `Estimate` interface updated.
+
+#### Phase 5X.4a — Schema and type prep (`909a4e3`)
+
+- Migration `20260606130000_add_estimates_sets_property_defaults.sql`: `sets_property_defaults boolean NOT NULL DEFAULT false`. Applied via `npx supabase db query --linked --file`. Committed. No RLS changes.
+- `src/types/database.ts`: `sets_property_defaults: boolean` added to `Estimate` interface.
+
+#### Phase 5X.4b — Form and persistence (`b5dcafa`)
+
+- `EstimateForm.tsx`: `sets_property_defaults` checkbox always visible; `defaultSetsPropertyDefaults` prop; wording: "When approved, apply this estimate's frequency, scope, and price as the property's new default service agreement." Hint: "Use this only when this estimate replaces the property's ongoing agreement."
+- `createEstimate()` and `updateEstimate()`: read and persist `sets_property_defaults`.
+- `estimates/[id]/edit/page.tsx`: passes `defaultSetsPropertyDefaults` to form.
+
+#### Phase 5X.4c/d — Approval-time property updates + public quote notice (`d14a096`)
+
+**New shared utility `src/lib/propertyDefaultsFromEstimate.ts`:**
+- `AnySupabaseClient = { from: (table: string) => any }` — compatible with both regular and admin Supabase clients.
+- `applyPropertyDefaultsFromEstimate(supabase, businessId, estimate)`: guards on `sets_property_defaults` and `property_id`; writes `service_frequency`, `default_price`, four service booleans, derived `default_service_package`; skips boolean block when `estimate_inputs` is null; best-effort (logs on error, does not throw or block).
+- `ALLOWED_FREQUENCIES`: rejects out-of-range values.
+
+**Three approval paths wired:**
+1. `manuallyApproveEstimate()` (`estimates/actions.ts`)
+2. `updateEstimateStatus()` (`estimates/actions.ts`) — only when `status === 'approved'`
+3. `acceptEstimate()` (`quote/[token]/actions.ts`) — customer acceptance via public quote
+
+**Public quote notice (`quote/[token]/page.tsx`):**
+- When `estimate.sets_property_defaults = true`, a blue-tinted card appears above the confirm form: "📋 This estimate updates your service agreement." — customer is informed that accepting replaces the property's ongoing service plan.
+
+#### Phase 5X.5 — Conversion follow-up linkage and conversion UI polish (`0cd8a60`)
+
+**Five files changed:**
+
+**`estimates/actions.ts` (`convertToJob()`):**
+- When `satisfies_follow_up = true` and `source_job_id` is set: writes `recurrence_source: source_job_id` on new job insert; then updates `next_job_created_id` on source job guarded by `.is('next_job_created_id', null)`.
+
+**`jobs/actions.ts` (`createJob()`):**
+- Same follow-up linkage when job is created via `/jobs/new?estimate_id=`. Both conversion paths now equivalent for `satisfies_follow_up` handling.
+
+**`estimates/[id]/page.tsx`:**
+- Added `addDays` to date helper imports.
+- Source job fetch: if `estimate.source_job_id` set, fetches completed source job (`status = 'completed'`, scoped by `business_id`).
+- Anchor: `completed_at` → `getLocalDateStr(timeZone, new Date(completed_at))`; fallback to `scheduled_date`.
+- Cadence: weekly → anchor + 7d; biweekly → anchor + 14d; other frequencies → no cadence.
+- `defaultScheduledDate`: cadence + preferred_service_day snap ±4d → cadence only → preferred-day-near-today ±7d → `localToday`.
+
+**`EstimateStatusActions.tsx`:**
+- `estimate.sets_property_defaults` added to estimate prop type.
+- When `true`: "Save as default price" checkbox replaced with informational note: "This estimate already updated the property's default service agreement when it was approved."
+
+**`EstimateForm.tsx`:**
+- `satisfies_follow_up` checkbox wording updated: "Use the job created from this estimate as the follow-up for the completed job."
+
+No schema changes. No RLS changes. No env var changes. Lint and build clean.
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -969,6 +1057,7 @@ No migrations. No DB writes. No RLS changes. No env var changes.
 | `20260513200000_phase2g_leads_rls_cosmetic.sql` | Phase 2G leads RLS — remove redundant NOT NULL prefix from SELECT/DELETE USING clauses |
 | `20260522000000_add_business_phone.sql` | Add nullable `phone text` column to `businesses` — business-scoped contact number |
 | `20260531120000_add_jobs_job_inputs.sql` | Add nullable `job_inputs jsonb` column to `jobs` — structured service scope (Phase 5Q.1). **Note:** Applied directly via `npx supabase db query --linked`; not tracked in remote migration history due to known drift. Do not `supabase db push`. |
+| `20260606130000_add_estimates_sets_property_defaults.sql` | Add `sets_property_defaults boolean NOT NULL DEFAULT false` to `estimates` (Phase 5X.4a). Applied via `npx supabase db query --linked --file`. Committed. Same drift caveat — do not `supabase db push`. |
 
 ---
 
@@ -976,6 +1065,11 @@ No migrations. No DB writes. No RLS changes. No env var changes.
 
 | Hash | Description |
 |------|-------------|
+| `0cd8a60` | Link converted estimates to source follow-ups (Phase 5X.5) |
+| `d14a096` | Apply estimate defaults on approval (Phase 5X.4c/d) |
+| `b5dcafa` | Save estimate property default intent (Phase 5X.4b) |
+| `909a4e3` | Add estimate property defaults flag (Phase 5X.4a) |
+| `49524a9` | Link estimates to source jobs (Phase 5X.3) |
 | `43a198f` | Show current weather on today jobs (Phase 5V) |
 | `7c08ebc` | Add city fallback for weather geocoding (Phase 5V) |
 | `85a9651` | Use address fallback for today weather (Phase 5V) |
@@ -1371,6 +1465,11 @@ All of the following were user-tested and confirmed working as of `289b732`:
 | Phase 5T — Portal/invoice service scope from job_inputs | ✅ Complete | `b0d4f46` — `src/lib/jobScope.ts` shared helper; portal home + invoice prefer `job_inputs`; add-ons subline; property booleans removed from portal scope display |
 | Phase 5U — Completion note autofill from job scope | ✅ Complete | `4e2c815` — quick chips removed; `buildDefaultCompletionNotes()` as textarea `defaultValue`; legacy fallback via `PKG_COMPLETION_NOTES`; notes remain editable |
 | Phase 5V — Today weather reliability | ✅ Complete | `030fec4`+`85a9651`+`7c08ebc`+`43a198f` — unavailable fallback, address geocode, city/ZIP geocode, current conditions display |
+| Phase 5W — Follow-up scheduling product direction | ✅ Clarified | No code commits — `/jobs/new?source_job_id` deferred; follow-up via `ScheduleFollowUpCard` + property defaults; agreement changes route through estimates |
+| Phase 5X.3 — Estimate source-job awareness | ✅ Complete | `49524a9` — `source_job_id` FK, `satisfies_follow_up` boolean; EstimateForm; `createEstimate` validation |
+| Phase 5X.4 — Estimate default-agreement intent + approval property updates | ✅ Complete | `909a4e3`+`b5dcafa`+`d14a096` — `sets_property_defaults` column; checkbox in EstimateForm; `applyPropertyDefaultsFromEstimate()` helper; wired to all three approval paths; public quote notice |
+| Phase 5X.5 — Conversion follow-up linkage and UI polish | ✅ Complete | `0cd8a60` — `recurrence_source`/`next_job_created_id` linkage in both conversion paths; cadence date from source job; `save_as_default_price` conditional; checkbox wording |
+| Phase 5X.4e — Estimate detail badge for `sets_property_defaults` | ⏸ Deferred | Visible badge/notice on estimate detail page when `sets_property_defaults = true` |
 | Route balancing / auto-scheduling follow-up | ⏸ Future | `Property.schedule_anchor_date` reserved; do not implement until explicitly asked |
 | `schedule_anchor_date` — no UI yet | ⏸ Future | Column exists in schema; no read or write path built |
 | Weather/rain-day shifting for scheduling | ⏸ Future | Not planned |
@@ -1409,32 +1508,29 @@ Every future handoff must instruct the next chat to read ARCHITECTURE.md and HAN
 
 ## Recommended Next Task
 
-**Phase 5W — next area TBD**
+**Phase 5X.5 complete as of `0cd8a60`. Next candidates: Phase 5X.6 / 5Z.**
 
-Phase 5A–5V are all complete as of `43a198f`.
+**Completed Phase 5X work (most recent):**
+- ✅ Phase 5X.3 — `source_job_id` + `satisfies_follow_up` on estimates; form, persistence, validation (`49524a9`)
+- ✅ Phase 5X.4a — `sets_property_defaults` schema + type (`909a4e3`)
+- ✅ Phase 5X.4b — `sets_property_defaults` checkbox in EstimateForm; persistence in create/update (`b5dcafa`)
+- ✅ Phase 5X.4c/d — `applyPropertyDefaultsFromEstimate()` shared helper; wired to all three approval paths; public quote agreement notice (`d14a096`)
+- ✅ Phase 5X.5 — follow-up linkage in both conversion paths; cadence date default from source job; `save_as_default_price` conditional; checkbox wording polish (`0cd8a60`)
 
-**Completed Phase 5V work (most recent — Today weather reliability):**
-- ✅ Weather unavailable fallback — shows `"Weather unavailable for this property."` when coords exist but API fails (`030fec4`)
-- ✅ Address geocode fallback — Today geocodes from `service_address + city + state + postal_code` when stored coords are null (`85a9651`)
-- ✅ City/ZIP centroid fallback in `geocodeAddress()` — rural roads not in OSM resolve via town centroid (`7c08ebc`)
-- ✅ Current conditions — Today card now shows `{currentTemp}° now · {currentCondition} · High {dailyHigh}°` from Open-Meteo `current=` endpoint (`43a198f`)
-- ✅ Verified in production: `91° now · Mostly clear · High 93° · 14% rain` displayed correctly
-- ✅ No DB writes; geocoded coords are transient; no schema/RLS/env changes
+**Deferred / open items (prioritized):**
+1. Phase 5X.4e — estimate detail badge/notice when `sets_property_defaults = true`
+2. Follow-up `job_inputs` copy runtime test — code committed; no qualifying completed job (non-null `job_inputs`, `job_type=recurring`) followed up in production yet
+3. Pricing/time model audit — mowable acres vs. flat pricing
+4. SMS invoice/receipt scope text from `job_inputs` — `buildInvoiceSms()` still uses generic "Lawn service"
+5. PDF invoice description from `job_inputs` — `DownloadInvoiceButton.tsx` uses `job.title`
+6. `JobActions` SMS business phone — `businessPhone` not yet passed as prop to on-my-way/day-before/complete SMS
+7. Portal enhancements and portal invoice PDF (web-only currently)
 
-**Remaining deferred items:**
-1. Follow-up `job_inputs` copy runtime test — code committed; no qualifying production follow-up yet
-2. Customer/property page `+ New Job` buttons still don't pass `estimate_id` — source selector handles this ad-hoc
-3. SMS invoice/receipt scope text from `job_inputs` — generic "Lawn service" note; deferred
-4. PDF invoice description polish from `job_inputs` — `DownloadInvoiceButton.tsx` uses `job.title`; deferred
-5. Package-only historical job approximation backfill — no `estimate_inputs` source; deferred
-6. Completed Today cards don't show weather — intentional; only worth adding if explicitly requested
-
-**Next Phase 5W candidates:**
-1. `JobActions` SMS business phone — wire `businessPhone` into on-my-way / day-before / job-complete SMS bodies
-2. Revenue/expense reporting — more useful Finances page analytics
-3. Bulk job actions — mark multiple jobs paid, batch scheduling
-4. Printable portal invoice PDF — web-only currently
-5. Portal enhancements — any remaining customer-facing UX improvements
+**Next Phase 5X.6/5Z candidates:**
+1. Estimate detail badge for `sets_property_defaults` (quick UI polish — Phase 5X.4e)
+2. Pricing/time model audit for mowable acres
+3. Revenue/expense reporting improvements
+4. Bulk job actions
 
 **Phase 3 completed tasks (all user-tested in production — historical record):**
 1. ~~Frequency display — website lead detail page~~ ✅ (`0589026`)
