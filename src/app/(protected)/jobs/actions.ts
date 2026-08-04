@@ -400,14 +400,26 @@ export async function scheduleFollowUpJob(
     return { error: nextJobError?.message ?? 'Could not create follow-up visit.' }
   }
 
-  const { error: linkErr } = await supabase
+  // Double-submit guard: only claim the follow-up slot if it is still open.
+  // The up-front next_job_created_id check does not protect against two
+  // concurrent submissions that both read null — this conditional update does.
+  const { data: linked, error: linkErr } = await supabase
     .from('jobs')
     .update({ next_job_created_id: nextJob.id })
     .eq('id', id)
     .eq('business_id', businessId)
+    .is('next_job_created_id', null)
+    .select('id')
+    .maybeSingle()
 
   if (linkErr) {
     return { error: `Follow-up visit created, but link update failed: ${linkErr.message}` }
+  }
+  if (!linked) {
+    // A concurrent submission already linked a follow-up — remove the orphan
+    // duplicate this invocation just inserted.
+    await supabase.from('jobs').delete().eq('id', nextJob.id).eq('business_id', businessId)
+    return { error: null, success: 'A follow-up visit already exists for this job.' }
   }
 
   revalidatePath('/jobs')

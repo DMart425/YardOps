@@ -1,6 +1,6 @@
 'use client'
 
-import { logSmsSent, updateEstimateStatus } from './actions'
+import { logSmsSent, markEstimateSent } from './actions'
 
 interface Props {
   phone: string
@@ -14,7 +14,7 @@ export default function SendSmsButton({ phone, smsBody, estimateId, customerId, 
   function handleClick() {
     logSmsSent(estimateId, customerId, smsBody).catch(() => {})
     if (currentStatus === 'draft') {
-      updateEstimateStatus(estimateId, 'sent').catch(() => {})
+      markEstimateSent(estimateId).catch(() => {})
     }
     window.location.href = 'sms:' + phone + '?body=' + encodeURIComponent(smsBody)
   }

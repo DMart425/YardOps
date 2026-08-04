@@ -60,33 +60,27 @@ export async function deleteEstimate(
   redirect('/estimates')
 }
 
-export async function updateEstimateStatus(estimateId: string, status: string) {
+// Narrow draft→sent transition used by SendSmsButton. All other status changes
+// must go through the canonical updateEstimateStatus in estimates/actions.ts,
+// which enforces the status whitelist, converted-lock, and property-defaults
+// application on approval. This helper is intentionally incapable of anything
+// except marking a draft as sent.
+export async function markEstimateSent(estimateId: string) {
   const supabase = await createClient()
   const { businessId } = await requireBusinessContext()
 
-  const updates: Record<string, unknown> = { status }
-  if (status === 'sent') {
-    updates.last_sent_at = new Date().toISOString()
-  }
-  if (status === 'approved') {
-    updates.accepted_at = new Date().toISOString()
-  }
-  if (status === 'draft') {
-    updates.accepted_at = null
-    updates.approved_by_source = null
-    updates.manually_approved_at = null
-    updates.approval_note = null
-  }
-
+  // Conditional on current status = draft: a stale tab or concurrent change
+  // makes this a safe no-op instead of clobbering a later status.
   const { data: updated } = await supabase
     .from('estimates')
-    .update(updates)
+    .update({ status: 'sent', last_sent_at: new Date().toISOString() })
     .eq('id', estimateId)
     .eq('business_id', businessId)
+    .eq('status', 'draft')
     .select('id')
     .maybeSingle()
 
-  if (!updated) throw new Error('Estimate not found.')
+  if (!updated) return
 
   revalidatePath('/estimates')
   revalidatePath(`/estimates/${estimateId}`)

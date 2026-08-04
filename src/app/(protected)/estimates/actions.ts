@@ -431,6 +431,12 @@ export async function convertToJob(
   if (estimate.status === 'converted') {
     return { error: 'This estimate has already been converted to a job.' }
   }
+  // Approval is the single write point for property defaults — converting a
+  // draft/sent estimate would skip applyPropertyDefaultsFromEstimate entirely.
+  // Matches the createJob estimate path, which also requires approved status.
+  if (estimate.status !== 'approved') {
+    return { error: 'Only approved estimates can be converted to a job.' }
+  }
 
   const scope     = deriveJobScopeFromEstimate(estimate)
   const jobInputs = deriveJobInputsFromEstimateInputs(estimate.estimate_inputs)
@@ -533,6 +539,13 @@ export async function updateEstimateStatus(
 ): Promise<FormState> {
   void prevState
   void _formData
+
+  // 'converted' is deliberately absent — conversion happens only through
+  // convertToJob()/createJob(), which run the full conversion side effects.
+  if (!['draft', 'sent', 'approved', 'declined'].includes(status)) {
+    return { error: 'Invalid estimate status.' }
+  }
+
   const supabase = await createClient()
   const { businessId } = await requireBusinessContext()
 
