@@ -24,6 +24,9 @@
 .DS_Store
 *.pem
 
+# Claude Code session data (incl. leftover worktrees)
+.claude/
+
 # debug
 npm-debug.log*
 yarn-debug.log*

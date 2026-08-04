@@ -241,16 +241,19 @@ export function calculateEstimate(
   const frequencyAdjustedPrice = laborPrice * freqMult
 
   // Step 7: add-ons
+  // Custom amounts and counts are guarded with ?? 0 — legacy estimate_inputs
+  // may lack these keys, and an undefined here poisons the whole estimate
+  // with NaN (which try/catch can't intercept).
   const bagging     = addOnPrices.bagging[inputs.baggingLevel]         ?? 0
   const haulOff     = inputs.haulOffLevel === 'large'
-    ? inputs.haulOffCustom
+    ? (inputs.haulOffCustom                                            ?? 0)
     : (addOnPrices.haulOff[inputs.haulOffLevel]                        ?? 0)
   const leafCleanup = inputs.leafCleanupLevel === 'custom'
-    ? inputs.leafCleanupCustom
+    ? (inputs.leafCleanupCustom                                        ?? 0)
     : (addOnPrices.leafCleanup[inputs.leafCleanupLevel]                ?? 0)
-  const shrubs      = (inputs.shrubSmallCount  * addOnPrices.shrubSmall)
-                    + (inputs.shrubMediumCount * addOnPrices.shrubMedium)
-                    + (inputs.shrubLargeCount  * addOnPrices.shrubLarge)
+  const shrubs      = ((inputs.shrubSmallCount  ?? 0) * addOnPrices.shrubSmall)
+                    + ((inputs.shrubMediumCount ?? 0) * addOnPrices.shrubMedium)
+                    + ((inputs.shrubLargeCount  ?? 0) * addOnPrices.shrubLarge)
   const stickPickup = addOnPrices.stickPickup[inputs.stickPickupLevel] ?? 0
   const addOnsTotal = bagging + haulOff + leafCleanup + shrubs + stickPickup
 
@@ -321,14 +324,17 @@ export function formatMinutes(min: number): string {
 
 /** Given mowable acres, pick the closest size key and return suggested mow minutes. */
 export function acrestoMowMinutes(acres: number, settings: PricingSettings = DEFAULT_SETTINGS): number {
-  const sizes = Object.keys(settings.mowingMinutesBySize).map(Number).sort((a, b) => a - b)
-  // find closest tier
-  let closest = sizes[0]
-  for (const s of sizes) {
-    if (acres >= s) closest = s
+  // Keep values paired with their parsed sizes — round-tripping keys through
+  // String() breaks lookups ('1.0' → 1 → '1'), which silently sent every
+  // tier ≥ 1 acre to the 60-minute fallback.
+  const entries = Object.entries(settings.mowingMinutesBySize)
+    .map(([k, v]) => [parseFloat(k), v] as const)
+    .sort((a, b) => a[0] - b[0])
+  let minutes = entries[0]?.[1] ?? 60
+  for (const [size, v] of entries) {
+    if (acres >= size) minutes = v
   }
-  const key = String(closest)
-  return settings.mowingMinutesBySize[key] ?? 60
+  return minutes
 }
 
 /** Round to nearest N. */

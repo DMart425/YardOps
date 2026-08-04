@@ -12,9 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    // One-off codegen helpers retained for reference; not part of app/runtime lint scope.
-    "scripts/write-estimate-detail.js",
-    "scripts/write-estimate-form.js",
+    // Claude Code session data — leftover worktrees there must not be linted.
+    ".claude/**",
   ]),
 ]);
 
