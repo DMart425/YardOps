@@ -53,7 +53,11 @@ export default async function FinancesPage({
     .lte('completed_at', jobsQueryEnd)
     .order('completed_at')
 
-  const jobs = (rawJobs ?? []).filter(j => getLocalMonthKey(j.completed_at, timeZone).startsWith(`${year}-`))
+  // Query bounds guarantee completed_at is set; the type guard narrows string | null.
+  const rawJobRows = rawJobs ?? []
+  const jobs = rawJobRows
+    .filter((j): j is (typeof rawJobRows)[number] & { completed_at: string } => j.completed_at != null)
+    .filter(j => getLocalMonthKey(j.completed_at, timeZone).startsWith(`${year}-`))
 
   // Fetch expenses for the year
   const { data: expenses, error: expensesError } = await supabase

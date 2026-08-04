@@ -80,7 +80,7 @@ export default async function EquipmentPage() {
 
         {/* Make / model / type */}
         <div className="text-small text-muted">
-          {[TYPE_LABELS[eq.equipment_type] ?? eq.equipment_type, eq.make, eq.model].filter(Boolean).join(' · ')}
+          {[eq.equipment_type ? TYPE_LABELS[eq.equipment_type] ?? eq.equipment_type : null, eq.make, eq.model].filter(Boolean).join(' · ')}
         </div>
 
         {/* Serial + hours */}

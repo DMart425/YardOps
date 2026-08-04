@@ -185,7 +185,7 @@ export async function convertWebsiteLead(
   const { data: claimedLead, error: claimError } = await supabase
     .from('leads')
     .update({ status: 'converted', created_by: userId })
-    .eq('id', leadId)
+    .eq('id', Number(leadId))
     .eq('business_id', businessId)
     .eq('status', 'new')
     .select('id, name, phone, email, address, frequency, notes')
@@ -197,7 +197,7 @@ export async function convertWebsiteLead(
     const { data: existingLead, error: existingLeadError } = await supabase
       .from('leads')
       .select('status')
-      .eq('id', leadId)
+      .eq('id', Number(leadId))
       .eq('business_id', businessId)
       .maybeSingle()
 
@@ -245,7 +245,7 @@ export async function convertWebsiteLead(
     await supabase
       .from('leads')
       .update({ status: 'new', created_by: null })
-      .eq('id', leadId)
+      .eq('id', Number(leadId))
       .eq('business_id', businessId)
       .eq('status', 'converted')
 
@@ -298,7 +298,7 @@ export async function dismissWebsiteLead(
   const { error } = await supabase
     .from('leads')
     .update({ status: 'archived', created_by: userId })
-    .eq('id', leadId)
+    .eq('id', Number(leadId))
     .eq('business_id', businessId)
 
   if (error) return { error: error.message }
@@ -328,7 +328,7 @@ export async function deleteWebsiteLead(
   const { error } = await supabase
     .from('leads')
     .delete()
-    .eq('id', leadId)
+    .eq('id', Number(leadId))
     .eq('business_id', businessId)
 
   if (error) return { error: error.message }

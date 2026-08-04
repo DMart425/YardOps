@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import type { FormState } from '@/types/database'
 import { requireBusinessContext } from '@/lib/business/context'
 import { getLocalDateStr, resolveTimeZone } from '@/lib/date'
+import type { Json } from '@/types/supabase'
 
 // ---------------------------------------------------------------------------
 // Job Inputs: structured service scope stored in jobs.job_inputs (Phase 5Q.2+)
@@ -157,7 +158,9 @@ export async function createJob(
       title:                 'Lawn Service',
       job_type:              (formData.get('job_type') as string) || 'one_time',
       service_package:       derivePackageFromJobInputs(jobInputs),
-      job_inputs:            jobInputs,
+      // JobInputs is a named type without an index signature; its fields are all
+      // Json-compatible primitives, so the cast is safe.
+      job_inputs:            jobInputs as unknown as Json,
       scheduled_date:        (formData.get('scheduled_date') as string) || null,
       scheduled_time_window: (formData.get('scheduled_time_window') as string) || null,
       price:                 price && !isNaN(price) ? price : null,

@@ -18,7 +18,7 @@ export default async function WebsiteLeadDetailPage({
   const { data: lead } = await supabase
     .from('leads')
     .select('id, name, phone, email, address, frequency, notes')
-    .eq('id', id)
+    .eq('id', Number(id))
     .eq('business_id', businessId)
     .eq('status', 'new')
     .single()

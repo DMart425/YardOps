@@ -118,18 +118,15 @@ export async function logService(itemId: string, equipmentId: string, formData: 
     next_due_date: nextDueDate,
   }).eq('id', itemId).eq('business_id', businessId)
 
-  // Update equipment current_hours if higher (fallback if RPC doesn't exist)
-  const { error: rpcError } = await supabase.rpc('update_equipment_hours_if_higher', {
-    p_equipment_id: equipmentId,
-    p_hours: completedHours,
-  })
-  if (rpcError) {
-    await supabase.from('equipment')
-      .update({ current_hours: completedHours })
-      .eq('id', equipmentId)
-      .eq('business_id', businessId)
-      .lt('current_hours', completedHours)
-  }
+  // Raise equipment current_hours if the completed reading is higher.
+  // (An update_equipment_hours_if_higher RPC was never created in the live DB —
+  // verified 2026-08-03 — so this conditional update has always been the real
+  // path; the dead RPC call was removed when the clients were typed.)
+  await supabase.from('equipment')
+    .update({ current_hours: completedHours })
+    .eq('id', equipmentId)
+    .eq('business_id', businessId)
+    .lt('current_hours', completedHours)
 
   revalidatePath('/equipment/' + equipmentId)
 }

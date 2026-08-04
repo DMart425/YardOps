@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "gen:types": "supabase gen types typescript --linked --schema public > src/types/supabase.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.2",

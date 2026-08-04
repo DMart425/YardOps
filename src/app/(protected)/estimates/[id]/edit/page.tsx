@@ -136,7 +136,7 @@ export default async function EditEstimatePage({
         defaultPropertyId={estimate.property_id}
         defaultHourlyRate={pricingSettings?.target_hourly_rate ?? undefined}
         defaultMinimumPrice={pricingSettings?.minimum_price ?? undefined}
-        initialInputs={estimate.estimate_inputs as EstimateInputs | undefined}
+        initialInputs={(estimate.estimate_inputs ?? undefined) as unknown as EstimateInputs | undefined}
         initialValidUntil={estimate.valid_until}
         initialNotes={estimate.notes}
         initialPriceOverride={estimate.total}

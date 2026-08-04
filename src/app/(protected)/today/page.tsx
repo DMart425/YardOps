@@ -8,6 +8,7 @@ import { formatFrequencyLabel } from '@/lib/frequency'
 import { requireBusinessContext } from '@/lib/business/context'
 import { firstReadError } from '@/lib/readError'
 import { ReadErrorNotice } from '@/components/ReadErrorNotice'
+import type { AppNotification } from '@/types/database'
 
 function dateOnlyToUtcMs(dateStr: string) {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -417,7 +418,7 @@ export default async function TodayPage() {
 
       <ReadErrorNotice message={readError} />
 
-      <EstimateApprovalNotifications notifications={approvalNotifications ?? []} />
+      <EstimateApprovalNotifications notifications={(approvalNotifications ?? []) as AppNotification[]} />
 
       {/* Rain warning banner */}
       {anyRainToday && (
@@ -666,7 +667,7 @@ export default async function TodayPage() {
           {overdueJobs!.map((job) => {
             const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null } | null
             const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
-            const daysLate = Math.floor((todayStartMs - dateOnlyToUtcMs(job.scheduled_date)) / 86400000)
+            const daysLate = Math.floor((todayStartMs - dateOnlyToUtcMs(job.scheduled_date ?? today)) / 86400000)
             return (
               <Link key={job.id} href={`/jobs/${job.id}`} style={{ display: 'block' }}>
                 <div className="card">

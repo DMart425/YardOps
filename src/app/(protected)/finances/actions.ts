@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireBusinessContext } from '@/lib/business/context'
+import type { Database } from '@/types/supabase'
 
 export async function createExpense(formData: FormData) {
   const supabase = await createClient()
@@ -102,7 +103,7 @@ export async function updateExpense(id: string, formData: FormData) {
     if (!job) throw new Error('Job not found.')
   }
 
-  const updates: Record<string, unknown> = {
+  const updates: Database['public']['Tables']['expenses']['Update'] = {
     category: formData.get('category') as string,
     vendor: (formData.get('vendor') as string) || null,
     description: (formData.get('description') as string) || null,

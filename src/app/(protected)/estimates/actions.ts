@@ -7,6 +7,9 @@ import type { FormState } from '@/types/database'
 import { calculateEstimate, formatMinutes, type EstimateInputs } from '@/lib/pricing'
 import { requireBusinessContext } from '@/lib/business/context'
 import { applyPropertyDefaultsFromEstimate } from '@/lib/propertyDefaultsFromEstimate'
+import type { Database, Json } from '@/types/supabase'
+
+type EstimateUpdate = Database['public']['Tables']['estimates']['Update']
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function str(fd: FormData, key: string) {
@@ -23,7 +26,7 @@ type EstimatePayload = {
   subtotal: number
   total: number
   estimated_minutes: number
-  estimate_inputs: Record<string, unknown>
+  estimate_inputs: Json
 }
 
 type EstimatePayloadCore = {
@@ -33,7 +36,7 @@ type EstimatePayloadCore = {
   subtotal: number
   total: number
   estimated_minutes: number
-  estimate_inputs: Record<string, unknown>
+  estimate_inputs: Json
 }
 
 type EstimatePayloadParseResult =
@@ -90,7 +93,7 @@ function deriveJobInputsFromEstimateInputs(raw: unknown): JobInputs | null {
   }
 }
 
-function deriveJobScopeFromEstimate(estimate: { estimate_inputs: Record<string, unknown> | null; estimated_minutes: number | null }): JobScope {
+function deriveJobScopeFromEstimate(estimate: { estimate_inputs: Json | null; estimated_minutes: number | null }): JobScope {
   const rawInputs = estimate.estimate_inputs
   if (!rawInputs) {
     return {
@@ -155,7 +158,7 @@ function deriveJobScopeFromEstimate(estimate: { estimate_inputs: Record<string, 
 }
 
 function parseEstimatePayloadCore(formData: FormData): EstimatePayloadCoreParseResult {
-  let estimateInputs: Record<string, unknown> | null = null
+  let estimateInputs: Json | null = null
   try {
     const raw = formData.get('estimate_inputs_json') as string
     if (raw) estimateInputs = JSON.parse(raw)
@@ -321,7 +324,7 @@ export async function updateEstimate(
     return { error: 'Converted estimates are locked and cannot be edited.' }
   }
 
-  const revisionUpdate: Record<string, unknown> = {}
+  const revisionUpdate: EstimateUpdate = {}
   if (existingEstimate.status === 'sent' || existingEstimate.status === 'approved') {
     revisionUpdate.revision_number = (existingEstimate.revision_number ?? 1) + 1
     revisionUpdate.last_revised_at = new Date().toISOString()
@@ -562,7 +565,7 @@ export async function updateEstimateStatus(
     return { error: 'Converted estimates are locked.' }
   }
 
-  const updates: Record<string, unknown> = { status }
+  const updates: EstimateUpdate = { status }
   if (status === 'sent') {
     updates.last_sent_at = new Date().toISOString()
   }
