@@ -632,8 +632,8 @@ export default async function JobDetailPage({
         )}
       </div>
 
-      {/* Invoice download (completed jobs only) */}
-      {job.status === 'completed' && job.price != null && (
+      {/* Invoice download (completed jobs only; not_billable = no charge, no invoice) */}
+      {job.status === 'completed' && job.price != null && job.payment_status !== 'not_billable' && (
         <div style={{ marginTop: '1rem' }}>
           <DownloadInvoiceButton
             data={{

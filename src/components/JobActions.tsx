@@ -362,10 +362,11 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
                 disabled={paidPending}
                 className="btn btn-primary btn-full"
                 onClick={() => {
-                  if (customerPhone) {
-                    const amt = job.price != null ? Number(job.price) : 0
+                  // No receipt when price is null — no dollar amount is calculable,
+                  // and a "$0 payment" receipt is forbidden for null-price jobs.
+                  if (customerPhone && job.price != null) {
                     setPendingReceipt({
-                      smsBody: buildPaymentReceiptSms(customerFirstName, amt, true, 0, portalInvoiceUrl, businessPhone),
+                      smsBody: buildPaymentReceiptSms(customerFirstName, Number(job.price), true, 0, portalInvoiceUrl, businessPhone),
                       isPaidInFull: true,
                     })
                   }
@@ -457,7 +458,9 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
                 disabled={paidPending}
                 className="btn btn-primary btn-full"
                 onClick={() => {
-                  if (customerPhone) {
+                  // Null price → partialRemaining coerces to $0; suppress the receipt
+                  // rather than sending a "$0 payment" SMS.
+                  if (customerPhone && job.price != null) {
                     setPendingReceipt({
                       smsBody: buildPaymentReceiptSms(customerFirstName, partialRemaining, true, 0, portalInvoiceUrl, businessPhone),
                       isPaidInFull: true,

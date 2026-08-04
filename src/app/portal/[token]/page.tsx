@@ -39,6 +39,7 @@ export default async function CustomerPortalPage({
     { data: profile },
     { data: businessRow },
     { data: jobs },
+    { data: outstandingRows },
     { data: pricing },
   ] = await Promise.all([
     supabase
@@ -63,6 +64,17 @@ export default async function CustomerPortalPage({
       .eq('business_id', business_id)
       .order('scheduled_date', { ascending: false })
       .limit(30),
+    // Outstanding balance is computed from ALL completed unpaid/partial jobs,
+    // not the 30-row/10-item display window above — an older unpaid job must
+    // still count toward what the customer owes. not_billable is excluded by
+    // the filter; null-price jobs are excluded below (unknown ≠ $0).
+    supabase
+      .from('jobs')
+      .select('price, amount_paid')
+      .eq('customer_id', customer_id)
+      .eq('business_id', business_id)
+      .eq('status', 'completed')
+      .in('payment_status', ['unpaid', 'partial']),
     supabase
       .from('pricing_settings')
       .select('venmo_handle, time_zone')
@@ -84,9 +96,9 @@ export default async function CustomerPortalPage({
   const history  = allJobs.filter(j => j.status === 'completed')
     .sort((a, b) => (b.completed_at ?? '').localeCompare(a.completed_at ?? ''))
     .slice(0, 10)
-  const totalUnpaid = history
-    .filter(j => j.payment_status !== 'paid')
-    .reduce((s, j) => s + Math.max(0, (j.price ?? 0) - (j.amount_paid ?? 0)), 0)
+  const totalUnpaid = (outstandingRows ?? [])
+    .filter(j => j.price != null)
+    .reduce((s, j) => s + Math.max(0, Number(j.price) - Number(j.amount_paid ?? 0)), 0)
 
   return (
     <div style={{

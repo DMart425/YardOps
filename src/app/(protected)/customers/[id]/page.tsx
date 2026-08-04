@@ -98,13 +98,10 @@ export default async function CustomerDetailPage({
 
   const completedCount = completedJobsCount ?? 0
   const completedStatsRows = completedJobsStats ?? []
-  const totalRevenue = completedStatsRows.reduce((s, j) => s + Number(j.price ?? 0), 0)
-  const totalUnpaid = completedStatsRows
-    .filter(j => j.payment_status !== 'paid')
-    .reduce((s, j) => {
-      const owed = Number(j.price ?? 0) - Number((j.amount_paid || null) ?? 0)
-      return s + Math.max(0, owed)
-    }, 0)
+  // not_billable jobs carry no charge — their price never counts as billed.
+  const totalRevenue = completedStatsRows
+    .filter(j => j.payment_status !== 'not_billable')
+    .reduce((s, j) => s + Number(j.price ?? 0), 0)
   const outstandingJobs = completedStatsRows
     .filter(j => (j.payment_status === 'unpaid' || j.payment_status === 'partial') && Math.max(0, Number(j.price ?? 0) - Number(j.amount_paid ?? 0)) > 0)
     .sort((a, b) => {
@@ -113,6 +110,10 @@ export default async function CustomerDetailPage({
       if (!b.completed_at) return -1
       return b.completed_at.localeCompare(a.completed_at)
     })
+  // Derived from outstandingJobs so the stat, the section total, and the SMS body
+  // can never disagree with the itemized list (excludes not_billable and null-price jobs).
+  const totalUnpaid = outstandingJobs
+    .reduce((s, j) => s + Math.max(0, Number(j.price ?? 0) - Number(j.amount_paid ?? 0)), 0)
   // Unpaid/partial jobs with no price set — cannot calculate a balance, shown separately as a note.
   const noPriceUnpaidJobs = completedStatsRows.filter(
     j => (j.payment_status === 'unpaid' || j.payment_status === 'partial') && j.price == null

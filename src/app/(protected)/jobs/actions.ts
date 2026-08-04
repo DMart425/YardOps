@@ -507,20 +507,24 @@ export async function markPaid(
   const supabase = await createClient()
   const { businessId } = await requireBusinessContext()
 
-  // Fetch current price so we can set amount_paid
+  // Fetch current price + amount_paid so we can set amount_paid
   const { data: job } = await supabase
     .from('jobs')
-    .select('price')
+    .select('price, amount_paid')
     .eq('id', id)
     .eq('business_id', businessId)
     .single()
+
+  // Never lower a recorded payment: a null-price job with a partial payment
+  // keeps that amount instead of being reset to 0 (null price coerces to 0).
+  const finalAmountPaid = Math.max(Number(job?.amount_paid ?? 0), Number(job?.price ?? 0))
 
   const { error } = await supabase
     .from('jobs')
     .update({
       payment_status: 'paid',
       payment_method: (formData.get('payment_method') as string) || null,
-      amount_paid: job?.price ?? 0,
+      amount_paid: finalAmountPaid,
     })
     .eq('id', id)
     .eq('business_id', businessId)
