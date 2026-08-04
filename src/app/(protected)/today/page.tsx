@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { getTodayForecastForCoords, coordKey } from '@/lib/weather'
 import { geocodeAddress } from '@/lib/geocode'
 import { EstimateApprovalNotifications } from '@/components/EstimateApprovalNotifications'
-import { addDays, formatDateOnly, formatTimestampDate, getLocalDateStr, resolveTimeZone } from '@/lib/date'
+import { addDays, formatDateOnly, formatTimestampDate, getLocalDateStr, localMidnightUtcIso, resolveTimeZone } from '@/lib/date'
 import { formatFrequencyLabel } from '@/lib/frequency'
 import { requireBusinessContext } from '@/lib/business/context'
 
@@ -123,8 +123,8 @@ export default async function TodayPage() {
       `)
       .eq('business_id', businessId)
       .eq('status', 'completed')
-      .gte('completed_at', `${today}T00:00:00`)
-      .lt('completed_at', `${tomorrowForCompletedStr}T00:00:00`)
+      .gte('completed_at', localMidnightUtcIso(today, timeZone))
+      .lt('completed_at', localMidnightUtcIso(tomorrowForCompletedStr, timeZone))
       .order('completed_at', { ascending: false }),
     // Overdue jobs
     supabase
@@ -192,7 +192,7 @@ export default async function TodayPage() {
       .eq('business_id', businessId)
       .eq('status', 'completed')
       .not('customer_id', 'is', null)
-      .gte('completed_at', `${twoYearsAgoStr}T00:00:00`),
+      .gte('completed_at', localMidnightUtcIso(twoYearsAgoStr, timeZone)),
     // New leads count (website)
     supabase.from('leads').select('id', { count: 'exact', head: true }).eq('business_id', businessId).eq('status', 'new'),
     // New leads count (manual)
@@ -213,7 +213,7 @@ export default async function TodayPage() {
       .eq('status', 'completed')
       .eq('job_type', 'recurring')
       .is('next_job_created_id', null)
-      .gte('completed_at', `${thirtyDaysAgoStr}T00:00:00`)
+      .gte('completed_at', localMidnightUtcIso(thirtyDaysAgoStr, timeZone))
       .order('completed_at', { ascending: false })
       .limit(10),
     // Approved estimates waiting to be scheduled

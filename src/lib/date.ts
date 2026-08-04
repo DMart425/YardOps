@@ -82,6 +82,14 @@ export function localMidnightUtcIso(localDateStr: string, timeZone: string): str
   return new Date(Date.UTC(y, m - 1, d, 0, 0, 0) + offsetMs).toISOString()
 }
 
+// Returns the UTC instant when the given local date ends (= midnight at the
+// start of the following day) in the given timezone. Use for "valid through
+// <date>" expiry checks so the cutoff matches the business's local day rather
+// than the server's timezone (UTC in production).
+export function localDateEndUtc(dateStr: string, timeZone: string): Date {
+  return new Date(localMidnightUtcIso(addDays(dateStr, 1), timeZone))
+}
+
 export function getLocalMonthKey(isoString: string, timeZone: string): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone,

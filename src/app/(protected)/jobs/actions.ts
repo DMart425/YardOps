@@ -656,12 +656,12 @@ export async function rescheduleJob(
   const existing = existingRaw as JobRescheduleFields | null
   if (!existing) return { error: 'Job not found.' }
 
-  // Build readable log entry
-  const today = new Date().toISOString().split('T')[0]
+  // Build readable log entry — stamp the business-local date (todayStrR), not the
+  // UTC date, so evening reschedules don't log under tomorrow.
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
   const oldTimeLabel = existing.scheduled_time_window ? ` ${cap(existing.scheduled_time_window)}` : ''
   const newTimeLabel = storedTimeWindow ? ` ${cap(storedTimeWindow)}` : ''
-  const logEntry = `${today}: Rescheduled from ${existing.scheduled_date ?? '?'}${oldTimeLabel} to ${newDate}${newTimeLabel}. Reason: ${reasonLabel}.`
+  const logEntry = `${todayStrR}: Rescheduled from ${existing.scheduled_date ?? '?'}${oldTimeLabel} to ${newDate}${newTimeLabel}. Reason: ${reasonLabel}.`
   const newLog   = existing.reschedule_log ? `${existing.reschedule_log}\n${logEntry}` : logEntry
   const newCount = (existing.reschedule_count ?? 0) + 1
 

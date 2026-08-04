@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { sendPushToUser } from '@/lib/push'
 import { applyPropertyDefaultsFromEstimate } from '@/lib/propertyDefaultsFromEstimate'
+import { localDateEndUtc, resolveTimeZone } from '@/lib/date'
 
 type QuoteEstimate = {
   id: string
@@ -66,8 +67,19 @@ export async function acceptEstimate(
     return { error: 'This estimate has expired.' }
   }
   if (estimate.valid_until) {
-    const expiry = new Date(estimate.valid_until + 'T23:59:59')
-    if (expiry < new Date()) {
+    // Expiry is end of the valid_until day in the BUSINESS timezone — a naive
+    // T23:59:59 literal parses in server time (UTC in production), which would
+    // expire quotes ~6 hours early for a US-Central business.
+    let timeZone = resolveTimeZone(null)
+    if (estimate.created_by) {
+      const { data: tzRow } = await supabase
+        .from('pricing_settings')
+        .select('time_zone')
+        .eq('user_id', estimate.created_by)
+        .maybeSingle()
+      timeZone = resolveTimeZone(tzRow?.time_zone)
+    }
+    if (localDateEndUtc(estimate.valid_until, timeZone) <= new Date()) {
       // Also mark as expired in DB
       await supabase
         .from('estimates')

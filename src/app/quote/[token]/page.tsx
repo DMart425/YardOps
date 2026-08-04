@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { calculateEstimate, formatMinutes } from '@/lib/pricing'
-import { formatDateOnly } from '@/lib/date'
+import { formatDateOnly, localDateEndUtc, resolveTimeZone } from '@/lib/date'
 import type { EstimateInputs } from '@/lib/pricing'
 import QuoteConfirmForm from './QuoteConfirmForm'
 import styles from './quote.module.css'
@@ -48,11 +48,22 @@ export default async function QuotePage({
   const { totalMinutes, lineItems } = result ?? { totalMinutes: 0, lineItems: [] }
   const frequency = inputs?.frequency ?? 'one_time'
 
-  // Check expiry
+  // Check expiry — end of the valid_until day in the BUSINESS timezone, matching
+  // the enforcement check in acceptEstimate (naive T23:59:59 parses as server/UTC
+  // time and would show quotes as expired ~6 hours early for a US-Central business).
+  let expiryTimeZone = resolveTimeZone(null)
+  if (estimate.valid_until && estimate.created_by) {
+    const { data: tzRow } = await supabase
+      .from('pricing_settings')
+      .select('time_zone')
+      .eq('user_id', estimate.created_by)
+      .maybeSingle()
+    expiryTimeZone = resolveTimeZone(tzRow?.time_zone)
+  }
   const isExpired =
     estimate.status === 'expired' ||
     estimate.status === 'declined' ||
-    (estimate.valid_until && new Date(estimate.valid_until + 'T23:59:59') < new Date())
+    (estimate.valid_until && localDateEndUtc(estimate.valid_until, expiryTimeZone) <= new Date())
 
   const isAccepted =
     estimate.status === 'approved' || estimate.status === 'converted'
