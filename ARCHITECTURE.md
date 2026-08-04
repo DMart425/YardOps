@@ -4,8 +4,8 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-06-07
-Current checkpoint commit: `0cd8a60` (Link converted estimates to source follow-ups — Phase 5X.5 complete)
+Last updated: 2026-08-03
+Current checkpoint commit: `058376f` (2026-08-03 hardening session complete — see §21)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -51,6 +51,8 @@ YardOps enables the operator to:
 | Exports | jsPDF (PDF invoices), CSV export |
 | Geocoding | External API, results cached in `parcels` table |
 | Weather | Open-Meteo API (free, no auth) |
+| Testing | Vitest — unit tests over pure libs (`src/lib/*.test.ts`, `npm test`) |
+| CI | GitHub Actions (`.github/workflows/ci.yml`) — lint, typecheck, tests, build on push/PR to main |
 | Deployment | Vercel — auto-deploys `main` branch |
 
 ---
@@ -70,6 +72,9 @@ src/
 │   │   ├── finances/
 │   │   ├── equipment/
 │   │   ├── settings/
+│   │   ├── error.tsx             # Route-level error boundary (Try Again / Go to Today)
+│   │   ├── loading.tsx           # Route-level loading spinner
+│   │   ├── not-found.tsx         # Styled notFound() target
 │   │   └── layout.tsx            # Protected layout — second auth guard
 │   ├── api/
 │   │   ├── cron/                 # Morning/evening summary cron handlers
@@ -94,9 +99,8 @@ src/
 │   └── ...
 ├── lib/
 │   ├── supabase/
-│   │   ├── server.ts             # Anon client (user-scoped, RLS enforced)
-│   │   ├── admin.ts              # Service role client (bypasses RLS)
-│   │   └── client.ts             # Browser client (exists but unused — legacy)
+│   │   ├── server.ts             # Anon client (user-scoped, RLS enforced) — typed with <Database>
+│   │   └── admin.ts              # Service role client (bypasses RLS) — typed with <Database>
 │   ├── business/
 │   │   └── context.ts            # requireBusinessContext() — resolves userId + businessId
 │   ├── pricing.ts                # Estimate calculation engine
@@ -105,10 +109,14 @@ src/
 │   ├── weather.ts                # Weather helper: getForecast() / getTodayForecastForCoords() — Open-Meteo, free, no API key, 30-min cache, current + daily fields
 │   ├── frequency.ts              # Frequency and service interest helpers: normalizeFrequency(), formatFrequencyLabel(), parseWebsiteServiceInterests(), formatServiceInterestLabel()
 │   ├── jobScope.ts               # Shared job scope helpers (Phase 5T): parseJobInputs(), formatCoreServicesForCustomer(), formatAddonsForCustomer(), resolveServiceLabel(), buildDefaultCompletionNotes() — pure TypeScript; no React; used by portal server components and JobActions client component
+│   ├── date.ts                   # Timezone-aware date helpers: getLocalDateStr(), addDays(), localMidnightUtcIso(), localDateEndUtc(), getClosestWeekdayNearDate(), getLocalMonthKey()
+│   ├── readError.ts              # firstReadError() — surfaces Supabase read failures on list/dashboard pages (paired with components/ReadErrorNotice.tsx)
+│   ├── *.test.ts                 # Vitest unit tests for date/frequency/jobScope/pricing (run with npm test)
 │   └── push.ts                   # Web push helper
 ├── types/
-│   └── database.ts               # TypeScript interfaces for all DB entities (manually maintained)
-└── middleware.ts                 # Session refresh, route protection (root level)
+│   ├── supabase.ts               # GENERATED from live schema (npm run gen:types) — source of truth for query typing; do not hand-edit
+│   └── database.ts               # Hand-maintained app-level types (FormState, AppNotification, etc.)
+└── middleware.ts                 # Session refresh, route protection (root level; /api/cron/* exempt — see §4)
 ```
 
 ---
@@ -119,8 +127,9 @@ src/
 
 1. Every request passes through `middleware.ts`.
 2. Middleware creates a server-side Supabase anon client and calls `getUser()` to refresh session.
-3. If no user and route is NOT `/login`, `/quote/*`, or `/portal/*` → redirect to `/login`.
-4. If user exists and route IS `/login` → redirect to `/today`.
+3. `/api/cron/*` returns early (no redirect) — Vercel Cron requests are cookieless and the handlers enforce `CRON_SECRET` themselves (`Authorization: Bearer` or `x-cron-secret`; never query string). Do not widen this exemption beyond `/api/cron/`.
+4. If no user and route is NOT `/login`, `/quote/*`, or `/portal/*` → redirect to `/login`.
+5. If user exists and route IS `/login` → redirect to `/today`.
 
 ### Public Routes
 
@@ -476,6 +485,12 @@ Website/manual intake address, frequency, and service interests are written into
 
 `20260606130000_add_estimates_sets_property_defaults.sql` (adds `sets_property_defaults boolean NOT NULL DEFAULT false` to `estimates`) was applied via `npx supabase db query --linked --file` and is committed in `supabase/migrations/`. Same drift caveat applies — do not `supabase db push`.
 
+`20260803120000_security_drop_anon_estimate_read.sql` (2026-08-03 security hardening) was applied via `npx supabase db query --linked --file` and verified live. It dropped the anon `"public read estimate by token"` SELECT policy on `estimates` (predicate lacked a token match — any anon-key holder could list all active estimates including their `public_token`s; no app code path used the policy), revoked the leftover PUBLIC EXECUTE grant on `handle_new_user()`, and added `idx_leads_created_by`. Zero anon-role policies remain in the schema.
+
+### After Every Migration
+
+Run `npm run gen:types` to regenerate `src/types/supabase.ts` from the live schema, then `npm run typecheck`. The Supabase clients pass the `<Database>` generic, so stale types surface as compile errors — this is the intended drift alarm.
+
 ---
 
 ## 12. Portal Token Model
@@ -487,6 +502,8 @@ Website/manual intake address, frequency, and service interests are written into
   - PostgreSQL 15 (Supabase) does NOT support `encode(..., 'base64url')` — error code `22023`.
 - Portal is accessible at `/portal/[token]` without authentication.
 - Token lookup uses `createAdminClient()` (bypasses RLS).
+- Tokens do not expire, but can be revoked: `regeneratePortalToken()` (`customers/[id]/portal-actions.ts`) deletes the row and mints a fresh token; the "↻ Regenerate Link" button in `CopyPortalLinkButton` exposes this. The old URL stops working immediately.
+- Both portal-token actions verify the customer belongs to the caller's business before touching tokens (IDOR guard).
 
 ---
 
@@ -509,9 +526,9 @@ Website/manual intake address, frequency, and service interests are written into
 | `createClient()` | User session | ✅ Enforced | All protected routes and server actions |
 | `createAdminClient()` | None | ❌ Bypassed | `/quote/[token]`, `/portal/[token]`, cron handlers |
 
-### Schema Drift Risk
+### Schema Drift (Solved 2026-08-03)
 
-`src/types/database.ts` is manually maintained. After every migration, verify types manually or run `supabase gen types typescript`. Column renames or drops will silently break queries — no compile-time safety.
+`src/types/supabase.ts` is generated from the live schema (`npm run gen:types`) and both client factories pass the `<Database>` generic, so every `.select()`/`.insert()`/`.update()` is compile-time checked. Column renames or drops now fail `npm run typecheck` instead of breaking silently at runtime. `src/types/database.ts` remains hand-maintained but only for app-level types (`FormState`, `AppNotification`, status unions) — not for query shapes.
 
 ---
 
@@ -1981,11 +1998,14 @@ npm run dev
 ### Validation Commands
 
 ```bash
-npx tsc --noEmit          # TypeScript check
-npx eslint <file>         # ESLint on specific files
+npm run typecheck         # TypeScript check (tsc --noEmit)
 npm run lint              # Full lint
+npm test                  # Vitest unit tests (src/lib/*.test.ts)
 npm run build             # Production build check
+npm run gen:types         # Regenerate src/types/supabase.ts from live schema (after migrations)
 ```
+
+All four checks (lint, typecheck, test, build) also run in CI on every push to main.
 
 ### Common Pitfalls
 
@@ -2064,3 +2084,22 @@ This prevents cumulative follow-up date drift when jobs are completed early or l
 Phase 5F completed the capture loop: `/leads/new` now writes `preferred_service_day` into manually-created properties (`b90d0c3`), and the property detail summary card displays it (`fd5ecd3`). All entry paths — `/leads/new`, `PropertyForm` (create/edit) — now write the field. All read surfaces — property detail, customer detail, job detail (via chip), `ScheduleFollowUpCard` — now consume it.
 
 `Property.schedule_anchor_date` remains in the schema for future route balancing and auto-scheduling — not yet implemented. Do not add that logic until explicitly asked.
+
+---
+
+## 21. 2026-08-03 Hardening Session
+
+A full review (security, correctness, data layer, product/UX) plus live-DB verification, followed by eight fix commits (`57244e4` → `058376f`). Full per-commit detail lives in HANDOFF.md ("2026-08-03 Hardening Session"). Architectural changes introduced:
+
+| Area | Change |
+|------|--------|
+| RLS | Anon `"public read estimate by token"` policy on `estimates` **dropped** (was exposing all active estimates + tokens to anon-key holders; unused by code). Zero anon-role policies remain. |
+| Query typing | `src/types/supabase.ts` generated from live schema; both Supabase client factories pass `<Database>` — queries are compile-time checked. Run `npm run gen:types` after every migration. |
+| Error handling | `(protected)/error.tsx`, `loading.tsx`, `not-found.tsx`; `firstReadError()` + `ReadErrorNotice` surface failed reads on `/today` and all list pages. |
+| Time semantics | All day-boundary queries and expiry checks are business-timezone-aware (`localMidnightUtcIso`, `localDateEndUtc`). Naive `T00:00:00`/`T23:59:59` literals against timestamptz columns are forbidden. |
+| Estimate state machine | `convertToJob()` requires `approved`; `updateEstimateStatus` whitelists statuses; only `markEstimateSent()` exists as a narrow draft→sent helper; follow-up slot claims use conditional `.is(..., null)` updates. |
+| Cron | `/api/cron/*` exempt from middleware redirect; handlers auth via `Authorization: Bearer` / `x-cron-secret` only. |
+| Uploads | Server-side size cap (10 MB) + MIME allowlist; storage extensions derive from validated MIME type. |
+| Portal tokens | `regeneratePortalToken()` revokes + re-mints; ownership verified in all token actions. |
+| Tests/CI | Vitest (53 tests over `date`/`frequency`/`jobScope`/`pricing`) + GitHub Actions (lint, typecheck, test, build). |
+| Money semantics | Explicit $0 price = 0 (comped); blank = null (unknown); `markPaid` never lowers `amount_paid`; `not_billable` excluded from every customer-facing balance surface. |

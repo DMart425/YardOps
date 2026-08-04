@@ -2,7 +2,7 @@
 
 Private operations app for Wicksburg Lawn Service.
 
-Verified checkpoint commit: `0cd8a60` (Link converted estimates to source follow-ups — Phase 5X.5 complete).
+Verified checkpoint commit: `058376f` (2026-08-03 hardening session — security migration, typed clients, error boundaries, vitest + CI).
 
 ## Read First
 

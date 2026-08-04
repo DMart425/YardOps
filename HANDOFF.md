@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-06-07 (0cd8a60)
+Last updated: 2026-08-03 (058376f)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-06-07 (0cd8a60)
 
 ## Current Checkpoint
 
-- **Latest commit:** `0cd8a60` — Link converted estimates to source follow-ups (Phase 5X.5 complete)
+- **Latest commit:** `058376f` — 2026-08-03 hardening session complete (8 commits; see "2026-08-03 Hardening Session" below)
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -73,7 +73,7 @@ All RLS policies on business-owned tables have been replaced with business-scope
 
 **Parcels:** remain authenticated-readable with service-role policy preserved.
 
-**Public estimate token policy** on `estimates` was preserved.
+**Public estimate token policy** on `estimates` was preserved. *(Superseded: dropped 2026-08-03 by `20260803120000_security_drop_anon_estimate_read.sql` — the live predicate lacked a token match, exposing all active estimates to anon-key holders, and no app code path used the policy. Quote/portal pages read via the service-role client.)*
 
 Phase 2D commits (Waves 1–7):
 
@@ -1042,6 +1042,39 @@ No schema changes. No RLS changes. No env var changes. Lint and build clean.
 
 ---
 
+### 2026-08-03 Hardening Session ✅ (8 commits, `57244e4` → `058376f`)
+
+A full four-dimension review (security, correctness, data layer, product/UX) followed by fixes for everything found. All batches lint/typecheck/test/build clean; CI green.
+
+**DB (migration `20260803120000_security_drop_anon_estimate_read.sql`, applied + verified live):**
+- Dropped anon `"public read estimate by token"` SELECT policy on `estimates` — predicate had no token match; any anon-key holder could list all active estimates including `public_token`s. No app code path used it.
+- Revoked leftover PUBLIC EXECUTE on `handle_new_user()`; added `idx_leads_created_by`. Zero anon-role policies remain.
+
+**Customer-facing money fixes (`9d43660`):**
+- Portal Outstanding Balance/Venmo amount now computed from ALL completed unpaid/partial jobs (was `!== 'paid'` over the 10 displayed — included `not_billable`, missed older unpaid jobs); null-price jobs excluded.
+- Customer detail Unpaid stat + reminder SMS derive from `outstandingJobs` (can no longer disagree with the itemized list); `not_billable` excluded from Total billed; invoice download suppressed for `not_billable`; `markPaid` writes `max(amount_paid, price)` (never erases recorded partials); $0 receipt SMS suppressed for null price.
+
+**Business-local day boundaries (`bc02531`):**
+- `/today` completed_at filters use `localMidnightUtcIso` (evening completions no longer vanish until the next UTC day); quote expiry = end of `valid_until` in the business timezone via new `localDateEndUtc()` (display + enforcement); reschedule log stamps the business-local date.
+
+**Estimate state-machine hardening (`1719a12`):**
+- `convertToJob()` requires `approved`; canonical `updateEstimateStatus` whitelists `draft|sent|approved|declined`; duplicate unguarded `updateEstimateStatus` in `estimates/[id]/actions.ts` replaced by narrow `markEstimateSent()` (conditional draft→sent); `scheduleFollowUpJob` claims the follow-up slot with `.is('next_job_created_id', null)` and cleans up its own duplicate on race loss.
+
+**Error handling (`8d2bf70`):**
+- `(protected)/error.tsx` + `loading.tsx` + `not-found.tsx`; `firstReadError()` + `ReadErrorNotice` wired into `/today` and all six list pages — failed reads render a visible banner instead of a fake-empty page. AGENTS.md follow-up-scope rule reconciled (property booleans are the source; parent `job_inputs` fallback only; scope changes require a new accepted estimate).
+
+**Typed clients (`a8bb608`):**
+- `src/types/supabase.ts` generated from live schema (`npm run gen:types`); `<Database>` generic on both client factories; deleted unused `lib/supabase/client.ts`; removed dead `update_equipment_hours_if_higher` RPC call (function never existed live — fallback update was always the real path); `Number(leadId)` at six sites (`leads.id` is numeric); `business_id` NOT NULL corrected in `types/database.ts`.
+
+**Tests + CI (`08ebc04`):**
+- Vitest + 53 tests over `date.ts`/`frequency.ts`/`jobScope.ts`/`pricing.ts`. Tests immediately caught a real bug: `acrestoMowMinutes` tier lookup (`String(1.0)` = `'1'` missed the `'1.0'` key — every ≥1-acre property got the 60-min fallback). Fixed, plus NaN guards on custom add-on amounts. GitHub Actions CI (lint/typecheck/test/build) on every push/PR to main. Deleted stale codegen scripts; `.claude/` ignored in git + eslint.
+
+**Backlog closeout (`058376f`):**
+- `/api/cron/*` exempted from middleware login redirect (Vercel Cron is cookieless; handlers enforce `CRON_SECRET` via `Authorization: Bearer` or `x-cron-secret`; query-string secret removed). **Verify morning/evening briefs now arrive.**
+- Explicit $0 price stored as 0 (blank still = null); `createJob` estimate path writes `quoted_total` + `customer_notes` (path equivalence); ownership checks in `createJob`/`createProperty`/`updateProperty`/portal-token actions; upload validation (10 MB cap, MIME allowlist, MIME-derived extensions); `regeneratePortalToken()` + Regenerate Link button; quote page no longer echoes `gate_code`; mojibake + nav-label fixes.
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -1058,6 +1091,7 @@ No schema changes. No RLS changes. No env var changes. Lint and build clean.
 | `20260522000000_add_business_phone.sql` | Add nullable `phone text` column to `businesses` — business-scoped contact number |
 | `20260531120000_add_jobs_job_inputs.sql` | Add nullable `job_inputs jsonb` column to `jobs` — structured service scope (Phase 5Q.1). **Note:** Applied directly via `npx supabase db query --linked`; not tracked in remote migration history due to known drift. Do not `supabase db push`. |
 | `20260606130000_add_estimates_sets_property_defaults.sql` | Add `sets_property_defaults boolean NOT NULL DEFAULT false` to `estimates` (Phase 5X.4a). Applied via `npx supabase db query --linked --file`. Committed. Same drift caveat — do not `supabase db push`. |
+| `20260803120000_security_drop_anon_estimate_read.sql` | 2026-08-03 security hardening: drop anon estimate-read policy, revoke PUBLIC EXECUTE on `handle_new_user()`, add `idx_leads_created_by`. Applied via `npx supabase db query --linked --file` and verified live. Same drift caveat. |
 
 ---
 
@@ -1065,6 +1099,15 @@ No schema changes. No RLS changes. No env var changes. Lint and build clean.
 
 | Hash | Description |
 |------|-------------|
+| `058376f` | Finish review backlog: cron delivery, price semantics, ownership checks, upload validation |
+| `08ebc04` | Add vitest unit tests and GitHub Actions CI |
+| `a8bb608` | Type Supabase clients with generated Database types |
+| `8d2bf70` | Add error/loading/not-found boundaries and surface read errors on list pages |
+| `1719a12` | Harden estimate status transitions and follow-up scheduling race |
+| `bc02531` | Use business-local day boundaries for Today queries, quote expiry, and reschedule log |
+| `9d43660` | Fix not_billable and null-price leaks in customer-facing balances |
+| `57244e4` | Drop anon estimate read policy and harden function ACL (applied 2026-08-03) |
+| `75ab678` | Update docs through Phase 5X estimate agreement flow |
 | `0cd8a60` | Link converted estimates to source follow-ups (Phase 5X.5) |
 | `d14a096` | Apply estimate defaults on approval (Phase 5X.4c/d) |
 | `b5dcafa` | Save estimate property default intent (Phase 5X.4b) |
