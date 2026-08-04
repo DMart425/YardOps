@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { addDays, formatDateOnly, getDateOnlyMonthKey, getLocalDateStr, getLocalMonthKey, resolveTimeZone } from '@/lib/date'
 import FinancesExportButton from './FinancesExportButton'
 import { requireBusinessContext } from '@/lib/business/context'
+import { firstReadError } from '@/lib/readError'
+import { ReadErrorNotice } from '@/components/ReadErrorNotice'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const CATEGORY_LABELS: Record<string, string> = {
@@ -42,7 +44,7 @@ export default async function FinancesPage({
   const selectedMonthKey = `${year}-${String(selectedMonth + 1).padStart(2, '0')}`
 
   // Fetch paid/partial jobs for the year with customer info
-  const { data: rawJobs } = await supabase
+  const { data: rawJobs, error: rawJobsError } = await supabase
     .from('jobs')
     .select('id, amount_paid, price, payment_status, completed_at, customers(id, first_name, last_name)')
     .eq('business_id', businessId)
@@ -54,7 +56,7 @@ export default async function FinancesPage({
   const jobs = (rawJobs ?? []).filter(j => getLocalMonthKey(j.completed_at, timeZone).startsWith(`${year}-`))
 
   // Fetch expenses for the year
-  const { data: expenses } = await supabase
+  const { data: expenses, error: expensesError } = await supabase
     .from('expenses')
     .select('id, purchased_at, amount, category, vendor, description')
     .eq('business_id', businessId)
@@ -63,12 +65,14 @@ export default async function FinancesPage({
     .order('purchased_at')
 
   // Fetch all-time completed jobs that still carry an uncollected balance
-  const { data: uncollectedJobs } = await supabase
+  const { data: uncollectedJobs, error: uncollectedError } = await supabase
     .from('jobs')
     .select('price, amount_paid')
     .eq('business_id', businessId)
     .eq('status', 'completed')
     .in('payment_status', ['unpaid', 'partial'])
+
+  const readError = firstReadError(rawJobsError, expensesError, uncollectedError)
 
   // ── Aggregate + monthly breakdown (single pass) ────────────────
   let totalIncome = 0
@@ -175,6 +179,7 @@ export default async function FinancesPage({
 
   return (
     <div className="page">
+      <ReadErrorNotice message={readError} />
       <div className="page-header">
         <h1 className="page-title">Finances</h1>
         <Link href="/finances/expenses/new" className="btn btn-header btn-sm">+ Add Expense</Link>

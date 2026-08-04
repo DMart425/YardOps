@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { addDays, formatDateOnly, formatTimestampDate, getLocalDateStr, localMidnightUtcIso, resolveTimeZone } from '@/lib/date'
 import { requireBusinessContext } from '@/lib/business/context'
+import { firstReadError } from '@/lib/readError'
+import { ReadErrorNotice } from '@/components/ReadErrorNotice'
 
 type CustomerRelation = { first_name: string; last_name: string | null }
 type PropertyRelation = {
@@ -218,7 +220,8 @@ export default async function JobsPage({
     }
   }
 
-  const { data: jobs } = await query
+  const { data: jobs, error: jobsError } = await query
+  const readError = firstReadError(jobsError)
   const jobRows = (jobs ?? []) as JobListRow[]
   const hasPrevCompletedPage = view === 'completed' && page > 1
   const hasNextCompletedPage = view === 'completed' && jobRows.length === COMPLETED_PAGE_SIZE
@@ -305,6 +308,7 @@ export default async function JobsPage({
 
   return (
     <div className="page">
+      <ReadErrorNotice message={readError} />
       <div className="page-header">
         <h1 className="page-title">Jobs</h1>
         <Link href="/jobs/new" className="btn btn-header btn-sm">+ New</Link>

@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { formatDateOnly, formatTimestampDate, resolveTimeZone } from '@/lib/date'
 import { formatFrequencyLabel } from '@/lib/frequency'
 import { requireBusinessContext } from '@/lib/business/context'
+import { firstReadError } from '@/lib/readError'
+import { ReadErrorNotice } from '@/components/ReadErrorNotice'
 
 const PAGE_SIZE = 50
 
@@ -70,7 +72,8 @@ export default async function EstimatesPage({
 
   query = query.range(from, to)
 
-  const { data: estimates } = await query
+  const { data: estimates, error: estimatesError } = await query
+  const readError = firstReadError(estimatesError)
   const estimateRows = (estimates ?? []) as EstimateListRow[]
   const hasPrevPage = page > 1
   const hasNextPage = estimateRows.length === PAGE_SIZE
@@ -78,6 +81,7 @@ export default async function EstimatesPage({
 
   return (
     <div className="page">
+      <ReadErrorNotice message={readError} />
       <div className="page-header">
         <h1 className="page-title">Estimates</h1>
         <Link href="/estimates/new" className="btn btn-header btn-sm">+ New</Link>

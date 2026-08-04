@@ -4,6 +4,8 @@ import type { Customer } from '@/types/database'
 import { formatDateOnly, getLocalDateStr, resolveTimeZone } from '@/lib/date'
 import { formatFrequencyLabel } from '@/lib/frequency'
 import { requireBusinessContext } from '@/lib/business/context'
+import { firstReadError } from '@/lib/readError'
+import { ReadErrorNotice } from '@/components/ReadErrorNotice'
 
 type PropertySummary = {
   id: string
@@ -88,7 +90,8 @@ export default async function CustomersPage({
     ].join(','))
   }
 
-  const { data: customers } = await customersQuery
+  const { data: customers, error: customersError } = await customersQuery
+  const readError = firstReadError(customersError)
 
   const customerRowsAll = (customers ?? []) as CustomerListItem[]
   const hasNextPage = customerRowsAll.length > PAGE_SIZE
@@ -145,6 +148,7 @@ export default async function CustomersPage({
 
   return (
     <div className="page">
+      <ReadErrorNotice message={readError} />
       <div className="page-header">
         <div>
           <h1 className="page-title">Customers</h1>

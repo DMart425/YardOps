@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { formatDateOnly, getLocalDateStr, resolveTimeZone } from '@/lib/date'
 import { formatFrequencyLabel } from '@/lib/frequency'
 import { requireBusinessContext } from '@/lib/business/context'
+import { firstReadError } from '@/lib/readError'
+import { ReadErrorNotice } from '@/components/ReadErrorNotice'
 
 const PAGE_SIZE = 50
 
@@ -94,6 +96,7 @@ export default async function PropertiesPage({
     customers: { id: string; first_name: string; last_name: string | null; status: string } | { id: string; first_name: string; last_name: string | null; status: string }[] | null
   }> = []
 
+  let propertiesError: { message: string } | null = null
   const canQueryProperties = filterCustomerIds == null || filterCustomerIds.length > 0
   if (canQueryProperties) {
     let propertiesQuery = supabase
@@ -129,7 +132,8 @@ export default async function PropertiesPage({
       propertiesQuery = propertiesQuery.or(orParts.join(','))
     }
 
-    const { data: properties } = await propertiesQuery
+    const { data: properties, error: propertiesQueryError } = await propertiesQuery
+    propertiesError = propertiesQueryError
     propertiesData = (properties ?? []) as typeof propertiesData
   }
 
@@ -178,6 +182,7 @@ export default async function PropertiesPage({
 
   return (
     <div className="page">
+      <ReadErrorNotice message={firstReadError(propertiesError)} />
       <div className="page-header">
         <div>
           <h1 className="page-title">Properties</h1>

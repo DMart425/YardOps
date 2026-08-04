@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { formatFrequencyLabel, formatServiceInterestLabel, parseWebsiteServiceInterests } from '@/lib/frequency'
 import { requireBusinessContext } from '@/lib/business/context'
+import { firstReadError } from '@/lib/readError'
+import { ReadErrorNotice } from '@/components/ReadErrorNotice'
 
 const PAGE_SIZE = 50
 
@@ -64,10 +66,11 @@ export default async function LeadsPage({
     manualQuery.or(`first_name.ilike.%${safeSearch}%,last_name.ilike.%${safeSearch}%,phone.ilike.%${safeSearch}%,email.ilike.%${safeSearch}%,notes.ilike.%${safeSearch}%`)
   }
 
-  const [{ data: websiteLeadRows }, manualResult] = await Promise.all([
+  const [{ data: websiteLeadRows, error: websiteLeadsError }, manualResult] = await Promise.all([
     websiteQuery,
-    isActiveView ? manualQuery : Promise.resolve({ data: [] as Array<unknown> }),
+    isActiveView ? manualQuery : Promise.resolve({ data: [] as Array<unknown>, error: null }),
   ])
+  const readError = firstReadError(websiteLeadsError, manualResult.error)
 
   const websiteRows = websiteLeadRows ?? []
   const manualRows = (manualResult.data ?? []) as Array<{
@@ -105,6 +108,7 @@ export default async function LeadsPage({
 
   return (
     <div className="page">
+      <ReadErrorNotice message={readError} />
       <div className="page-header">
         <div>
           <h1 className="page-title">Leads</h1>

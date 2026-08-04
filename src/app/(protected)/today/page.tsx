@@ -6,6 +6,8 @@ import { EstimateApprovalNotifications } from '@/components/EstimateApprovalNoti
 import { addDays, formatDateOnly, formatTimestampDate, getLocalDateStr, localMidnightUtcIso, resolveTimeZone } from '@/lib/date'
 import { formatFrequencyLabel } from '@/lib/frequency'
 import { requireBusinessContext } from '@/lib/business/context'
+import { firstReadError } from '@/lib/readError'
+import { ReadErrorNotice } from '@/components/ReadErrorNotice'
 
 function dateOnlyToUtcMs(dateStr: string) {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -236,6 +238,26 @@ export default async function TodayPage() {
 
   // Exclude notifications whose linked estimate has already been converted to a job.
   // Notifications with no linked estimate (estimate_id null) are kept — shown as-is.
+  // Surface any failed read — a query error rendering as "no jobs today" is
+  // indistinguishable from a real empty day and can mean missed work.
+  const readError = firstReadError(
+    approvalNotificationsResult.error,
+    todayJobsResult.error,
+    completedTodayJobsResult.error,
+    overdueJobsResult.error,
+    unpaidJobsResult.error,
+    tomorrowJobsResult.error,
+    estimateVisitsResult.error,
+    recentRecurringResult.error,
+    recentCompletedJobsResult.error,
+    websiteLeadsCountResult.error,
+    manualLeadsCountResult.error,
+    weekJobsResult.error,
+    needsFollowUpResult.error,
+    approvedEstimatesResult.error,
+    upcomingRecurringJobsResult.error,
+  )
+
   const approvalNotifications = (approvalNotificationsResult.data ?? []).filter(n => {
     const estRaw = (n as unknown as { estimates?: { status: string } | { status: string }[] | null }).estimates
     const est = Array.isArray(estRaw) ? estRaw[0] : estRaw
@@ -392,6 +414,8 @@ export default async function TodayPage() {
           <p className="page-subtitle">{formatDateOnly(today, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
         </div>
       </div>
+
+      <ReadErrorNotice message={readError} />
 
       <EstimateApprovalNotifications notifications={approvalNotifications ?? []} />
 
