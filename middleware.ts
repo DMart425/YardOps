@@ -31,6 +31,14 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
+  // Cron endpoints are exempt from the login redirect — Vercel Cron sends
+  // cookieless requests, and a 307 to /login means the handlers never run.
+  // The handlers enforce their own CRON_SECRET check and fail closed.
+  // This exemption is scoped to /api/cron/ only; other /api routes stay gated.
+  if (pathname.startsWith('/api/cron/')) {
+    return supabaseResponse
+  }
+
   // Redirect unauthenticated users to login (except for public routes)
   if (
     !user &&

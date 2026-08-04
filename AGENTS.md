@@ -8,7 +8,7 @@ YardOps is the private operations app for Wicksburg Lawn Service.
 
 Current verified YardOps checkpoint commit:
 
-`0cd8a60` (Link converted estimates to source follow-ups — Phase 5X.5 complete)
+`08ebc04` (2026-08-03 hardening session: security migration, balance/timezone fixes, typed clients, error boundaries, vitest + CI)
 
 The public website repo is separate:
 
@@ -202,6 +202,11 @@ These rules were learned from production bugs and must be preserved across refac
 * Do not invent historical service scope for jobs that have no `estimate_inputs` and no usable `service_package`. Null `job_inputs` on legacy jobs is acceptable — backfilling with guessed values is forbidden.
 * Estimate conversion scheduled date should default to the next matching `property.preferred_service_day` on or after `localToday`, using `getClosestWeekdayNearDate(localToday, preferredServiceDay, { minDate: localToday, maxDays: 7 })`. Fall back to `localToday` when no preferred day is set. Operator must always be able to override.
 * Supabase migration history drift is a known state. **Do not run `supabase db push`** — it will fail or produce unexpected results. Always use `npx supabase db query --linked --file "<file>"` with explicit project-ref confirmation.
+* After applying any migration, run `npm run gen:types` to regenerate `src/types/supabase.ts` from the live schema, then `npm run typecheck`. The Supabase clients are typed with the `<Database>` generic — stale generated types will surface as compile errors, which is the intended drift alarm. Do not hand-edit `src/types/supabase.ts`.
+* CI (GitHub Actions, `.github/workflows/ci.yml`) runs lint, typecheck, unit tests, and build on every push to main. Do not push without local `npm run lint` + `npm run typecheck` + `npm test` + `npm run build` passing. Unit tests live next to the pure libs (`src/lib/*.test.ts`) — extend them when changing `pricing.ts`, `date.ts`, `jobScope.ts`, or `frequency.ts`.
+* `/api/cron/*` is exempted from the middleware auth redirect (Vercel Cron sends cookieless requests); the route handlers enforce `CRON_SECRET` themselves via `Authorization: Bearer` or `x-cron-secret` headers and fail closed. Never accept the cron secret via query string, and never widen the middleware exemption beyond `/api/cron/`.
+* The public quote page must not echo the stored property `gate_code` to token holders. Quote acceptance may update `access_notes` only — it must never write or disclose `gate_code`.
+* Upload actions (job photos, expense receipts) must validate file size and MIME type server-side, and derive the storage extension from the validated MIME type — never from the client filename.
 * The Estimate source in the New Job source selector (`JobSource = 'estimate' | 'property' | 'custom'`) is the **only** source that may submit `estimate_id` to `createJob`. The hidden `estimate_id` input must only be rendered when `source === 'estimate' && activeEstimate != null && activeEstimate.propertyId === selectedPropertyId`. Do not render it for Property defaults or Custom sources.
 * Switching away from the Estimate source (to Property defaults or Custom) must clear `selectedEstimateId` and cause the `estimate_id` hidden field to be removed from the DOM before the form submits. `createJob` performs server-side validation regardless, but the UI must not leave a stale `estimate_id` in the form.
 * Property defaults and Custom sources in `JobForm` must never trigger estimate conversion side effects (`status = 'converted'`, lead→active promotion, notification clear). Those side effects are only valid when `estimate_id` is present, validated, and matches the selected customer + property.

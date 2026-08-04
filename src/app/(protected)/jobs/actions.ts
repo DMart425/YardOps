@@ -102,6 +102,18 @@ export async function createJob(
   if (!customerId) return { error: 'Please select a customer.' }
   if (!propertyId)  return { error: 'Please select a property.' }
 
+  // Ownership validation (matches createEstimate): the customer and property
+  // must belong to this business, and the property must belong to the customer.
+  const [{ data: jobCustomer }, { data: jobProperty }] = await Promise.all([
+    supabase.from('customers').select('id').eq('id', customerId).eq('business_id', businessId).maybeSingle(),
+    supabase.from('properties').select('id, customer_id').eq('id', propertyId).eq('business_id', businessId).maybeSingle(),
+  ])
+  if (!jobCustomer) return { error: 'Customer not found or does not belong to this account.' }
+  if (!jobProperty) return { error: 'Property not found or does not belong to this account.' }
+  if (jobProperty.customer_id !== customerId) {
+    return { error: 'Selected property does not belong to the selected customer.' }
+  }
+
   // ── Estimate linkage validation ─────────────────────────────────────────
   // If a hidden estimate_id field is present (injected by JobForm when
   // estimatePrefill is active), validate it before inserting the job.
@@ -112,11 +124,13 @@ export async function createJob(
   let linkedEstimateCustomerId: string | null = null
   let linkedEstimateSourceJobId: string | null = null
   let linkedEstimateSatisfiesFollowUp = false
+  let linkedEstimateTotal: number | null = null
+  let linkedEstimateNotes: string | null = null
 
   if (estimateIdRaw) {
     const { data: est } = await supabase
       .from('estimates')
-      .select('id, status, business_id, customer_id, property_id, source_job_id, satisfies_follow_up')
+      .select('id, status, business_id, customer_id, property_id, source_job_id, satisfies_follow_up, total, notes')
       .eq('id', estimateIdRaw)
       .eq('business_id', businessId)
       .maybeSingle()
@@ -138,9 +152,13 @@ export async function createJob(
     linkedEstimateCustomerId        = est.customer_id as string
     linkedEstimateSourceJobId       = (est.source_job_id as string | null) ?? null
     linkedEstimateSatisfiesFollowUp = Boolean(est.satisfies_follow_up)
+    linkedEstimateTotal             = est.total != null ? Number(est.total) : null
+    linkedEstimateNotes             = (est.notes as string | null) ?? null
   }
-  const priceRaw = formData.get('price') as string
-  const price    = priceRaw ? parseFloat(priceRaw) : null
+  // Explicit 0 is a real price (comped/free job); only a blank field means null.
+  const priceRaw = ((formData.get('price') as string | null) ?? '').trim()
+  const parsedPrice = priceRaw === '' ? null : Number(priceRaw)
+  const price = parsedPrice != null && Number.isFinite(parsedPrice) ? parsedPrice : null
 
   const jobInputs = parseJobInputs(formData)
 
@@ -151,7 +169,13 @@ export async function createJob(
       business_id:           businessId,
       customer_id:           customerId,
       property_id:           propertyId,
-      ...(validatedEstimateId ? { estimate_id: validatedEstimateId } : {}),
+      ...(validatedEstimateId ? {
+        estimate_id: validatedEstimateId,
+        // Keep this path equivalent to convertToJob(): both record the quoted
+        // total and carry the estimate notes to the job.
+        quoted_total: linkedEstimateTotal,
+        customer_notes: linkedEstimateNotes,
+      } : {}),
       ...(linkedEstimateSatisfiesFollowUp && linkedEstimateSourceJobId
         ? { recurrence_source: linkedEstimateSourceJobId }
         : {}),
@@ -163,7 +187,7 @@ export async function createJob(
       job_inputs:            jobInputs as unknown as Json,
       scheduled_date:        (formData.get('scheduled_date') as string) || null,
       scheduled_time_window: (formData.get('scheduled_time_window') as string) || null,
-      price:                 price && !isNaN(price) ? price : null,
+      price:                 price,
       payment_status:        (formData.get('payment_status') as string) || 'unpaid',
       internal_notes:        (formData.get('internal_notes') as string)?.trim() || null,
       status:                'scheduled',
@@ -245,8 +269,9 @@ export async function completeJob(
 
   if (!existing) return { error: 'Job not found.' }
 
-  const priceRaw = formData.get('price') as string
-  const price    = priceRaw ? parseFloat(priceRaw) : existing.price
+  // Explicit 0 is a real price (comped/free job) — only a blank field keeps the existing price.
+  const priceRaw = ((formData.get('price') as string | null) ?? '').trim()
+  const parsedPrice = priceRaw === '' ? null : Number(priceRaw)
 
   // Compute actual minutes: prefer manual override, else compute from started_at
   const minutesRaw = formData.get('actual_minutes') as string
@@ -260,7 +285,7 @@ export async function completeJob(
   }
 
   const paymentStatus = (formData.get('payment_status') as string) || 'unpaid'
-  const finalPrice    = price && !isNaN(price) ? price : existing.price
+  const finalPrice    = parsedPrice != null && Number.isFinite(parsedPrice) ? parsedPrice : existing.price
 
   // Resolve amount_paid and final payment_status for all completion paths
   let completionAmountPaid:  number = 0

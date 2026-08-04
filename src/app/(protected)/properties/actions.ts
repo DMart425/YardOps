@@ -45,6 +45,15 @@ export async function createProperty(
   const customerId = str(formData, 'customer_id')
   if (!customerId) return { error: 'Please select a customer.' }
 
+  // Ownership validation: the customer must belong to this business.
+  const { data: owningCustomer } = await supabase
+    .from('customers')
+    .select('id')
+    .eq('id', customerId)
+    .eq('business_id', businessId)
+    .maybeSingle()
+  if (!owningCustomer) return { error: 'Customer not found or does not belong to this account.' }
+
   const address = requiredField(formData, 'service_address', 'Street address')
   if (typeof address !== 'string') return address
   const city = requiredField(formData, 'city', 'City')
@@ -115,6 +124,15 @@ export async function updateProperty(
 
   const customerId = str(formData, 'customer_id')
   if (!customerId) return { error: 'Please select a customer.' }
+
+  // Ownership validation: the customer must belong to this business.
+  const { data: owningCustomer } = await supabase
+    .from('customers')
+    .select('id')
+    .eq('id', customerId)
+    .eq('business_id', businessId)
+    .maybeSingle()
+  if (!owningCustomer) return { error: 'Customer not found or does not belong to this account.' }
 
   const address = requiredField(formData, 'service_address', 'Street address')
   if (typeof address !== 'string') return address

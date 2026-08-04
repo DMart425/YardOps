@@ -303,7 +303,7 @@ export default async function JobDetailPage({
       <div className="card" style={{ marginBottom: '1rem' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div className="card-row">
-            <span className="text-small text-muted">� Customer</span>
+            <span className="text-small text-muted">👤 Customer</span>
             <Link href={`/customers/${job.customer_id}`} className="text-small" style={{ color: 'var(--color-primary)' }}>{customerName}</Link>
           </div>
           <div className="card-row">
@@ -662,8 +662,8 @@ export default async function JobDetailPage({
 
       {/* Nav links */}
       <div style={{ display: 'flex', gap: '8px', marginTop: '1rem', flexWrap: 'wrap' }}>
-        <Link href={`/customers/${job.customer_id}`} className="btn btn-sm btn-secondary">Customer</Link>
-        <Link href={`/properties/${job.property_id}`} className="btn btn-sm btn-secondary">Property</Link>
+        <Link href={`/customers/${job.customer_id}`} className="btn btn-sm btn-secondary">View Customer</Link>
+        <Link href={`/properties/${job.property_id}`} className="btn btn-sm btn-secondary">View Property</Link>
         {job.estimate_id && (
           <Link href={`/estimates/${job.estimate_id}`} className="btn btn-sm btn-secondary">View Estimate →</Link>
         )}

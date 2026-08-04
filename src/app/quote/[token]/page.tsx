@@ -27,7 +27,7 @@ export default async function QuotePage({
 
   const { data: estimate } = await supabase
     .from('estimates')
-    .select('*, customers(id, first_name, last_name, phone, email, status), properties(id, service_address, city, state, gate_code, access_notes)')
+    .select('*, customers(id, first_name, last_name, phone, email, status), properties(id, service_address, city, state, access_notes)')
     .eq('public_token', token)
     .single()
 
@@ -39,7 +39,7 @@ export default async function QuotePage({
   }
   const property = estimate.properties as {
     id: string; service_address: string; city: string | null
-    state: string | null; gate_code: string | null; access_notes: string | null
+    state: string | null; access_notes: string | null
   }
 
   const address = property.service_address + (property.city ? ', ' + property.city : '') + (property.state ? ', ' + property.state : '')
@@ -68,7 +68,10 @@ export default async function QuotePage({
   const isAccepted =
     estimate.status === 'approved' || estimate.status === 'converted'
 
-  const accessNotes = [property.gate_code, property.access_notes].filter(Boolean).join(' | ') || null
+  // Do not echo the stored gate code to quote-link holders — a forwarded link
+  // must not disclose it. Only the customer-editable access notes prefill here;
+  // the gate_code column is untouched by quote acceptance.
+  const accessNotes = property.access_notes ?? null
 
   return (
     <div className={styles.wrap} style={{

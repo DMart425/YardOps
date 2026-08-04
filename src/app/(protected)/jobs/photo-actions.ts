@@ -22,17 +22,32 @@ export async function uploadJobPhoto(jobId: string, formData: FormData) {
 
   if (!job) throw new Error('Job not found.')
 
-  const kind = (formData.get('kind') as string) || 'after'
+  // Validate size and type before touching storage. The extension and content
+  // type are derived from the validated MIME type — never from the client
+  // filename or a client-supplied content type (blocks e.g. .html uploads
+  // parked on long-lived signed URLs).
+  const MAX_PHOTO_BYTES = 10 * 1024 * 1024
+  const ALLOWED_PHOTO_TYPES: Record<string, string> = {
+    'image/jpeg': 'jpg',
+    'image/png':  'png',
+    'image/webp': 'webp',
+    'image/heic': 'heic',
+  }
+  if (file.size > MAX_PHOTO_BYTES) throw new Error('Photo is too large (max 10 MB).')
+  const photoExt = ALLOWED_PHOTO_TYPES[file.type]
+  if (!photoExt) throw new Error('Unsupported photo type. Use JPG, PNG, WebP, or HEIC.')
+
+  const kindRaw = (formData.get('kind') as string) || 'after'
+  const kind = kindRaw === 'before' ? 'before' : 'after'
   const caption = (formData.get('caption') as string)?.trim() || null
 
   const admin = createAdminClient()
-  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-  const path = `${userId}/${jobId}/${Date.now()}-${crypto.randomUUID()}.${ext}`
+  const path = `${userId}/${jobId}/${Date.now()}-${crypto.randomUUID()}.${photoExt}`
   const bytes = await file.arrayBuffer()
 
   const { error: uploadError } = await admin.storage
     .from('job-photos')
-    .upload(path, bytes, { contentType: file.type || 'image/jpeg', upsert: false })
+    .upload(path, bytes, { contentType: file.type, upsert: false })
 
   if (uploadError) throw new Error(uploadError.message)
 

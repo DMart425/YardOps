@@ -4,8 +4,11 @@ import { sendPushToUser } from '@/lib/push'
 import { getLocalDateStr, resolveTimeZone } from '@/lib/date'
 
 export async function GET(req: NextRequest) {
-  // Verify the request is from Vercel Cron (or an authorized caller)
-  const secret = req.headers.get('x-cron-secret') ?? req.nextUrl.searchParams.get('secret')
+  // Verify the request is from Vercel Cron (Authorization: Bearer) or an
+  // authorized manual caller (x-cron-secret). Never accept the secret via
+  // query string — query params persist in access logs.
+  const bearer = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
+  const secret = bearer ?? req.headers.get('x-cron-secret')
   if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
     return new NextResponse('Unauthorized', { status: 401 })
   }

@@ -7,6 +7,15 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requireBusinessContext } from '@/lib/business/context'
 import type { Database } from '@/types/supabase'
 
+const MAX_RECEIPT_BYTES = 10 * 1024 * 1024
+const ALLOWED_RECEIPT_TYPES: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png':  'png',
+  'image/webp': 'webp',
+  'image/heic': 'heic',
+  'application/pdf': 'pdf',
+}
+
 export async function createExpense(formData: FormData) {
   const supabase = await createClient()
   const { userId, businessId } = await requireBusinessContext()
@@ -27,9 +36,14 @@ export async function createExpense(formData: FormData) {
   const receiptFile = formData.get('receipt') as File | null
 
   if (receiptFile && receiptFile.size > 0) {
+    // Size/type validation mirrors photo uploads; receipts also allow PDF.
+    // Extension derives from the validated MIME type, not the client filename.
+    if (receiptFile.size > MAX_RECEIPT_BYTES) throw new Error('Receipt is too large (max 10 MB).')
+    const receiptExt = ALLOWED_RECEIPT_TYPES[receiptFile.type]
+    if (!receiptExt) throw new Error('Unsupported receipt type. Use JPG, PNG, WebP, HEIC, or PDF.')
+
     const admin = createAdminClient()
-    const ext = receiptFile.name.split('.').pop() ?? 'bin'
-    const path = `${userId}/${Date.now()}-${crypto.randomUUID()}.${ext}`
+    const path = `${userId}/${Date.now()}-${crypto.randomUUID()}.${receiptExt}`
     const bytes = await receiptFile.arrayBuffer()
 
     const { error: uploadError } = await admin.storage
@@ -74,9 +88,14 @@ export async function updateExpense(id: string, formData: FormData) {
   const receiptFile = formData.get('receipt') as File | null
 
   if (receiptFile && receiptFile.size > 0) {
+    // Size/type validation mirrors photo uploads; receipts also allow PDF.
+    // Extension derives from the validated MIME type, not the client filename.
+    if (receiptFile.size > MAX_RECEIPT_BYTES) throw new Error('Receipt is too large (max 10 MB).')
+    const receiptExt = ALLOWED_RECEIPT_TYPES[receiptFile.type]
+    if (!receiptExt) throw new Error('Unsupported receipt type. Use JPG, PNG, WebP, HEIC, or PDF.')
+
     const admin = createAdminClient()
-    const ext = receiptFile.name.split('.').pop() ?? 'bin'
-    const path = `${userId}/${Date.now()}-${crypto.randomUUID()}.${ext}`
+    const path = `${userId}/${Date.now()}-${crypto.randomUUID()}.${receiptExt}`
     const bytes = await receiptFile.arrayBuffer()
 
     const { error: uploadError } = await admin.storage
