@@ -27,6 +27,8 @@ interface Defaults {
   venmo_handle:          string
   time_zone:             string
   business_phone:        string
+  home_base_address:     string
+  review_request_url:    string
 }
 
 export function SettingsForm({ defaults }: { defaults: Defaults }) {
@@ -51,6 +53,32 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
           onChange={e => setBusinessPhone(formatPhoneInput(e.target.value))}
         />
         <p className="form-hint">Shown in customer-facing texts and portal contact info.</p>
+      </div>
+
+      <div className="form-field">
+        <label className="form-label" htmlFor="s_homebase">Home Base Address</label>
+        <input
+          id="s_homebase"
+          name="home_base_address"
+          type="text"
+          className="form-input"
+          placeholder="123 Main St, Newton, AL 36352"
+          defaultValue={defaults.home_base_address}
+        />
+        <p className="form-hint">Where your routes start — daily route ordering and directions begin here.</p>
+      </div>
+
+      <div className="form-field">
+        <label className="form-label" htmlFor="s_reviewurl">Review Request Link</label>
+        <input
+          id="s_reviewurl"
+          name="review_request_url"
+          type="url"
+          className="form-input"
+          placeholder="https://g.page/r/..."
+          defaultValue={defaults.review_request_url}
+        />
+        <p className="form-hint">Your Google review link. Enables the &quot;Ask for Review&quot; text button on paid jobs.</p>
       </div>
 
       <div className="form-section-label">Pricing Defaults</div>

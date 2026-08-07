@@ -10,6 +10,7 @@ import { firstReadError } from '@/lib/readError'
 import { ReadErrorNotice } from '@/components/ReadErrorNotice'
 import type { AppNotification } from '@/types/database'
 import { snoozeCustomerAlert } from './actions'
+import { orderStopsForRoute, buildRouteUrl } from '@/lib/route'
 
 function dateOnlyToUtcMs(dateStr: string) {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -60,10 +61,15 @@ export default async function TodayPage() {
 
   const { data: settings } = await supabase
     .from('pricing_settings')
-    .select('time_zone')
+    .select('time_zone, home_base_address, home_base_latitude, home_base_longitude')
     .eq('user_id', userId)
     .maybeSingle()
   const timeZone = resolveTimeZone(settings?.time_zone)
+  const homeBaseCoord = settings?.home_base_latitude != null && settings?.home_base_longitude != null
+    ? { latitude: Number(settings.home_base_latitude), longitude: Number(settings.home_base_longitude) }
+    : null
+  const homeBaseOrigin = settings?.home_base_address
+    ?? (homeBaseCoord ? `${homeBaseCoord.latitude},${homeBaseCoord.longitude}` : null)
   const today = getLocalDateStr(timeZone)
   const todayStartMs = dateOnlyToUtcMs(today)
   const tomorrowForCompletedStr = addDays(today, 1)
@@ -288,6 +294,26 @@ export default async function TodayPage() {
     return est?.status !== 'converted'
   })
   const todayJobs = todayJobsResult.data
+  // Drive order: time-window buckets + nearest-neighbor from home base.
+  // Card order below matches the Route button's turn-by-turn order.
+  const orderedTodayJobs = orderStopsForRoute(todayJobs ?? [], j => {
+    const p = (Array.isArray(j.properties) ? j.properties[0] : j.properties) as { latitude: number | null; longitude: number | null } | null
+    return {
+      coord: p?.latitude != null && p.longitude != null
+        ? { latitude: Number(p.latitude), longitude: Number(p.longitude) }
+        : null,
+      timeWindow: (j.scheduled_time_window as string | null) ?? null,
+    }
+  }, homeBaseCoord)
+  const todayRouteUrl = buildRouteUrl(
+    orderedTodayJobs
+      .map(j => {
+        const p = (Array.isArray(j.properties) ? j.properties[0] : j.properties) as { service_address: string; city: string | null } | null
+        return p ? `${p.service_address}${p.city ? ', ' + p.city : ''}` : ''
+      })
+      .filter(Boolean),
+    homeBaseOrigin
+  )
   const completedTodayJobs = completedTodayJobsResult.data
   const overdueJobs = overdueJobsResult.data
   const unpaidJobs = unpaidJobsResult.data
@@ -572,7 +598,14 @@ export default async function TodayPage() {
 
       {/* Today's Jobs */}
       <div className="detail-section">
-        <div className="section-heading">Today&apos;s Jobs ({todayJobs?.length ?? 0})</div>
+        <div className="card-row" style={{ marginBottom: '8px' }}>
+          <div className="section-heading" style={{ marginBottom: 0 }}>Today&apos;s Jobs ({todayJobs?.length ?? 0})</div>
+          {todayRouteUrl && (todayJobs?.length ?? 0) > 0 && (
+            <a href={todayRouteUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-secondary">
+              🗺 Route
+            </a>
+          )}
+        </div>
         {!todayJobs?.length ? (
           <div className="card">
             <p className="text-muted text-small">No jobs scheduled for today.</p>
@@ -581,7 +614,7 @@ export default async function TodayPage() {
             </div>
           </div>
         ) : (
-          todayJobs.map((job) => {
+          orderedTodayJobs.map((job) => {
             const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null; phone: string | null } | null
             const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null; state: string | null; postal_code: string | null; pet_warning: string | null; gate_code: string | null; access_notes: string | null; obstacle_notes: string | null; latitude: number | null; longitude: number | null; default_mowing_enabled: boolean | null; default_weed_eating_enabled: boolean | null; default_edging_enabled: boolean | null; default_blow_off_enabled: boolean | null } | null
             const warnings = [property?.pet_warning, property?.gate_code ? `Gate: ${property.gate_code}` : null, property?.access_notes, property?.obstacle_notes].filter(Boolean)

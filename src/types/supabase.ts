@@ -1196,8 +1196,12 @@ export type Database = {
           business_id: string | null
           created_at: string
           default_setup_minutes: number
+          home_base_address: string | null
+          home_base_latitude: number | null
+          home_base_longitude: number | null
           id: string
           minimum_price: number
+          review_request_url: string | null
           round_to_nearest: number
           settings_json: Json | null
           target_hourly_rate: number
@@ -1211,8 +1215,12 @@ export type Database = {
           business_id?: string | null
           created_at?: string
           default_setup_minutes?: number
+          home_base_address?: string | null
+          home_base_latitude?: number | null
+          home_base_longitude?: number | null
           id?: string
           minimum_price?: number
+          review_request_url?: string | null
           round_to_nearest?: number
           settings_json?: Json | null
           target_hourly_rate?: number
@@ -1226,8 +1234,12 @@ export type Database = {
           business_id?: string | null
           created_at?: string
           default_setup_minutes?: number
+          home_base_address?: string | null
+          home_base_latitude?: number | null
+          home_base_longitude?: number | null
           id?: string
           minimum_price?: number
+          review_request_url?: string | null
           round_to_nearest?: number
           settings_json?: Json | null
           target_hourly_rate?: number

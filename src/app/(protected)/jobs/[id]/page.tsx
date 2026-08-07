@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { addDays, formatDateOnly, formatTimestampDate, resolveTimeZone, getLocalDateStr } from '@/lib/date'
 import { JobActions } from '@/components/JobActions'
 import { AddWorkPanel } from '@/components/AddWorkPanel'
+import { ReviewRequestButton } from '@/components/ReviewRequestButton'
 import { JobPhotos } from '@/components/JobPhotos'
 import { DownloadInvoiceButton } from '@/components/DownloadInvoiceButton'
 import { ScheduleFollowUpCard } from '@/components/ScheduleFollowUpCard'
@@ -161,10 +162,25 @@ export default async function JobDetailPage({
 
   const { data: settings } = await supabase
     .from('pricing_settings')
-    .select('venmo_handle, time_zone')
+    .select('venmo_handle, time_zone, review_request_url')
     .eq('user_id', userId)
     .maybeSingle()
   const venmoHandle = (settings?.venmo_handle as string | null) ?? null
+  const reviewRequestUrl = (settings?.review_request_url as string | null) ?? null
+
+  // One review ask per customer, ever — checked against the message log.
+  let reviewAlreadyAsked = false
+  if (reviewRequestUrl && job.payment_status === 'paid' && job.customer_id) {
+    const { data: priorAsk } = await supabase
+      .from('message_logs')
+      .select('id')
+      .eq('business_id', businessId)
+      .eq('customer_id', job.customer_id)
+      .eq('message_type', 'review_request')
+      .limit(1)
+      .maybeSingle()
+    reviewAlreadyAsked = priorAsk != null
+  }
   const timeZone = resolveTimeZone(settings?.time_zone ?? null)
   // Convert completed_at ISO timestamp to the business's local YYYY-MM-DD date.
   // Used as the anchor for the follow-up suggested date so cadence resets from
@@ -511,6 +527,20 @@ export default async function JobDetailPage({
         <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Actions</div>
         <JobActions job={job} venmoHandle={venmoHandle} customerPhone={customer.phone} customerFirstName={customer.first_name} businessName={businessName} businessPhone={businessPhone} portalInvoiceUrl={portalInvoiceUrl} />
       </div>
+
+      {/* Discretionary review ask — paid jobs, review link configured, never asked before */}
+      {job.status === 'completed' && job.payment_status === 'paid' && reviewRequestUrl && customer.phone && !reviewAlreadyAsked && (
+        <div className="card" style={{ marginTop: '1rem' }}>
+          <ReviewRequestButton
+            customerId={job.customer_id}
+            jobId={job.id}
+            customerPhone={customer.phone}
+            customerFirstName={customer.first_name}
+            businessName={businessName}
+            reviewUrl={reviewRequestUrl}
+          />
+        </div>
+      )}
 
       {/* One-time work on this visit (upcoming jobs only) */}
       {['scheduled', 'in_progress', 'needs_reschedule'].includes(job.status) && (

@@ -34,6 +34,8 @@ export default async function SettingsPage() {
     venmo_handle:          settings?.venmo_handle          ?? '',
     time_zone:             resolveTimeZone(settings?.time_zone),
     business_phone:        formatPhoneInput((businessRow?.phone as string | null) ?? ''),
+    home_base_address:     settings?.home_base_address     ?? '',
+    review_request_url:    settings?.review_request_url    ?? '',
   }
 
   const blackoutDates: string[] = (settings?.blackout_dates as string[] | null) ?? []

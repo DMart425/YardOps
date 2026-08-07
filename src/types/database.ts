@@ -13,6 +13,7 @@ export type MessageType =
   | 'receipt_unpaid'
   | 'payment_reminder'
   | 'estimate_follow_up'
+  | 'review_request'
 
 export type EstimateApprovalSource = 'customer_quote' | 'manual'
 export type AppNotificationType = 'estimate_approved'

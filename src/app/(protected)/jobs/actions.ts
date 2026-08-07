@@ -458,6 +458,38 @@ export async function scheduleFollowUpJob(
   return { error: null, success: 'Follow-up visit scheduled.' }
 }
 
+// ── logReviewRequest ────────────────────────────────────────────────────────
+// Records a review-request SMS in message_logs. The log doubles as the
+// "already asked" marker that hides the Ask for Review button for this
+// customer afterward — one ask per customer, ever, unless the log is cleared.
+export async function logReviewRequest(customerId: string, jobId: string, body: string) {
+  const supabase = await createClient()
+  const { userId, businessId } = await requireBusinessContext()
+
+  const { data: customer } = await supabase
+    .from('customers')
+    .select('id, phone')
+    .eq('id', customerId)
+    .eq('business_id', businessId)
+    .maybeSingle()
+  if (!customer) throw new Error('Customer not found.')
+
+  await supabase.from('message_logs').insert({
+    user_id: userId,
+    business_id: businessId,
+    customer_id: customerId,
+    job_id: jobId,
+    message_type: 'review_request',
+    recipient_phone: customer.phone ?? null,
+    message_body: body,
+    delivery_method: 'sms',
+    manually_marked_sent: true,
+    sent_at: new Date().toISOString(),
+  })
+
+  revalidatePath(`/jobs/${jobId}`)
+}
+
 // ── addWorkToJob ────────────────────────────────────────────────────────────
 // One-time work on an upcoming visit ("also trim the hedges next time"):
 // updates the job's add-on fields and (optionally) the agreed total price,

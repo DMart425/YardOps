@@ -6,6 +6,7 @@ import type { FormState } from '@/types/database'
 import { resolveTimeZone } from '@/lib/date'
 import { requireBusinessContext } from '@/lib/business/context'
 import { formatPhoneInput } from '@/lib/format'
+import { geocodeAddress } from '@/lib/geocode'
 
 export async function saveSettings(
   prevState: FormState,
@@ -28,6 +29,33 @@ export async function saveSettings(
   const time_zone             = resolveTimeZone(rawTimeZone)
   const rawPhone              = (formData.get('business_phone') as string ?? '').trim()
   const business_phone        = rawPhone ? formatPhoneInput(rawPhone) : null
+  const home_base_address     = (formData.get('home_base_address') as string ?? '').trim() || null
+  const rawReviewUrl          = (formData.get('review_request_url') as string ?? '').trim()
+  if (rawReviewUrl && !/^https?:\/\//i.test(rawReviewUrl)) {
+    return { error: 'Review link must be a full URL starting with http(s)://' }
+  }
+  const review_request_url    = rawReviewUrl || null
+
+  // Geocode the home base when it's set and changed (or has no coords yet).
+  // Failure keeps any previously good coordinates; clearing the address
+  // clears the coordinates so routes stop seeding from a stale point.
+  const { data: prevSettings } = await supabase
+    .from('pricing_settings')
+    .select('home_base_address, home_base_latitude, home_base_longitude')
+    .eq('user_id', userId)
+    .maybeSingle()
+  let home_base_latitude  = prevSettings?.home_base_latitude  ?? null
+  let home_base_longitude = prevSettings?.home_base_longitude ?? null
+  if (!home_base_address) {
+    home_base_latitude = null
+    home_base_longitude = null
+  } else if (home_base_address !== prevSettings?.home_base_address || home_base_latitude == null || home_base_longitude == null) {
+    const geo = await geocodeAddress({ address: home_base_address })
+    if (geo) {
+      home_base_latitude = geo.latitude
+      home_base_longitude = geo.longitude
+    }
+  }
 
   const [settingsResult, businessResult] = await Promise.all([
     supabase
@@ -40,6 +68,10 @@ export async function saveSettings(
         default_setup_minutes,
         venmo_handle,
         time_zone,
+        home_base_address,
+        home_base_latitude,
+        home_base_longitude,
+        review_request_url,
       }, { onConflict: 'user_id' }),
     supabase
       .from('businesses')

@@ -4,6 +4,7 @@ import { addDays, formatDateOnly, formatTimestampDate, getLocalDateStr, localMid
 import { requireBusinessContext } from '@/lib/business/context'
 import { firstReadError } from '@/lib/readError'
 import { ReadErrorNotice } from '@/components/ReadErrorNotice'
+import { orderStopsForRoute, buildRouteUrl } from '@/lib/route'
 
 type CustomerRelation = { first_name: string; last_name: string | null }
 type PropertyRelation = {
@@ -149,10 +150,15 @@ export default async function JobsPage({
 
   const { data: settings } = await supabase
     .from('pricing_settings')
-    .select('time_zone, blackout_dates')
+    .select('time_zone, blackout_dates, home_base_address, home_base_latitude, home_base_longitude')
     .eq('user_id', userId)
     .maybeSingle()
   const timeZone = resolveTimeZone(settings?.time_zone ?? null)
+  const homeBaseCoord = settings?.home_base_latitude != null && settings?.home_base_longitude != null
+    ? { latitude: Number(settings.home_base_latitude), longitude: Number(settings.home_base_longitude) }
+    : null
+  const homeBaseOrigin = settings?.home_base_address
+    ?? (homeBaseCoord ? `${homeBaseCoord.latitude},${homeBaseCoord.longitude}` : null)
 
   const today = getLocalDateStr(timeZone)
   const weekday = dayOfWeek(today)
@@ -252,57 +258,29 @@ export default async function JobsPage({
     .in('status', active)
     .lt('scheduled_date', today)
 
-  function routeUrl(addresses: string[]): string | null {
-    if (addresses.length === 0) return null
-    if (addresses.length === 1) {
-      return `https://maps.google.com/?q=${encodeURIComponent(addresses[0])}`
+  // Extracts coordinates + time window for route ordering.
+  function jobStopInfo(j: JobListRow) {
+    const p = (Array.isArray(j.properties) ? j.properties[0] : j.properties) as { latitude?: number | null; longitude?: number | null } | null
+    return {
+      coord: p?.latitude != null && p?.longitude != null
+        ? { latitude: Number(p.latitude), longitude: Number(p.longitude) }
+        : null,
+      timeWindow: j.scheduled_time_window ?? null,
     }
-    const dest = encodeURIComponent(addresses[addresses.length - 1])
-    const waypoints = addresses.slice(0, -1).map(encodeURIComponent).join('|')
-    return `https://www.google.com/maps/dir/?api=1&destination=${dest}&waypoints=${waypoints}&travelmode=driving`
   }
 
-  // Group week jobs by date, optimized by nearest-neighbor route order
+  // Group week jobs by date, ordered by time-window buckets + nearest-neighbor
+  // seeded from the home base (see src/lib/route.ts).
   type WeekJob = JobListRow
   const groupedByDay: Map<string, WeekJob[]> = new Map()
   if (view === 'scheduled' && filter === 'week' && jobRows.length > 0) {
-    // First group by day
     for (const j of jobRows) {
       const k = j.scheduled_date ?? 'unscheduled'
       if (!groupedByDay.has(k)) groupedByDay.set(k, [])
       groupedByDay.get(k)!.push(j)
     }
-    // Then sort each day by nearest-neighbor using lat/lon
     for (const [day, dayJobs] of groupedByDay) {
-      const withCoords = dayJobs.filter(j => {
-        const p = (Array.isArray(j.properties) ? j.properties[0] : j.properties) as { latitude?: number | null; longitude?: number | null } | null
-        return p?.latitude != null && p.longitude != null
-      })
-      const noCoords = dayJobs.filter(j => {
-        const p = (Array.isArray(j.properties) ? j.properties[0] : j.properties) as { latitude?: number | null; longitude?: number | null } | null
-        return !p?.latitude || !p.longitude
-      })
-      if (withCoords.length > 1) {
-        // Nearest-neighbor from the northernmost point
-        const getCoord = (j: WeekJob) => {
-          const p = (Array.isArray(j.properties) ? j.properties[0] : j.properties) as { latitude: number; longitude: number } | null
-          return p!
-        }
-        const dist = (a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }) =>
-          Math.hypot(a.latitude - b.latitude, a.longitude - b.longitude)
-        const remaining = [...withCoords]
-        const sorted: WeekJob[] = []
-        // Start from northernmost (highest lat)
-        let cur = remaining.splice(remaining.reduce((bi, j, i) => getCoord(j).latitude > getCoord(remaining[bi]).latitude ? i : bi, 0), 1)[0]
-        sorted.push(cur)
-        while (remaining.length > 0) {
-          const curCoord = getCoord(cur)
-          const nearestIdx = remaining.reduce((bi, j, i) => dist(getCoord(j), curCoord) < dist(getCoord(remaining[bi]), curCoord) ? i : bi, 0)
-          cur = remaining.splice(nearestIdx, 1)[0]
-          sorted.push(cur)
-        }
-        groupedByDay.set(day, [...sorted, ...noCoords])
-      }
+      groupedByDay.set(day, orderStopsForRoute(dayJobs, jobStopInfo, homeBaseCoord))
     }
   }
 
@@ -407,7 +385,7 @@ export default async function JobsPage({
                 return p ? `${p.service_address}${p.city ? ', ' + p.city : ''}` : ''
               })
               .filter(Boolean)
-            const url = routeUrl(addresses)
+            const url = buildRouteUrl(addresses, homeBaseOrigin)
             const dayTotal = dayJobs.reduce((s, j) => s + (j.price ?? 0), 0)
             const anyPriced = dayJobs.some(j => j.price != null)
             const dayTotalLabel = anyPriced ? `$${dayTotal.toFixed(0)}` : '—'
