@@ -2,7 +2,7 @@
 
 Private operations app for Wicksburg Lawn Service.
 
-Verified checkpoint commit: `058376f` (2026-08-03 hardening session — security migration, typed clients, error boundaries, vitest + CI).
+Verified checkpoint commit: `b4c1636` (2026-08-06 operator feature session — alert snoozes, archive recall, Add Work panel, parcel-first geocoding, time-window routing, review requests).
 
 ## Read First
 

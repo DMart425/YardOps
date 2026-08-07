@@ -4,8 +4,8 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-08-03
-Current checkpoint commit: `058376f` (2026-08-03 hardening session complete — see §21)
+Last updated: 2026-08-06
+Current checkpoint commit: `b4c1636` (2026-08-06 operator feature session — see §22)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -110,6 +110,7 @@ src/
 │   ├── frequency.ts              # Frequency and service interest helpers: normalizeFrequency(), formatFrequencyLabel(), parseWebsiteServiceInterests(), formatServiceInterestLabel()
 │   ├── jobScope.ts               # Shared job scope helpers (Phase 5T): parseJobInputs(), formatCoreServicesForCustomer(), formatAddonsForCustomer(), resolveServiceLabel(), buildDefaultCompletionNotes() — pure TypeScript; no React; used by portal server components and JobActions client component
 │   ├── date.ts                   # Timezone-aware date helpers: getLocalDateStr(), addDays(), localMidnightUtcIso(), localDateEndUtc(), getClosestWeekdayNearDate(), getLocalMonthKey()
+│   ├── route.ts                  # Route ordering (pure, unit-tested): time-window buckets → nearest-neighbor seeded from home base; buildRouteUrl() for Google Maps directions. Used by /today and the Jobs week view.
 │   ├── readError.ts              # firstReadError() — surfaces Supabase read failures on list/dashboard pages (paired with components/ReadErrorNotice.tsx)
 │   ├── *.test.ts                 # Vitest unit tests for date/frequency/jobScope/pricing (run with npm test)
 │   └── push.ts                   # Web push helper
@@ -487,6 +488,8 @@ Website/manual intake address, frequency, and service interests are written into
 
 `20260803120000_security_drop_anon_estimate_read.sql` (2026-08-03 security hardening) was applied via `npx supabase db query --linked --file` and verified live. It dropped the anon `"public read estimate by token"` SELECT policy on `estimates` (predicate lacked a token match — any anon-key holder could list all active estimates including their `public_token`s; no app code path used the policy), revoked the leftover PUBLIC EXECUTE grant on `handle_new_user()`, and added `idx_leads_created_by`. Zero anon-role policies remain in the schema.
 
+`20260806120000_create_customer_alert_snoozes.sql` (Today alert snoozes) and `20260806150000_add_home_base_and_review_request.sql` (pricing_settings home base + review link columns; `message_logs.message_type` gains `'review_request'`) were both applied via `npx supabase db query --linked --file` and committed. Same drift caveat — do not `supabase db push`.
+
 ### After Every Migration
 
 Run `npm run gen:types` to regenerate `src/types/supabase.ts` from the live schema, then `npm run typecheck`. The Supabase clients pass the `<Database>` generic, so stale types surface as compile errors — this is the intended drift alarm.
@@ -541,6 +544,7 @@ Run `npm run gen:types` to regenerate `src/types/supabase.ts` from the live sche
 - `PropertyForm` requires `service_address`, `city`, `state`, and `county` at save time.
 - `ParcelLookup` component is shared between `PropertyForm` and `EstimateForm`.
 - Parcel lookup in `EstimateForm` does not save imported data back to the property record.
+- **Parcel GIS lat/lon is the primary coordinate source for properties** (create, edit, and backfill) — rooftop-accurate county data beats OSM for rural roads. Nominatim geocoding is the fallback for parcel-less properties, with a repaired centroid chain (structured city/state/ZIP → "City, State" → ZIP-only; a combined "CITY, ST, ZIP" freeform string fails Nominatim's parser).
 
 ---
 
@@ -2103,3 +2107,19 @@ A full review (security, correctness, data layer, product/UX) plus live-DB verif
 | Portal tokens | `regeneratePortalToken()` revokes + re-mints; ownership verified in all token actions. |
 | Tests/CI | Vitest (53 tests over `date`/`frequency`/`jobScope`/`pricing`) + GitHub Actions (lint, typecheck, test, build). |
 | Money semantics | Explicit $0 price = 0 (comped); blank = null (unknown); `markPaid` never lowers `amount_paid`; `not_billable` excluded from every customer-facing balance surface. |
+
+---
+
+## 22. 2026-08-06 Operator Feature Session
+
+Eight commits (`cb69c77` → `b4c1636`); per-commit detail in HANDOFF.md. Architectural changes:
+
+| Area | Change |
+|------|--------|
+| Today alerts | Retention alerts (recurring-gap, dormant) filter to ACTIVE customers and recurring jobs only; `needs_reschedule` counts as covered. New `customer_alert_snoozes` table backs per-customer per-alert 7-day ✕ snoozes. |
+| Customer lifecycle | `active ⇄ inactive` toggle on the info card's Status row (`setCustomerActiveStatus`); inactive = kept history, excluded from alerts. Archive is recallable: Customers → Archived tab + `restoreArchivedCustomer` (restores as inactive, never straight to active). Archived/converted website leads open per-status (restore / already-converted note) instead of 404. |
+| Customers list | Active \| Inactive \| Archived status tabs; last-name-then-first-name sort with bolded last names as the visual sort key. |
+| Job scope | `addWorkToJob()` — one-time add-ons + operator-entered total price on upcoming jobs, core services immutable, dated audit line in `internal_notes`, optional confirmation SMS. One-off work never propagates (follow-ups regenerate from property booleans). |
+| Coordinates | Parcel GIS lat/lon first everywhere; centroid fallback chain repaired; address edits re-resolve; failures never clobber good coords (see §14). |
+| Routing | `src/lib/route.ts` — time-window buckets beat geometry, nearest-neighbor within, seeded from `pricing_settings.home_base_*`. `/today` cards render in drive order with a Route button; Jobs week view uses the same lib. |
+| Reviews | `pricing_settings.review_request_url` + ⭐ Ask for a Review on paid jobs; logged as `message_logs.message_type = 'review_request'`; one ask per customer ever; never attached to receipts. |

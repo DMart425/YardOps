@@ -8,7 +8,7 @@ YardOps is the private operations app for Wicksburg Lawn Service.
 
 Current verified YardOps checkpoint commit:
 
-`08ebc04` (2026-08-03 hardening session: security migration, balance/timezone fixes, typed clients, error boundaries, vitest + CI)
+`b4c1636` (2026-08-06 operator feature session: alert snooze/inactive customers, archive recall, Add Work panel, parcel-first geocoding, time-window routing + home base, review requests)
 
 The public website repo is separate:
 
@@ -237,3 +237,9 @@ These rules were learned from production bugs and must be preserved across refac
 * The public quote page must display a visible agreement-replacement notice when `estimate.sets_property_defaults = true`. This notice must state that accepting the estimate will replace the property's ongoing service plan. Do not remove this notice without explicit approval.
 * `addWorkToJob()` (Add Work to This Visit) modifies ONLY add-on fields and price on upcoming jobs (`scheduled`/`in_progress`/`needs_reschedule`). Core service booleans are preserved exactly as stored — never editable through this path (ongoing-scope changes go through the estimate `sets_property_defaults` flow). Price is an operator-entered new TOTAL, never calculated. Every save appends a dated audit line to `internal_notes`. Do not extend this action into a general job editor without explicit approval.
 * The Add Work confirmation SMS is optional by design — formality scales with dollar risk at the operator's judgment. Do not make customer approval mandatory for add-on work without explicit approval; large scope changes use the estimate flow.
+* Today retention alerts (recurring-gap, dormant) show ACTIVE customers only, consider recurring jobs only, and honor `customer_alert_snoozes` (✕ = 7-day snooze; Mark Inactive on the customer page = permanent removal). Do not add alert types without snooze support.
+* Archived customers and website leads must always remain recallable: archived customers list under the Customers → Archived tab and restore as INACTIVE (never straight to active — a restore must not instantly resurface someone in Today alerts); archived website leads restore to `new`. Never make archive a one-way door.
+* Danger Zone sections are testing-only tools slated for removal. Never group real features with them or place permanent UI inside them.
+* Route ordering lives in `src/lib/route.ts` (pure, unit-tested): time-window buckets (morning → anytime/custom → afternoon → evening) always beat geometry; nearest-neighbor orders within a bucket, seeded from `pricing_settings.home_base_*` when set. Both /today and the Jobs week view must use this shared lib — do not reimplement ordering inline.
+* Property coordinate source priority is: linked parcel GIS lat/lon → Nominatim structured → freeform → centroid (structured city/state/ZIP, then "City, State", then ZIP-only — never a combined "CITY, ST, ZIP" freeform string, which Nominatim rejects). Address edits re-resolve coordinates; geocoder failures never overwrite existing good coordinates.
+* Review requests are one ask per customer, EVER, tracked via `message_logs.message_type = 'review_request'`. The ⭐ button renders only on paid jobs with a configured `review_request_url` and hides for customers already asked. Never attach review asks to receipt or completion SMS.

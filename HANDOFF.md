@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-08-03 (058376f)
+Last updated: 2026-08-06 (b4c1636)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-08-03 (058376f)
 
 ## Current Checkpoint
 
-- **Latest commit:** `058376f` — 2026-08-03 hardening session complete (8 commits; see "2026-08-03 Hardening Session" below)
+- **Latest commit:** `b4c1636` — 2026-08-06 operator feature session complete (see "2026-08-06 Operator Feature Session" below)
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -1075,6 +1075,38 @@ A full four-dimension review (security, correctness, data layer, product/UX) fol
 
 ---
 
+### 2026-08-06 Operator Feature Session ✅ (`cb69c77` → `b4c1636`)
+
+Field-testing-driven features requested by the operator. All commits lint/typecheck/test/build clean; CI green throughout. 64 unit tests after this session (was 53).
+
+**Today alert controls (`cb69c77`, migration `20260806120000` applied):**
+- New `customer_alert_snoozes` table (customer_id + alert_type unique, business-member RLS). ✕ button on each name in the recurring-gap and dormant alert cards snoozes 7 days; re-snoozing extends.
+- `setCustomerActiveStatus` + Mark Inactive/Active toggle — inactive customers keep all history but are excluded from both Today alerts (the permanent-dismiss path).
+- Dormant alert considers recurring completed jobs only (one-time-only customers no longer nag); gap alert counts `needs_reschedule` as covered; both alerts filter to ACTIVE customers.
+- `a05a7d3` relocated the toggle onto the Customer Info card's Status row (Danger Zones are testing-only and slated for removal — never group real features with them).
+
+**Archive recall (`c758683`):**
+- Archiving was a soft delete with no way back. Customers page gained an Archived tab; `restoreArchivedCustomer` restores as INACTIVE (never straight to active). Website lead detail loads any status — archived leads get ♻ Restore (back to `new`), converted leads get an informational note instead of a 404.
+
+**Customers list (`5605ff5`, `d1ea016`):**
+- Active | Inactive | Archived status tabs; sort by last name then first name; last names bolded as the visual sort key (Contacts-app pattern, natural First Last reading kept).
+
+**Add Work panel (`d482195`):**
+- `addWorkToJob()` + collapsible panel on upcoming job detail: one-time add-ons (bagging/sticks/leaves/haul-off/shrubs) and an operator-entered new TOTAL price. Core services immutable through this path; dated audit line appended to `internal_notes`; optional post-save confirmation SMS (customer's YES reply = dispute record). One-off work never propagates — follow-ups regenerate from property booleans.
+
+**Geocoding (`4f8b089`):**
+- Parcel GIS lat/lon is the first coordinate source in create/update/backfill (operator's two rural properties failed Nominatim entirely; parcel data resolved both — "geocoded 2 of 2" confirmed). Centroid fallback chain repaired (combined "CITY, ST, ZIP" freeform fails Nominatim's parser). Address edits re-resolve coordinates; failures never overwrite good coords.
+
+**Routing + reviews (`b4c1636`, migration `20260806150000` applied):**
+- `src/lib/route.ts` (pure, 10 tests): time-window buckets (morning → anytime/custom → afternoon → evening) beat geometry; nearest-neighbor within buckets, seeded from new `pricing_settings.home_base_*` (geocoded at settings save) and chained across buckets. Waypoint separator encoding fixed (literal `|` → `%7C`).
+- `/today` job cards render in drive order + 🗺 Route button; Jobs week view refactored onto the shared lib.
+- Settings gained Home Base Address and Review Request Link fields.
+- ⭐ Ask for a Review on paid jobs: logs `message_logs.message_type = 'review_request'`, one ask per customer ever, never attached to receipt SMS.
+
+**Also this session (no code):** verified Supabase auth has public signups ENABLED (`disable_signup: false`) — recommended the operator turn off "Allow new users to sign up" in the dashboard (strangers can't reach data due to RLS but could subscribe to push briefs). Product direction recorded: future SaaS onboarding will be subscription-gated (pay first → provisioned account; signups stay disabled permanently).
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -1092,6 +1124,8 @@ A full four-dimension review (security, correctness, data layer, product/UX) fol
 | `20260531120000_add_jobs_job_inputs.sql` | Add nullable `job_inputs jsonb` column to `jobs` — structured service scope (Phase 5Q.1). **Note:** Applied directly via `npx supabase db query --linked`; not tracked in remote migration history due to known drift. Do not `supabase db push`. |
 | `20260606130000_add_estimates_sets_property_defaults.sql` | Add `sets_property_defaults boolean NOT NULL DEFAULT false` to `estimates` (Phase 5X.4a). Applied via `npx supabase db query --linked --file`. Committed. Same drift caveat — do not `supabase db push`. |
 | `20260803120000_security_drop_anon_estimate_read.sql` | 2026-08-03 security hardening: drop anon estimate-read policy, revoke PUBLIC EXECUTE on `handle_new_user()`, add `idx_leads_created_by`. Applied via `npx supabase db query --linked --file` and verified live. Same drift caveat. |
+| `20260806120000_create_customer_alert_snoozes.sql` | Today alert snoozes: per-customer per-alert-type 7-day snooze table with business-member RLS. Applied via `npx supabase db query --linked --file`. Same drift caveat. |
+| `20260806150000_add_home_base_and_review_request.sql` | `pricing_settings` gains `home_base_address`/`latitude`/`longitude` + `review_request_url`; `message_logs.message_type` check constraint gains `'review_request'`. Applied via `npx supabase db query --linked --file`. Same drift caveat. |
 
 ---
 
@@ -1099,6 +1133,15 @@ A full four-dimension review (security, correctness, data layer, product/UX) fol
 
 | Hash | Description |
 |------|-------------|
+| `b4c1636` | Add Today route button, home base, time-window routing, and review-request SMS |
+| `4f8b089` | Fix property geocoding: parcel GIS coordinates first, working centroid fallback, re-geocode on address change |
+| `d482195` | Add one-time work to upcoming visits (Add Work panel) |
+| `d1ea016` | Bold last names on customer list cards as the visual sort key |
+| `5605ff5` | Customers page: Active/Inactive/Archived tabs and last-name sort |
+| `c758683` | Make archived customers and website leads recallable |
+| `a05a7d3` | Move customer status toggle into the Customer Info card |
+| `cb69c77` | Add Today alert snoozing, inactive customer toggle, and one-time dormant fix |
+| `e520c91` | Update ARCHITECTURE, HANDOFF, and README for 2026-08-03 hardening session |
 | `058376f` | Finish review backlog: cron delivery, price semantics, ownership checks, upload validation |
 | `08ebc04` | Add vitest unit tests and GitHub Actions CI |
 | `a8bb608` | Type Supabase clients with generated Database types |
