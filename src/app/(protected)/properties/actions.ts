@@ -67,8 +67,22 @@ export async function createProperty(
   const serviceFrequency = (formData.get('service_frequency') as string)?.trim()
   if (!serviceFrequency) return { error: 'Frequency is required.' }
 
-  // Geocode the address (best-effort, non-blocking on failure)
-  const geo = await geocodeAddress({ address, city, state, postalCode })
+  // Coordinates: linked parcel's county GIS lat/lon first (rooftop-accurate,
+  // no API call — rural roads are often missing from OSM entirely), then
+  // Nominatim geocoding. Best-effort, non-blocking on failure.
+  const parcelIdForCoords = str(formData, 'parcel_id')
+  let geo: { latitude: number; longitude: number } | null = null
+  if (parcelIdForCoords) {
+    const { data: parcelRow } = await supabase
+      .from('parcels')
+      .select('lat, lon')
+      .eq('id', parcelIdForCoords)
+      .maybeSingle()
+    if (parcelRow?.lat != null && parcelRow?.lon != null) {
+      geo = { latitude: Number(parcelRow.lat), longitude: Number(parcelRow.lon) }
+    }
+  }
+  if (!geo) geo = await geocodeAddress({ address, city, state, postalCode })
 
   const { data: property, error } = await supabase.from('properties').insert({
     created_by: userId,
@@ -147,16 +161,37 @@ export async function updateProperty(
   const serviceFrequency = (formData.get('service_frequency') as string)?.trim()
   if (!serviceFrequency) return { error: 'Frequency is required.' }
 
-  // If property has no lat/lon yet, geocode it now
+  // Re-resolve coordinates when they're missing OR the address changed —
+  // stale coords on an edited address silently point weather/routing at the
+  // old location. Only overwrite on success (a geocoder hiccup must never
+  // wipe good coordinates). Linked parcel GIS lat/lon takes priority.
   const { data: existing } = await supabase
     .from('properties')
-    .select('latitude, longitude')
+    .select('latitude, longitude, service_address, city, state, postal_code')
     .eq('id', id)
     .eq('business_id', businessId)
     .single()
+  const addressChanged = existing != null && (
+    existing.service_address !== address ||
+    existing.city !== city ||
+    existing.state !== state ||
+    (existing.postal_code ?? null) !== (postalCode ?? null)
+  )
   let geoUpdate: { latitude?: number; longitude?: number } = {}
-  if (!existing?.latitude || !existing?.longitude) {
-    const geo = await geocodeAddress({ address, city, state, postalCode })
+  if (!existing?.latitude || !existing?.longitude || addressChanged) {
+    const parcelIdForCoords = str(formData, 'parcel_id')
+    let geo: { latitude: number; longitude: number } | null = null
+    if (parcelIdForCoords) {
+      const { data: parcelRow } = await supabase
+        .from('parcels')
+        .select('lat, lon')
+        .eq('id', parcelIdForCoords)
+        .maybeSingle()
+      if (parcelRow?.lat != null && parcelRow?.lon != null) {
+        geo = { latitude: Number(parcelRow.lat), longitude: Number(parcelRow.lon) }
+      }
+    }
+    if (!geo) geo = await geocodeAddress({ address, city, state, postalCode })
     if (geo) geoUpdate = { latitude: geo.latitude, longitude: geo.longitude }
   }
 
@@ -451,7 +486,7 @@ export async function backfillPropertyCoordinates(
 
   const { data: properties } = await supabase
     .from('properties')
-    .select('id, service_address, city, state, postal_code')
+    .select('id, service_address, city, state, postal_code, parcel_id')
     .eq('business_id', businessId)
     .or('latitude.is.null,longitude.is.null')
 
@@ -459,10 +494,37 @@ export async function backfillPropertyCoordinates(
     return { error: null, success: 'All properties already have coordinates.' }
   }
 
+  // Linked parcels carry county GIS lat/lon — exact and API-free. Batch-load
+  // them first; Nominatim is only for properties without a usable parcel.
+  const parcelIds = properties.map(p => p.parcel_id).filter((v): v is string => !!v)
+  const parcelCoords = new Map<string, { latitude: number; longitude: number }>()
+  if (parcelIds.length > 0) {
+    const { data: parcelRows } = await supabase
+      .from('parcels')
+      .select('id, lat, lon')
+      .in('id', parcelIds)
+    for (const row of parcelRows ?? []) {
+      if (row.lat != null && row.lon != null) {
+        parcelCoords.set(row.id, { latitude: Number(row.lat), longitude: Number(row.lon) })
+      }
+    }
+  }
+
   let succeeded = 0
   let failed = 0
 
   for (const p of properties) {
+    const fromParcel = p.parcel_id ? parcelCoords.get(p.parcel_id) : undefined
+    if (fromParcel) {
+      await supabase
+        .from('properties')
+        .update({ latitude: fromParcel.latitude, longitude: fromParcel.longitude })
+        .eq('id', p.id)
+        .eq('business_id', businessId)
+      succeeded++
+      continue // no API call made — no rate-limit pause needed
+    }
+
     if (!p.service_address) { failed++; continue }
     const geo = await geocodeAddress({
       address: p.service_address,

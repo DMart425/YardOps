@@ -53,13 +53,12 @@ export async function geocodeAddress(parts: {
       )
       if (freeformResult) return freeformResult
 
-      // Fallback 2: city/ZIP centroid — for rural addresses not in OSM street data.
-      // Drops the street number so Nominatim can at least resolve the town.
-      // Result is a town-level approximation, good enough for weather.
-      const cityQuery = [parts.city, parts.state, parts.postalCode].filter(Boolean).join(', ')
-      if (cityQuery) return geocodeFreeform(cityQuery)
-
-      return null
+      // Fallback 2: city/ZIP centroid — for rural addresses not in OSM street
+      // data. Town-level approximation, good enough for weather.
+      // NOTE: must use a STRUCTURED query or "City, State" freeform — the
+      // combined freeform "CITY, ST, ZIP" string fails Nominatim's parser
+      // (verified 2026-08-06 with "NEWTON, AL, 36352" → no match).
+      return geocodeCentroid(parts)
     }
     const top = data[0]
     return {
@@ -70,6 +69,51 @@ export async function geocodeAddress(parts: {
   } catch {
     return null
   }
+}
+
+/**
+ * Town-level centroid lookup, tried three ways in order of precision:
+ * structured city+state+ZIP → freeform "City, State" → structured ZIP only.
+ */
+async function geocodeCentroid(parts: {
+  city?: string | null
+  state?: string | null
+  postalCode?: string | null
+}): Promise<GeocodeResult | null> {
+  if (parts.city || parts.postalCode) {
+    const url = new URL('https://nominatim.openstreetmap.org/search')
+    url.searchParams.set('format', 'json')
+    url.searchParams.set('limit', '1')
+    url.searchParams.set('countrycodes', 'us')
+    if (parts.city)       url.searchParams.set('city', parts.city)
+    if (parts.state)      url.searchParams.set('state', parts.state)
+    if (parts.postalCode) url.searchParams.set('postalcode', parts.postalCode)
+    try {
+      const res = await fetch(url.toString(), {
+        headers: { 'User-Agent': USER_AGENT },
+        next: { revalidate: 60 * 60 * 24 * 30 },
+      })
+      if (res.ok) {
+        const data = (await res.json()) as NominatimResult[]
+        if (data && data.length > 0) {
+          return { latitude: parseFloat(data[0].lat), longitude: parseFloat(data[0].lon), displayName: data[0].display_name }
+        }
+      }
+    } catch {
+      // fall through to the next attempt
+    }
+  }
+
+  if (parts.city && parts.state) {
+    const byName = await geocodeFreeform(`${parts.city}, ${parts.state}`)
+    if (byName) return byName
+  }
+
+  if (parts.postalCode) {
+    return geocodeFreeform(`${parts.postalCode} USA`)
+  }
+
+  return null
 }
 
 async function geocodeFreeform(q: string): Promise<GeocodeResult | null> {
