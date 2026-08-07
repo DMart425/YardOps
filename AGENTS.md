@@ -61,7 +61,7 @@ Known items requiring care:
 * `leads` update/delete RLS policies may be too permissive.
 * `message_logs` insert/select policies may be too broad.
 * `handle_new_user()` is a SECURITY DEFINER function and should not be directly executable by anon/authenticated users if it is trigger-only.
-* `schedule_upcoming` view should be reviewed before being exposed broadly.
+* ~~`schedule_upcoming` view should be reviewed before being exposed broadly.~~ RESOLVED 2026-08-07: view was SECURITY DEFINER with anon grants (RLS bypass exposing customer names/addresses/schedule) and unused by any code path — dropped via `20260807090000_drop_schedule_upcoming_view.sql`.
 * Missing foreign-key indexes may need cleanup.
 * RLS policies using bare `auth.uid()` may need `(select auth.uid())` optimization.
 * Type/schema drift must be fixed before policy hardening.

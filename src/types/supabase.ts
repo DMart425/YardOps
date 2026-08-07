@@ -1480,29 +1480,7 @@ export type Database = {
       }
     }
     Views: {
-      schedule_upcoming: {
-        Row: {
-          created_by: string | null
-          first_name: string | null
-          job_id: string | null
-          job_title: string | null
-          last_name: string | null
-          scheduled_end: string | null
-          scheduled_start: string | null
-          service_address: string | null
-          status: string | null
-          visit_id: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "job_visits_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "jobs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
+      [_ in never]: never
     }
     Functions: {
       is_business_member: {

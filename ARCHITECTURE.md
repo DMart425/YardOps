@@ -606,7 +606,7 @@ Run `npm run gen:types` to regenerate `src/types/supabase.ts` from the live sche
 
 ### RLS Hardening Checklist (future — not yet applied)
 
-- Review `schedule_upcoming` view — confirm it exposes only intended rows.
+- ~~Review `schedule_upcoming` view — confirm it exposes only intended rows.~~ RESOLVED 2026-08-07: unused SECURITY DEFINER view with anon grants; dropped (`20260807090000`).
 - Tighten permissive `leads` update/delete RLS if policies are broader than intended.
 - Tighten `message_logs` insert policy.
 - Revoke direct RPC execute on `handle_new_user()` if trigger-only.
