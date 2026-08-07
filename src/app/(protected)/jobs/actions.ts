@@ -7,6 +7,7 @@ import type { FormState } from '@/types/database'
 import { requireBusinessContext } from '@/lib/business/context'
 import { getLocalDateStr, resolveTimeZone } from '@/lib/date'
 import type { Json } from '@/types/supabase'
+import { parseJobInputs as parseStoredJobInputs } from '@/lib/jobScope'
 
 // ---------------------------------------------------------------------------
 // Job Inputs: structured service scope stored in jobs.job_inputs (Phase 5Q.2+)
@@ -455,6 +456,104 @@ export async function scheduleFollowUpJob(
   revalidatePath('/today')
 
   return { error: null, success: 'Follow-up visit scheduled.' }
+}
+
+// ── addWorkToJob ────────────────────────────────────────────────────────────
+// One-time work on an upcoming visit ("also trim the hedges next time"):
+// updates the job's add-on fields and (optionally) the agreed total price,
+// in place — one job, one visit, one invoice. Core services are preserved
+// untouched; add-on values from the form replace the stored ones (the panel
+// prefills current values, so clearing an add-on back to none also works).
+//
+// One-off work stays one-off by architecture: follow-ups derive scope from
+// property default booleans with add-ons reset to none, so nothing added
+// here ever propagates to the next visit.
+//
+// Price is the operator-entered new TOTAL (never calculated — see AGENTS.md);
+// blank keeps the current price; explicit 0 is a valid comped price.
+export async function addWorkToJob(
+  id: string,
+  prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  void prevState
+  const supabase = await createClient()
+  const { userId, businessId } = await requireBusinessContext()
+
+  const { data: existing } = await supabase
+    .from('jobs')
+    .select('id, status, price, job_inputs, service_package, internal_notes')
+    .eq('id', id)
+    .eq('business_id', businessId)
+    .single()
+
+  if (!existing) return { error: 'Job not found.' }
+  if (!['scheduled', 'in_progress', 'needs_reschedule'].includes(existing.status)) {
+    return { error: 'One-time work can only be added to upcoming jobs. For completed jobs, adjust price and notes at completion.' }
+  }
+
+  const clampCount = (raw: FormDataEntryValue | null): number => {
+    const n = parseInt((raw as string) ?? '0', 10)
+    return isNaN(n) || n < 0 ? 0 : n
+  }
+
+  // Preserve core services exactly as stored (all-false base for legacy null
+  // job_inputs — we record the added work without inventing core scope).
+  const current = parseStoredJobInputs(existing.job_inputs as Record<string, unknown> | null)
+  const merged: JobInputs = {
+    svcMowing:        current?.svcMowing        ?? false,
+    svcWeedEating:    current?.svcWeedEating    ?? false,
+    svcEdging:        current?.svcEdging        ?? false,
+    svcBlowOff:       current?.svcBlowOff       ?? false,
+    baggingLevel:     (formData.get('bagging_level') as string) || 'none',
+    stickPickupLevel: (formData.get('stick_pickup_level') as string) || 'none',
+    leafCleanupLevel: (formData.get('leaf_cleanup_level') as string) || 'none',
+    haulOffLevel:     (formData.get('haul_off_level') as string) || 'none',
+    shrubSmallCount:  clampCount(formData.get('shrub_small_count')),
+    shrubMediumCount: clampCount(formData.get('shrub_medium_count')),
+    shrubLargeCount:  clampCount(formData.get('shrub_large_count')),
+  }
+
+  // Optional new agreed total. Blank = keep current; explicit 0 = comped.
+  const priceRaw = ((formData.get('new_price') as string | null) ?? '').trim()
+  const parsedPrice = priceRaw === '' ? null : Number(priceRaw)
+  if (priceRaw !== '' && (parsedPrice == null || !Number.isFinite(parsedPrice) || parsedPrice < 0)) {
+    return { error: 'Enter a valid new total price, or leave it blank to keep the current price.' }
+  }
+  const newPrice = parsedPrice != null && Number.isFinite(parsedPrice) ? parsedPrice : null
+
+  // Dated audit line in internal notes — the dispute-protection paper trail.
+  const { data: tzRow } = await supabase
+    .from('pricing_settings')
+    .select('time_zone')
+    .eq('user_id', userId)
+    .maybeSingle()
+  const todayStr = getLocalDateStr(resolveTimeZone(tzRow?.time_zone))
+  const workNote = (formData.get('work_note') as string)?.trim() || ''
+  const priceLog = newPrice != null
+    ? ` — price ${existing.price != null ? `$${Number(existing.price).toFixed(0)}` : 'not set'} → $${newPrice.toFixed(0)}`
+    : ''
+  const auditLine = `${todayStr}: One-time work updated${workNote ? ` — ${workNote}` : ''}${priceLog}`
+  const newInternalNotes = existing.internal_notes ? `${existing.internal_notes}\n${auditLine}` : auditLine
+
+  const { error } = await supabase
+    .from('jobs')
+    .update({
+      job_inputs:      merged as unknown as Json,
+      service_package: derivePackageFromJobInputs(merged) ?? existing.service_package ?? null,
+      price:           newPrice != null ? newPrice : existing.price,
+      internal_notes:  newInternalNotes,
+    })
+    .eq('id', id)
+    .eq('business_id', businessId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/jobs')
+  revalidatePath(`/jobs/${id}`)
+  revalidatePath('/today')
+
+  return { error: null, success: 'Visit updated.' }
 }
 
 export async function markInProgress(

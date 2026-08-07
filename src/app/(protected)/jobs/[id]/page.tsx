@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { addDays, formatDateOnly, formatTimestampDate, resolveTimeZone, getLocalDateStr } from '@/lib/date'
 import { JobActions } from '@/components/JobActions'
+import { AddWorkPanel } from '@/components/AddWorkPanel'
 import { JobPhotos } from '@/components/JobPhotos'
 import { DownloadInvoiceButton } from '@/components/DownloadInvoiceButton'
 import { ScheduleFollowUpCard } from '@/components/ScheduleFollowUpCard'
@@ -510,6 +511,18 @@ export default async function JobDetailPage({
         <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Actions</div>
         <JobActions job={job} venmoHandle={venmoHandle} customerPhone={customer.phone} customerFirstName={customer.first_name} businessName={businessName} businessPhone={businessPhone} portalInvoiceUrl={portalInvoiceUrl} />
       </div>
+
+      {/* One-time work on this visit (upcoming jobs only) */}
+      {['scheduled', 'in_progress', 'needs_reschedule'].includes(job.status) && (
+        <AddWorkPanel
+          jobId={job.id}
+          rawJobInputs={job.job_inputs as Record<string, unknown> | null}
+          currentPrice={job.price != null ? Number(job.price) : null}
+          customerPhone={customer.phone}
+          customerFirstName={customer.first_name}
+          businessName={businessName}
+        />
+      )}
 
       {/* Follow-up scheduling (completed jobs only, no follow-up yet) */}
       {job.status === 'completed' && !job.next_job_created_id && (
