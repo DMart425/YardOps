@@ -278,8 +278,10 @@ export default async function CustomersPage({
                 <div className="card">
                   <div className="card-row">
                     <div>
-                      <div className="card-title">
-                        {c.first_name}{c.last_name ? ` ${c.last_name}` : ''}
+                      {/* Last name bolded as the visual sort key (list sorts by
+                          last name) while keeping natural First Last reading. */}
+                      <div className="card-title" style={{ fontWeight: 400 }}>
+                        {c.first_name}{c.last_name ? <> <strong>{c.last_name}</strong></> : ''}
                       </div>
                       {c.phone && <div className="contact-row">📞 {c.phone}</div>}
                     </div>
