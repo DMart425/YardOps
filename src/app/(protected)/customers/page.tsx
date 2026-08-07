@@ -48,9 +48,8 @@ export default async function CustomersPage({
 }) {
   const sp = await searchParams
   const q = (sp.q ?? '').trim()
-  // 'archived' shows soft-deleted customers so they remain recallable;
-  // the default view shows active + inactive.
-  const view = sp.view === 'archived' ? 'archived' : 'current'
+  // One tab per customer status. Archived stays recallable, never invisible.
+  const view = sp.view === 'archived' ? 'archived' : sp.view === 'inactive' ? 'inactive' : 'active'
   const page = parsePage(sp.page)
   const from = (page - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE
@@ -78,7 +77,9 @@ export default async function CustomersPage({
       )
     `)
     .eq('business_id', businessId)
-    .in('status', view === 'archived' ? ['archived'] : ['active', 'inactive'])
+    .eq('status', view)
+    // Alphabetical by last name, then first; customers without a last name sort last.
+    .order('last_name', { ascending: true, nullsFirst: false })
     .order('first_name', { ascending: true })
     .range(from, to)
 
@@ -134,7 +135,7 @@ export default async function CustomersPage({
 
   function customersHref(targetPage: number): string {
     const params = new URLSearchParams()
-    if (view === 'archived') params.set('view', 'archived')
+    if (view !== 'active') params.set('view', view)
     if (q) params.set('q', q)
     params.set('page', String(targetPage))
     return `/customers?${params.toString()}`
@@ -157,7 +158,13 @@ export default async function CustomersPage({
         <div>
           <h1 className="page-title">Customers</h1>
           <p className="page-subtitle">
-            {q ? 'Search results' : view === 'archived' ? 'Archived customers' : `Showing up to ${PAGE_SIZE} customers`}
+            {q
+              ? 'Search results'
+              : view === 'archived'
+                ? 'Archived customers'
+                : view === 'inactive'
+                  ? 'Inactive customers'
+                  : `Showing up to ${PAGE_SIZE} customers`}
           </p>
         </div>
       </div>
@@ -172,16 +179,19 @@ export default async function CustomersPage({
             aria-label="Search customers"
           />
           <input type="hidden" name="page" value="1" />
-          {view === 'archived' && <input type="hidden" name="view" value="archived" />}
+          {view !== 'active' && <input type="hidden" name="view" value={view} />}
           <button type="submit" className="btn btn-sm btn-secondary">Search</button>
-          {q ? <Link href={view === 'archived' ? '/customers?view=archived' : '/customers'} className="btn btn-sm btn-secondary">Clear</Link> : null}
+          {q ? <Link href={view !== 'active' ? `/customers?view=${view}` : '/customers'} className="btn btn-sm btn-secondary">Clear</Link> : null}
         </form>
       </div>
 
-      {/* View tabs — archived customers stay recallable, never invisible */}
+      {/* Status tabs — one per customer status; archived stays recallable */}
       <div className="filter-tabs" style={{ marginBottom: '1rem' }}>
-        <Link href="/customers" className={`filter-tab${view !== 'archived' ? ' active' : ''}`}>
-          Customers
+        <Link href="/customers" className={`filter-tab${view === 'active' ? ' active' : ''}`}>
+          Active
+        </Link>
+        <Link href="/customers?view=inactive" className={`filter-tab${view === 'inactive' ? ' active' : ''}`}>
+          Inactive
         </Link>
         <Link href="/customers?view=archived" className={`filter-tab${view === 'archived' ? ' active' : ''}`}>
           Archived
@@ -201,6 +211,12 @@ export default async function CustomersPage({
             <p style={{ fontSize: '2rem' }}>🗂</p>
             <p style={{ fontWeight: 600, marginTop: '8px' }}>No archived customers</p>
             <p>Customers you archive will appear here and can be restored from their detail page.</p>
+          </div>
+        ) : view === 'inactive' ? (
+          <div className="empty-state">
+            <p style={{ fontSize: '2rem' }}>⏸</p>
+            <p style={{ fontWeight: 600, marginTop: '8px' }}>No inactive customers</p>
+            <p>Mark a customer inactive from their detail page to pause them without losing history.</p>
           </div>
         ) : (
           <div className="empty-state">
