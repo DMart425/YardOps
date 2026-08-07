@@ -307,6 +307,36 @@ export async function dismissWebsiteLead(
   redirect('/leads')
 }
 
+// ── restoreWebsiteLead ──────────────────────────────────────────────────────
+// Restores a dismissed (archived) website lead back to 'new' so it reappears
+// in the Active leads view and can be converted normally.
+export async function restoreWebsiteLead(
+  leadId: string,
+  prevState: FormState,
+  _formData: FormData
+): Promise<FormState> {
+  void prevState
+  void _formData
+  const supabase = await createClient()
+  const { businessId } = await requireBusinessContext()
+
+  const { data: restored, error } = await supabase
+    .from('leads')
+    .update({ status: 'new' })
+    .eq('id', Number(leadId))
+    .eq('business_id', businessId)
+    .eq('status', 'archived')
+    .select('id')
+    .maybeSingle()
+
+  if (error) return { error: error.message }
+  if (!restored) return { error: 'Lead not found, not owned by this business, or not archived.' }
+
+  revalidatePath('/leads')
+  revalidatePath(`/leads/website/${leadId}`)
+  return { error: null, success: 'Lead restored to Active.' }
+}
+
 // ── deleteWebsiteLead ───────────────────────────────────────────────────────
 // Hard-deletes a single website lead row
 export async function deleteWebsiteLead(

@@ -44,10 +44,13 @@ function parsePage(raw: string | undefined): number {
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; page?: string }>
+  searchParams: Promise<{ q?: string; page?: string; view?: string }>
 }) {
   const sp = await searchParams
   const q = (sp.q ?? '').trim()
+  // 'archived' shows soft-deleted customers so they remain recallable;
+  // the default view shows active + inactive.
+  const view = sp.view === 'archived' ? 'archived' : 'current'
   const page = parsePage(sp.page)
   const from = (page - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE
@@ -75,7 +78,7 @@ export default async function CustomersPage({
       )
     `)
     .eq('business_id', businessId)
-    .in('status', ['active', 'inactive'])
+    .in('status', view === 'archived' ? ['archived'] : ['active', 'inactive'])
     .order('first_name', { ascending: true })
     .range(from, to)
 
@@ -131,12 +134,13 @@ export default async function CustomersPage({
 
   function customersHref(targetPage: number): string {
     const params = new URLSearchParams()
+    if (view === 'archived') params.set('view', 'archived')
     if (q) params.set('q', q)
     params.set('page', String(targetPage))
     return `/customers?${params.toString()}`
   }
 
-  const pageOneHref = q ? `/customers?q=${encodeURIComponent(q)}&page=1` : '/customers?page=1'
+  const pageOneHref = customersHref(1)
 
   // Build map: customer_id -> soonest upcoming job (already ordered ascending)
   const nextJobMap = new Map<string, UpcomingJob>()
@@ -152,7 +156,9 @@ export default async function CustomersPage({
       <div className="page-header">
         <div>
           <h1 className="page-title">Customers</h1>
-          <p className="page-subtitle">{q ? 'Search results' : `Showing up to ${PAGE_SIZE} customers`}</p>
+          <p className="page-subtitle">
+            {q ? 'Search results' : view === 'archived' ? 'Archived customers' : `Showing up to ${PAGE_SIZE} customers`}
+          </p>
         </div>
       </div>
 
@@ -166,9 +172,20 @@ export default async function CustomersPage({
             aria-label="Search customers"
           />
           <input type="hidden" name="page" value="1" />
+          {view === 'archived' && <input type="hidden" name="view" value="archived" />}
           <button type="submit" className="btn btn-sm btn-secondary">Search</button>
-          {q ? <Link href="/customers" className="btn btn-sm btn-secondary">Clear</Link> : null}
+          {q ? <Link href={view === 'archived' ? '/customers?view=archived' : '/customers'} className="btn btn-sm btn-secondary">Clear</Link> : null}
         </form>
+      </div>
+
+      {/* View tabs — archived customers stay recallable, never invisible */}
+      <div className="filter-tabs" style={{ marginBottom: '1rem' }}>
+        <Link href="/customers" className={`filter-tab${view !== 'archived' ? ' active' : ''}`}>
+          Customers
+        </Link>
+        <Link href="/customers?view=archived" className={`filter-tab${view === 'archived' ? ' active' : ''}`}>
+          Archived
+        </Link>
       </div>
 
       {customerRows.length === 0 ? (
@@ -178,6 +195,12 @@ export default async function CustomersPage({
             <div style={{ marginTop: '10px' }}>
               <Link href={pageOneHref} className="btn btn-sm btn-secondary">Back to page 1</Link>
             </div>
+          </div>
+        ) : view === 'archived' ? (
+          <div className="empty-state">
+            <p style={{ fontSize: '2rem' }}>🗂</p>
+            <p style={{ fontWeight: 600, marginTop: '8px' }}>No archived customers</p>
+            <p>Customers you archive will appear here and can be restored from their detail page.</p>
           </div>
         ) : (
           <div className="empty-state">

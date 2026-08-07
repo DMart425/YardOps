@@ -139,6 +139,37 @@ export async function setCustomerActiveStatus(
   }
 }
 
+// Restores an archived customer as INACTIVE (not active) — restoring should
+// never immediately resurface someone in Today alerts; the operator flips
+// them to active when ready via the status toggle.
+export async function restoreArchivedCustomer(
+  customerId: string,
+  prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  void prevState
+  void formData
+  const supabase = await createClient()
+  const { businessId } = await requireBusinessContext()
+
+  const { data: restored, error } = await supabase
+    .from('customers')
+    .update({ status: 'inactive' })
+    .eq('id', customerId)
+    .eq('business_id', businessId)
+    .eq('status', 'archived')
+    .select('id')
+    .maybeSingle()
+
+  if (error) return { error: 'Unable to restore this customer right now. Please try again.' }
+  if (!restored) return { error: 'Customer not found, not owned by this business, or not archived.' }
+
+  revalidatePath('/customers')
+  revalidatePath(`/customers/${customerId}`)
+
+  return { error: null, success: 'Customer restored as inactive — mark active when ready.' }
+}
+
 export async function markLeadCustomerActive(
   customerId: string,
   prevState: FormState,

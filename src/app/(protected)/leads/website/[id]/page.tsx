@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { WebsiteLeadDangerZone, WebsiteLeadStatusActions } from './WebsiteLeadActions'
+import { RestoreWebsiteLeadButton, WebsiteLeadDangerZone, WebsiteLeadStatusActions } from './WebsiteLeadActions'
 import { estimateMowableAcres } from '@/lib/pricing'
 import { requireBusinessContext } from '@/lib/business/context'
 import { formatFrequencyLabel, parseWebsiteServiceInterests, formatServiceInterestLabel } from '@/lib/frequency'
@@ -15,12 +15,13 @@ export default async function WebsiteLeadDetailPage({
   const supabase = await createClient()
   const { businessId } = await requireBusinessContext()
 
+  // No status filter — archived and converted leads must stay viewable
+  // (recallable), not 404. The action cards below render per-status.
   const { data: lead } = await supabase
     .from('leads')
-    .select('id, name, phone, email, address, frequency, notes')
+    .select('id, name, phone, email, address, frequency, notes, status')
     .eq('id', Number(id))
     .eq('business_id', businessId)
-    .eq('status', 'new')
     .single()
 
   if (!lead) notFound()
@@ -95,16 +96,36 @@ export default async function WebsiteLeadDetailPage({
           <h1 className="page-title">{lead.name}</h1>
           <p className="page-subtitle">Website request</p>
         </div>
-        <span className="pill pill-lead">Website</span>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          <span className="pill pill-lead">Website</span>
+          {lead.status !== 'new' && (
+            <span className={`pill ${lead.status === 'converted' ? 'pill-active' : 'pill-draft'}`}>{lead.status}</span>
+          )}
+        </div>
       </div>
 
       <div className="detail-section">
         <div className="section-heading">Lead Status</div>
         <div className="card">
-          <p className="text-small text-muted" style={{ marginBottom: '10px' }}>
-            This contact came from your website.
-          </p>
-          <WebsiteLeadStatusActions leadId={id} />
+          {lead.status === 'new' ? (
+            <>
+              <p className="text-small text-muted" style={{ marginBottom: '10px' }}>
+                This contact came from your website.
+              </p>
+              <WebsiteLeadStatusActions leadId={id} />
+            </>
+          ) : lead.status === 'archived' ? (
+            <>
+              <p className="text-small text-muted" style={{ marginBottom: '10px' }}>
+                This website lead was dismissed and archived. Restoring moves it back to the Active leads view.
+              </p>
+              <RestoreWebsiteLeadButton leadId={id} />
+            </>
+          ) : (
+            <p className="text-small text-muted" style={{ margin: 0 }}>
+              This website lead was already converted — the contact now lives on the Customers page.
+            </p>
+          )}
         </div>
       </div>
 

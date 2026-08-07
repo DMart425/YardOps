@@ -2,7 +2,7 @@
 
 import { useActionState } from 'react'
 import type { FormState } from '@/types/database'
-import { convertWebsiteLead, dismissWebsiteLead } from '../../actions'
+import { convertWebsiteLead, dismissWebsiteLead, restoreWebsiteLead } from '../../actions'
 import { deleteWebsiteLead } from '../../actions'
 
 export function WebsiteLeadStatusActions({ leadId }: { leadId: string }) {
@@ -27,6 +27,25 @@ export function WebsiteLeadStatusActions({ leadId }: { leadId: string }) {
       <form action={dismissAction}>
         <button type="submit" disabled={dismissPending} className="btn btn-sm btn-secondary btn-full">
           {dismissPending ? '…' : 'Dismiss (keep archived)'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
+export function RestoreWebsiteLeadButton({ leadId }: { leadId: string }) {
+  const [state, action, pending] = useActionState<FormState, FormData>(
+    restoreWebsiteLead.bind(null, leadId),
+    { error: null }
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      {state.error && <div className="alert alert-error">{state.error}</div>}
+      {state.success && <div className="alert alert-success">{state.success}</div>}
+      <form action={action}>
+        <button type="submit" disabled={pending} className="btn btn-primary btn-full">
+          {pending ? 'Restoring…' : '♻ Restore Lead'}
         </button>
       </form>
     </div>

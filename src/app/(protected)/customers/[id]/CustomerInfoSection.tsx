@@ -48,7 +48,7 @@ export function CustomerInfoSection({ customer, mapsAddress }: { customer: Custo
             zone): inactive customers keep history but leave the Today alerts. */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
           <span className="card-meta">Status: {customer.status.replace(/_/g, ' ')}</span>
-          {(customer.status === 'active' || customer.status === 'inactive') && (
+          {(customer.status === 'active' || customer.status === 'inactive' || customer.status === 'archived') && (
             <CustomerStatusToggle customerId={customer.id} currentStatus={customer.status} />
           )}
         </div>

@@ -2,23 +2,26 @@
 
 import { useActionState } from 'react'
 import type { FormState } from '@/types/database'
-import { setCustomerActiveStatus } from '../actions'
+import { restoreArchivedCustomer, setCustomerActiveStatus } from '../actions'
 
-// Small active/inactive toggle shown on the customer detail header area.
-// Inactive customers keep their full history but stop appearing in the
-// Today retention alerts.
+// Status control on the customer info card's Status row.
+// - active ⇄ inactive: inactive customers keep full history but stop
+//   appearing in the Today retention alerts.
+// - archived → restore: comes back as inactive (never straight to active,
+//   so restoring can't instantly resurface someone in alerts).
 export function CustomerStatusToggle({
   customerId,
   currentStatus,
 }: {
   customerId: string
-  currentStatus: 'active' | 'inactive'
+  currentStatus: 'active' | 'inactive' | 'archived'
 }) {
-  const nextStatus = currentStatus === 'active' ? 'inactive' : 'active'
-  const [state, action, pending] = useActionState<FormState, FormData>(
-    setCustomerActiveStatus.bind(null, customerId, nextStatus),
-    { error: null }
-  )
+  const isArchived = currentStatus === 'archived'
+  const boundAction = isArchived
+    ? restoreArchivedCustomer.bind(null, customerId)
+    : setCustomerActiveStatus.bind(null, customerId, currentStatus === 'active' ? 'inactive' : 'active')
+
+  const [state, action, pending] = useActionState<FormState, FormData>(boundAction, { error: null })
 
   return (
     <div>
@@ -28,9 +31,11 @@ export function CustomerStatusToggle({
         <button type="submit" disabled={pending} className="btn btn-secondary btn-sm">
           {pending
             ? 'Updating…'
-            : currentStatus === 'active'
-              ? '⏸ Mark Inactive'
-              : '▶ Mark Active'}
+            : isArchived
+              ? '♻ Restore Customer'
+              : currentStatus === 'active'
+                ? '⏸ Mark Inactive'
+                : '▶ Mark Active'}
         </button>
       </form>
     </div>
