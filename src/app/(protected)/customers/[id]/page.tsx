@@ -8,7 +8,6 @@ import { formatFrequencyLabel } from '@/lib/frequency'
 import { requireBusinessContext } from '@/lib/business/context'
 import { CustomerDangerZone } from './CustomerDangerZone'
 import { LeadStatusActions } from './LeadStatusActions'
-import { CustomerStatusToggle } from './CustomerStatusToggle'
 import { CustomerInfoSection } from './CustomerInfoSection'
 import { getOrCreatePortalToken } from './portal-actions'
 
@@ -199,19 +198,6 @@ export default async function CustomerDetailPage({
               This contact is currently a lead.
             </p>
             <LeadStatusActions customerId={customerRow.id} />
-          </div>
-        </div>
-      )}
-
-      {(customerRow.status === 'active' || customerRow.status === 'inactive') && (
-        <div className="detail-section">
-          <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
-            <p className="text-small text-muted" style={{ margin: 0 }}>
-              {customerRow.status === 'active'
-                ? 'Inactive customers keep their history but stop appearing in Today alerts.'
-                : 'This customer is inactive and excluded from Today alerts.'}
-            </p>
-            <CustomerStatusToggle customerId={customerRow.id} currentStatus={customerRow.status} />
           </div>
         </div>
       )}

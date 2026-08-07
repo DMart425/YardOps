@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { Customer } from '@/types/database'
 import { CustomerEditForm } from './_form'
+import { CustomerStatusToggle } from './CustomerStatusToggle'
 
 type CustomerWithTags = Customer & { tags?: string[] | null }
 
@@ -43,7 +44,14 @@ export function CustomerInfoSection({ customer, mapsAddress }: { customer: Custo
         {customer.preferred_contact_method && (
           <div className="card-meta">Preferred contact: {customer.preferred_contact_method.replace(/_/g, ' ')}</div>
         )}
-        <div className="card-meta">Status: {customer.status.replace(/_/g, ' ')}</div>
+        {/* Status lives with the customer record (not the testing-only danger
+            zone): inactive customers keep history but leave the Today alerts. */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+          <span className="card-meta">Status: {customer.status.replace(/_/g, ' ')}</span>
+          {(customer.status === 'active' || customer.status === 'inactive') && (
+            <CustomerStatusToggle customerId={customer.id} currentStatus={customer.status} />
+          )}
+        </div>
         {customer.notes && <div className="card-meta">Notes: {customer.notes}</div>}
 
         {(customer.phone || customer.email || mapUrl) && (
