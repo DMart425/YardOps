@@ -9,6 +9,7 @@ import { requireBusinessContext } from '@/lib/business/context'
 import { firstReadError } from '@/lib/readError'
 import { ReadErrorNotice } from '@/components/ReadErrorNotice'
 import type { AppNotification } from '@/types/database'
+import { snoozeCustomerAlert } from './actions'
 
 function dateOnlyToUtcMs(dateStr: string) {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -94,6 +95,7 @@ export default async function TodayPage() {
     needsFollowUpResult,
     approvedEstimatesResult,
     upcomingRecurringJobsResult,
+    alertSnoozesResult,
   ] = await Promise.all([
     supabase
       .from('app_notifications')
@@ -178,10 +180,11 @@ export default async function TodayPage() {
       .eq('visit_scheduled_date', today)
       .not('status', 'in', '("converted","declined")')
       .order('visit_scheduled_time'),
-    // Recurring gap detection base query
+    // Recurring gap detection base query. Customer status is selected so
+    // inactive/archived customers can be excluded from the alert below.
     supabase
       .from('jobs')
-      .select('customer_id, customers(first_name, last_name)')
+      .select('customer_id, customers(first_name, last_name, status)')
       .eq('business_id', businessId)
       .eq('job_type', 'recurring')
       .gte('scheduled_date', sixtyDaysAgoStr)
@@ -189,11 +192,15 @@ export default async function TodayPage() {
     // Customer retention base query — bounded to 2-year lookback to avoid full table scan.
     // Customers whose last completed job was >2 years ago are treated as churned and will not
     // appear in the dormant list; this is an acceptable trade-off for the Today dashboard.
+    // Recurring jobs only: a customer whose only history is a one-time cut is
+    // not "dormant" — nagging to revisit them is noise. Customer status is
+    // selected so inactive/archived customers can be excluded.
     supabase
       .from('jobs')
-      .select('customer_id, completed_at, customers(id, first_name, last_name)')
+      .select('customer_id, completed_at, customers(id, first_name, last_name, status)')
       .eq('business_id', businessId)
       .eq('status', 'completed')
+      .eq('job_type', 'recurring')
       .not('customer_id', 'is', null)
       .gte('completed_at', localMidnightUtcIso(twoYearsAgoStr, timeZone)),
     // New leads count (website)
@@ -235,6 +242,14 @@ export default async function TodayPage() {
       .eq('job_type', 'recurring')
       .in('status', ['scheduled', 'in_progress', 'needs_reschedule'])
       .gte('scheduled_date', today),
+    // Active alert snoozes — customers hidden from the retention alerts until
+    // snoozed_until. Rows with past dates are simply ignored (and re-snoozing
+    // upserts over them), so no cleanup job is needed.
+    supabase
+      .from('customer_alert_snoozes')
+      .select('customer_id, alert_type')
+      .eq('business_id', businessId)
+      .gte('snoozed_until', today),
   ])
 
   // Exclude notifications whose linked estimate has already been converted to a job.
@@ -257,6 +272,14 @@ export default async function TodayPage() {
     needsFollowUpResult.error,
     approvedEstimatesResult.error,
     upcomingRecurringJobsResult.error,
+    alertSnoozesResult.error,
+  )
+
+  const gapSnoozedIds = new Set(
+    (alertSnoozesResult.data ?? []).filter(s => s.alert_type === 'recurring_gap').map(s => s.customer_id)
+  )
+  const dormantSnoozedIds = new Set(
+    (alertSnoozesResult.data ?? []).filter(s => s.alert_type === 'dormant').map(s => s.customer_id)
   )
 
   const approvalNotifications = (approvalNotificationsResult.data ?? []).filter(n => {
@@ -347,14 +370,16 @@ export default async function TodayPage() {
 
   let gapCustomers: { id: string; name: string }[] = []
   if (recentRecurring && recentRecurring.length > 0) {
-    // Deduplicate to unique customers
+    // Deduplicate to unique ACTIVE customers — inactive/archived customers are
+    // intentionally excluded from retention alerts.
     const uniqueMap = new Map<string, string>()
     for (const row of recentRecurring) {
       const cid = row.customer_id as string
       if (!uniqueMap.has(cid)) {
         const raw = row.customers
-        const c = (Array.isArray(raw) ? raw[0] : raw) as { first_name: string; last_name: string | null } | null
-        uniqueMap.set(cid, c ? `${c.first_name}${c.last_name ? ' ' + c.last_name : ''}` : 'Customer')
+        const c = (Array.isArray(raw) ? raw[0] : raw) as { first_name: string; last_name: string | null; status: string } | null
+        if (!c || c.status !== 'active') continue
+        uniqueMap.set(cid, `${c.first_name}${c.last_name ? ' ' + c.last_name : ''}`)
       }
     }
     const recurringIds = [...uniqueMap.keys()]
@@ -365,10 +390,11 @@ export default async function TodayPage() {
       .in('customer_id', recurringIds)
       .gte('scheduled_date', today)
       .lte('scheduled_date', twoWeeksStr)
-      .in('status', ['scheduled', 'in_progress'])
+      .in('status', ['scheduled', 'in_progress', 'needs_reschedule'])
     const coveredIds = new Set((upcomingJobs ?? []).map(j => j.customer_id as string))
     gapCustomers = recurringIds
       .filter(id => !coveredIds.has(id))
+      .filter(id => !gapSnoozedIds.has(id))
       .map(id => ({ id, name: uniqueMap.get(id)! }))
   }
 
@@ -378,8 +404,9 @@ export default async function TodayPage() {
     for (const row of recentCompletedJobs) {
       const cid = row.customer_id as string
       const raw = row.customers
-      const c = (Array.isArray(raw) ? raw[0] : raw) as { id: string; first_name: string; last_name: string | null } | null
+      const c = (Array.isArray(raw) ? raw[0] : raw) as { id: string; first_name: string; last_name: string | null; status: string } | null
       if (!c || !row.completed_at) continue
+      if (c.status !== 'active') continue
       const d = new Date(row.completed_at)
       const existing = lastVisitMap.get(cid)
       if (!existing || d > existing.date) {
@@ -389,6 +416,7 @@ export default async function TodayPage() {
     dormantCustomers = [...lastVisitMap.entries()]
       .map(([id, { name, date }]) => ({ id, name, daysSince: Math.floor((todayStartMs - date.getTime()) / 86400000) }))
       .filter(c => c.daysSince >= 60)
+      .filter(c => !dormantSnoozedIds.has(c.id))
       .sort((a, b) => b.daysSince - a.daysSince)
       .slice(0, 5) // cap at 5 to avoid wall of text
   }
@@ -443,7 +471,20 @@ export default async function TodayPage() {
               <div className="text-small text-muted" style={{ marginBottom: '6px' }}>No job scheduled in the next 14 days:</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                 {gapCustomers.map(c => (
-                  <Link key={c.id} href={`/customers/${c.id}`} className="pill pill-lead" style={{ textDecoration: 'none' }}>{c.name}</Link>
+                  <span key={c.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                    <Link href={`/customers/${c.id}`} className="pill pill-lead" style={{ textDecoration: 'none' }}>{c.name}</Link>
+                    <form action={snoozeCustomerAlert.bind(null, c.id, 'recurring_gap')} style={{ display: 'inline-flex' }}>
+                      <button
+                        type="submit"
+                        className="pill"
+                        title="Snooze for 7 days"
+                        aria-label={`Snooze ${c.name} for 7 days`}
+                        style={{ cursor: 'pointer', border: '1px solid var(--color-border, #333)', background: 'transparent', color: 'var(--color-text-muted)' }}
+                      >
+                        ✕
+                      </button>
+                    </form>
+                  </span>
                 ))}
               </div>
             </div>
@@ -461,10 +502,23 @@ export default async function TodayPage() {
               <div className="text-small text-muted" style={{ marginBottom: '6px' }}>No completed job in 60+ days:</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 {dormantCustomers.map(c => (
-                  <Link key={c.id} href={`/customers/${c.id}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', textDecoration: 'none' }}>
-                    <span className="text-small">{c.name}</span>
-                    <span className="pill pill-overdue" style={{ fontSize: '0.7rem' }}>{c.daysSince}d ago</span>
-                  </Link>
+                  <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                    <Link href={`/customers/${c.id}`} style={{ display: 'flex', flex: 1, minWidth: 0, justifyContent: 'space-between', alignItems: 'center', textDecoration: 'none' }}>
+                      <span className="text-small">{c.name}</span>
+                      <span className="pill pill-overdue" style={{ fontSize: '0.7rem' }}>{c.daysSince}d ago</span>
+                    </Link>
+                    <form action={snoozeCustomerAlert.bind(null, c.id, 'dormant')} style={{ display: 'inline-flex', flexShrink: 0 }}>
+                      <button
+                        type="submit"
+                        className="pill"
+                        title="Snooze for 7 days"
+                        aria-label={`Snooze ${c.name} for 7 days`}
+                        style={{ cursor: 'pointer', border: '1px solid var(--color-border, #333)', background: 'transparent', color: 'var(--color-text-muted)' }}
+                      >
+                        ✕
+                      </button>
+                    </form>
+                  </div>
                 ))}
               </div>
             </div>

@@ -95,6 +95,50 @@ export async function archiveCustomer(
   redirect('/customers')
 }
 
+// Toggle between active and inactive only. Inactive customers keep all their
+// history and remain fully viewable, but are excluded from the Today retention
+// alerts (recurring-gap and dormant). Lead and archived statuses are never
+// touched by this action — leads promote via markLeadCustomerActive, archive
+// has its own flow.
+export async function setCustomerActiveStatus(
+  customerId: string,
+  nextStatus: 'active' | 'inactive',
+  prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  void prevState
+  void formData
+  if (nextStatus !== 'active' && nextStatus !== 'inactive') {
+    return { error: 'Invalid status.' }
+  }
+
+  const supabase = await createClient()
+  const { businessId } = await requireBusinessContext()
+
+  const { data: updated, error } = await supabase
+    .from('customers')
+    .update({ status: nextStatus })
+    .eq('id', customerId)
+    .eq('business_id', businessId)
+    .in('status', ['active', 'inactive'])
+    .select('id')
+    .maybeSingle()
+
+  if (error) return { error: 'Unable to update customer status right now. Please try again.' }
+  if (!updated) return { error: 'Customer not found, not owned by this business, or not an active/inactive customer.' }
+
+  revalidatePath('/customers')
+  revalidatePath(`/customers/${customerId}`)
+  revalidatePath('/today')
+
+  return {
+    error: null,
+    success: nextStatus === 'inactive'
+      ? 'Customer marked inactive — they will no longer appear in Today alerts.'
+      : 'Customer marked active.',
+  }
+}
+
 export async function markLeadCustomerActive(
   customerId: string,
   prevState: FormState,

@@ -177,6 +177,51 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_alert_snoozes: {
+        Row: {
+          alert_type: string
+          business_id: string
+          created_at: string
+          created_by: string
+          customer_id: string
+          id: string
+          snoozed_until: string
+        }
+        Insert: {
+          alert_type: string
+          business_id: string
+          created_at?: string
+          created_by: string
+          customer_id: string
+          id?: string
+          snoozed_until: string
+        }
+        Update: {
+          alert_type?: string
+          business_id?: string
+          created_at?: string
+          created_by?: string
+          customer_id?: string
+          id?: string
+          snoozed_until?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_alert_snoozes_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_alert_snoozes_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_portal_tokens: {
         Row: {
           business_id: string
