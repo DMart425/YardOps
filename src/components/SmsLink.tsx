@@ -1,35 +1,27 @@
 'use client'
 
 import { useState } from 'react'
-import { buildSmsHref, buildGoogleVoiceThreadUrl, buildGoogleVoiceAppLaunchUrl, isAndroidUserAgent, type SmsMode } from '@/lib/sms'
+import { buildSmsHref, buildGoogleVoiceThreadUrl, isAndroidUserAgent, type SmsMode } from '@/lib/sms'
 
-// Google Voice handoff (field-tested 2026-08-12):
-// - With a composed body, the SHARE SHEET is the best path — the GV app
-//   accepts shared text pre-filled into a new message, no pasting. The body
-//   also goes to the clipboard as backup. If the share sheet is unavailable
-//   (desktop), fall through to the app-launch/web path.
-// - Bare "text this customer" links (no body) launch the GV app via its
-//   launcher activity on Android (GV registers NO intent filters for its own
-//   web URLs — a VIEW intent falls through to a logged-out browser), or the
-//   web thread elsewhere.
-// Must run synchronously inside the click gesture — share/intent launches
-// are blocked without one.
-function launchGoogleVoice(phone: string, body?: string | null): 'shared' | 'opened' {
+// Google Voice handoff (field-tested 2026-08-12 — see dead-end notes in
+// lib/sms.ts): the share sheet is the ONLY reliable path into the GV app,
+// and it pre-fills the shared text into a new message. Every GV-mode button
+// therefore carries a body (bare "Text" buttons pass a starter greeting).
+// The body also goes to the clipboard as backup. Desktop (no share sheet)
+// opens the web thread, which works properly on desktop layouts.
+// Must run synchronously inside the click gesture — share is blocked
+// without one.
+function launchGoogleVoice(phone: string, body?: string | null): void {
   if (body) {
     navigator.clipboard?.writeText(body).catch(() => {})
-    if (typeof navigator.share === 'function') {
+    if (typeof navigator.share === 'function' && isAndroidUserAgent(navigator.userAgent)) {
       navigator.share({ text: body }).catch(() => {
         // Share canceled or failed — the body is on the clipboard either way.
       })
-      return 'shared'
+      return
     }
   }
-  if (isAndroidUserAgent(navigator.userAgent)) {
-    window.location.href = buildGoogleVoiceAppLaunchUrl(phone)
-  } else {
-    window.open(buildGoogleVoiceThreadUrl(phone), '_blank', 'noopener')
-  }
-  return 'opened'
+  window.open(buildGoogleVoiceThreadUrl(phone), '_blank', 'noopener')
 }
 
 /**
@@ -70,12 +62,11 @@ export function SmsLink({
 
   function handleClick(e: React.MouseEvent) {
     e.preventDefault()
-    const result = launchGoogleVoice(phone, body)
+    launchGoogleVoice(phone, body)
     if (body) {
       setCopied(true)
       setTimeout(() => setCopied(false), 3000)
     }
-    void result
   }
 
   return (

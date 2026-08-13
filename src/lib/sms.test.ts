@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveSmsMode, toE164Us, buildSmsHref, buildGoogleVoiceThreadUrl, buildGoogleVoiceAppLaunchUrl, isAndroidUserAgent } from './sms'
+import { resolveSmsMode, toE164Us, buildSmsHref, buildGoogleVoiceThreadUrl, isAndroidUserAgent } from './sms'
 
 describe('resolveSmsMode', () => {
   it('defaults to device for null/unknown values', () => {
@@ -38,15 +38,7 @@ describe('buildSmsHref', () => {
   })
 })
 
-describe('buildGoogleVoiceAppLaunchUrl', () => {
-  it('launches the GV app via MAIN/LAUNCHER with an encoded web fallback', () => {
-    const url = buildGoogleVoiceAppLaunchUrl('(334) 555-0100')
-    expect(url).toContain('action=android.intent.action.MAIN')
-    expect(url).toContain('category=android.intent.category.LAUNCHER')
-    expect(url).toContain('package=com.google.android.apps.googlevoice')
-    expect(url).toContain('S.browser_fallback_url=https%3A%2F%2Fvoice.google.com')
-    expect(url.endsWith(';end')).toBe(true)
-  })
+describe('isAndroidUserAgent', () => {
   it('detects Android user agents', () => {
     expect(isAndroidUserAgent('Mozilla/5.0 (Linux; Android 14; SM-S921U)')).toBe(true)
     expect(isAndroidUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)')).toBe(false)

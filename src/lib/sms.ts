@@ -42,19 +42,16 @@ export function buildGoogleVoiceThreadUrl(phone: string): string {
   return `https://voice.google.com/u/0/messages?itemId=${encodeURIComponent(`t.${e164}`)}`
 }
 
-/**
- * Android intent:// URL that opens the Google Voice APP at its launcher
- * activity (Chromium browsers only), with the web thread as fallback when
- * the app is not installed. The GV app does NOT register intent filters
- * for voice.google.com URLs (field-verified 2026-08-12 — a VIEW intent
- * falls through to the browser), so the launcher action is the only
- * reliable way in. Composed messages should prefer the share sheet
- * (navigator.share) instead — GV accepts shared text pre-filled.
- */
-export function buildGoogleVoiceAppLaunchUrl(phone: string): string {
-  const webUrl = buildGoogleVoiceThreadUrl(phone)
-  return `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.google.android.apps.googlevoice;S.browser_fallback_url=${encodeURIComponent(webUrl)};end`
-}
+// Field-verified dead ends (2026-08-12) — do NOT retry these:
+// - VIEW intent:// to voice.google.com URLs: the GV app registers no intent
+//   filters for its own web URLs; falls through to a (possibly logged-out)
+//   browser tab.
+// - MAIN/LAUNCHER intent://: Chromium sanitizes intent URIs to
+//   BROWSABLE-only resolution; GV has no browsable activities. Falls through.
+// - Web GV on mobile: drops the ?itemId thread param (lands on Calls) and
+//   renders a desktop-only layout. Unusable on phones; acceptable on desktop.
+// The share sheet (navigator.share with the message text) is the ONLY
+// reliable web → GV-app handoff, and GV pre-fills the shared text.
 
 /** True when the user agent is an Android browser (intent:// supported). */
 export function isAndroidUserAgent(userAgent: string): boolean {
