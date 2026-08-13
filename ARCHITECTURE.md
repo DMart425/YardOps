@@ -4,8 +4,8 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-08-12
-Current checkpoint commit: `52ff5f5` (2026-08-12 Google Voice SMS session — see §23)
+Last updated: 2026-08-13
+Current checkpoint commit: `ac16aad` (2026-08-13 code-health session — see §24)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -112,6 +112,9 @@ src/
 │   ├── date.ts                   # Timezone-aware date helpers: getLocalDateStr(), addDays(), localMidnightUtcIso(), localDateEndUtc(), getClosestWeekdayNearDate(), getLocalMonthKey()
 │   ├── route.ts                  # Route ordering (pure, unit-tested): time-window buckets → nearest-neighbor seeded from home base; buildRouteUrl() for Google Maps directions. Used by /today and the Jobs week view.
 │   ├── sms.ts                    # SMS handoff (pure, unit-tested): resolveSmsMode(), buildSmsHref(), Google Voice thread URL builders. Paired with components/SmsLink.tsx (SmsLink + launchSms) — ALL operator SMS surfaces route through these.
+│   ├── smsTemplates.ts           # ALL customer-facing SMS bodies (pure, unit-tested): invoice, receipt, pay reminders, On My Way, visit/tomorrow reminders, balance nudge/reminder, Add Work confirmation, review ask. Never inline a message body at a call site.
+│   ├── money.ts                  # calcJobBalance() — the single balance authority (not_billable → null, unknown price → null) — and formatCurrency(). Never hand-roll price − amount_paid math.
+│   ├── log.ts                    # logError(context, error) — '[yardops:ctx]' greppable failure trail in Vercel logs; used by actions and firstReadError().
 │   ├── readError.ts              # firstReadError() — surfaces Supabase read failures on list/dashboard pages (paired with components/ReadErrorNotice.tsx)
 │   ├── *.test.ts                 # Vitest unit tests for date/frequency/jobScope/pricing (run with npm test)
 │   └── push.ts                   # Web push helper
@@ -2141,3 +2144,17 @@ The operator's business number moved to Google Voice, which `sms:` deep links ca
 | Gesture constraint | Completion invoice auto-launch is device-mode-only — share/intent launches are blocked without a user gesture; the visible Send Invoice button covers GV mode. Portal's text-the-business link stays native (customer's phone). |
 | Forms lesson | `SettingsForm` is fully controlled — React 19 resets uncontrolled inputs to `defaultValue` when a form action completes, making saved values appear to revert (AGENTS.md rule: stay-on-page action forms use controlled inputs). |
 | Bug fix | `/leads/[id]` for a promoted (or archived) lead now redirects to `/customers/[id]` instead of 404ing on stale links. |
+
+---
+
+## 24. 2026-08-13 Code-Health Session
+
+Three quality passes with zero behavior change (93 unit tests → held green throughout):
+
+| Area | Change |
+|------|--------|
+| Balance authority | `src/lib/money.ts` — `calcJobBalance()` replaces ~15 hand-rolled `price − amount_paid` computations across portal, Today, customers, finances, properties, and JobActions. Conversion flushed out one missed surface: the property detail Unpaid stat counted `not_billable` jobs (now fixed). |
+| SMS wording | `src/lib/smsTemplates.ts` — every customer-facing message body centralized and tested, including a test that the later-payment receipt can never say "complete". |
+| Error trail | `src/lib/log.ts` — `logError(context, error)`; all `console.error` sites converted; `firstReadError()` logs every failed page read so Vercel logs keep a trail beyond the on-screen banner. |
+| File structure | `/today` page 1,029 → 499 lines (queries/computations in `page.tsx`, JSX in `today/sections/` ×12 server components); `EstimateForm` 1,138 → 388 lines (state in parent, `forms/estimate/` ×7 children with typed value+setter props; form field names untouched). Keep this shape — add new sections as files, don't grow the parents back. |
+| Danger Zone | Deliberately KEPT for app testing, per operator decision. Do not remove or re-propose until the operator declares field testing done. |

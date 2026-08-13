@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-08-12 (52ff5f5)
+Last updated: 2026-08-13 (ac16aad)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-08-12 (52ff5f5)
 
 ## Current Checkpoint
 
-- **Latest commit:** `52ff5f5` — 2026-08-12 Google Voice SMS session complete (see "2026-08-12 Google Voice SMS Session" below)
+- **Latest commit:** `ac16aad` — 2026-08-13 code-health session complete (see "2026-08-13 Code-Health Session" below)
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -1124,6 +1124,22 @@ The operator's business number moved to Google Voice; `sms:` deep links couldn't
 
 ---
 
+### 2026-08-13 Code-Health Session ✅ (`a1d0781` → `ac16aad`)
+
+The "rainy-day" quality list, executed with zero behavior change. All commits lint/typecheck/test/build clean; CI green throughout. 93 unit tests at session end.
+
+**Structural money + SMS rules (`a1d0781`):**
+- `src/lib/money.ts`: `calcJobBalance()` is the single balance authority (not_billable → null, unknown price → null, floored at zero); `formatCurrency()`. All ~15 hand-rolled balance computations converted. Fixed the one surface missed in the August balance sweep: property detail's Unpaid stat counted `not_billable` jobs and Total billed included their prices.
+- `src/lib/smsTemplates.ts`: every customer-facing SMS body centralized (invoice, receipt, pay reminders, On My Way, visit/tomorrow reminders, balance nudge/reminder, Add Work confirmation, review ask) with 19 tests locking durable wording rules — including that the later-payment receipt can never say "complete".
+
+**Error trail (`a1dc05c`):** `src/lib/log.ts` — `logError(context, error)` with a greppable `[yardops:ctx]` prefix; all `console.error` sites converted; `firstReadError()` now logs every failed page read.
+
+**File slimming (`ac16aad`):** pure refactor. `/today` 1,029 → 499 lines (all queries/weather/route-ordering/computations stay in `page.tsx`; JSX in `today/sections/` ×12). `EstimateForm` 1,138 → 388 lines (all state/effects/submit in the parent; `forms/estimate/` ×7 children with typed value+setter props; no form field names changed). Do not grow the parents back — add new sections as files.
+
+**Danger Zone:** operator decided it STAYS for app testing purposes. Do not remove or re-propose until field testing is declared done.
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -1152,6 +1168,10 @@ The operator's business number moved to Google Voice; `sms:` deep links couldn't
 
 | Hash | Description |
 |------|-------------|
+| `ac16aad` | Slim /today and EstimateForm into section components (pure refactor) |
+| `a1dc05c` | Add logError wrapper; log every failed page read |
+| `a1d0781` | Make money and SMS-wording rules structural via shared libs |
+| `8341118` | Redirect promoted-lead links to the customer page; docs for GV session |
 | `52ff5f5` | Add trailing space to Text button greetings |
 | `ce13699` | Unify Google Voice mode on the share sheet; personalized Text greetings |
 | `47ae648` | Google Voice mode: share sheet with pre-filled text; fix Settings form revert |

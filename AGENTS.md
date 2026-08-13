@@ -8,7 +8,7 @@ YardOps is the private operations app for Wicksburg Lawn Service.
 
 Current verified YardOps checkpoint commit:
 
-`52ff5f5` (2026-08-12 Google Voice SMS session: sms_mode setting, share-sheet handoff into the GV app, all SMS surfaces through SmsLink, personalized Text greetings)
+`ac16aad` (2026-08-13 code-health session: calcJobBalance/smsTemplates shared libs, logError trail, /today and EstimateForm split into section components)
 
 The public website repo is separate:
 
@@ -176,6 +176,10 @@ These rules were learned from production bugs and must be preserved across refac
 * Service package prefill in New Job and Job editing must prefer property boolean columns (`default_mowing_enabled`, `default_weed_eating_enabled`, `default_edging_enabled`, `default_blow_off_enabled`) over the legacy `default_service_package` string. Property booleans are the source of truth after property save. `default_service_package` is a fallback only when all four booleans are null.
 * Estimate conversion may update `property.default_price` only when the operator explicitly checks the "Save as default price" checkbox in the convert panel. Never silently update the property default price on conversion. The update is best-effort (does not block conversion if it fails) and is scoped by both `property_id` and `business_id`.
 * Do not treat missing price as $0 due in operator UI. When `job.price` is null, display "No price set" rather than a calculated $0 balance. Null price means the price is unknown, not zero.
+* `calcJobBalance()` in `src/lib/money.ts` is the SINGLE balance authority (not_billable → null, unknown price → null, floored at zero). Never hand-roll `price - amount_paid` math at call sites; rows passed to it must include `payment_status` in their select.
+* All customer-facing SMS bodies are built in `src/lib/smsTemplates.ts` (tested, including the receipt-never-says-"complete" rule). Never inline a message body at a call site; add or extend a template instead.
+* Use `logError(context, error)` from `src/lib/log.ts` instead of bare `console.error` — the `[yardops:ctx]` prefix is the greppable failure trail in Vercel logs.
+* Structure rule from the 2026-08-13 split: `/today` keeps ALL queries and derived computations in `page.tsx` with JSX in `today/sections/` server components; `EstimateForm` keeps ALL state/effects/submit logic in the parent with `forms/estimate/` children receiving values + setters as typed props (form field `name`s are load-bearing for the server action — never change them in a child). Add new sections as new files; do not grow the parents back.
 * Do not send pay reminder SMS when no balance can be calculated. The Pay Reminder SMS button must be suppressed when `job.price` is null — a $0 balance link is misleading and incorrect.
 * `job.price` is nullable and optional in V1. Do not add hard validation that blocks job creation, completion, or payment actions for missing price unless an explicit approved phase adds that requirement.
 * `not_billable` jobs must remain exempt from all owed/balance displays regardless of price field state. The `not_billable` branch is always first and returns early — do not merge it with price-aware logic.

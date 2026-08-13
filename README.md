@@ -2,7 +2,7 @@
 
 Private operations app for Wicksburg Lawn Service.
 
-Verified checkpoint commit: `52ff5f5` (2026-08-12 Google Voice SMS session — sms_mode setting, share-sheet handoff, all SMS surfaces unified through SmsLink).
+Verified checkpoint commit: `ac16aad` (2026-08-13 code-health session — shared money/SMS libs, error-logging trail, /today and EstimateForm split into sections).
 
 ## Read First
 
