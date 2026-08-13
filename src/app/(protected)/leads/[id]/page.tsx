@@ -332,7 +332,7 @@ export default async function LeadDetailPage({
                   <a href={`tel:${customer.phone}`} className="btn btn-sm btn-secondary">📞 Call</a>
                 )}
                 {customer.phone && (
-                  <SmsLink phone={customer.phone} body={`Hi ${customer.first_name},`} mode={smsMode} className="btn btn-sm btn-secondary">💬 Text</SmsLink>
+                  <SmsLink phone={customer.phone} body={`Hi ${customer.first_name}, `} mode={smsMode} className="btn btn-sm btn-secondary">💬 Text</SmsLink>
                 )}
                 {customer.email && (
                   <a href={`mailto:${customer.email}`} className="btn btn-sm btn-secondary">✉ Email</a>

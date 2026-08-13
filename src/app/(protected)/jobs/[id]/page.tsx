@@ -382,7 +382,7 @@ export default async function JobDetailPage({
             <div className="divider" />
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               <a href={`tel:${customer.phone}`} className="btn btn-sm btn-secondary">📞 Call</a>
-              <SmsLink phone={customer.phone} body={`Hi ${customer.first_name},`} mode={smsMode} className="btn btn-sm btn-secondary">💬 Text</SmsLink>
+              <SmsLink phone={customer.phone} body={`Hi ${customer.first_name}, `} mode={smsMode} className="btn btn-sm btn-secondary">💬 Text</SmsLink>
               <a
                 href={`https://maps.google.com/?q=${encodeURIComponent(address)}`}
                 target="_blank"

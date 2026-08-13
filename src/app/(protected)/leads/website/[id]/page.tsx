@@ -160,7 +160,7 @@ export default async function WebsiteLeadDetailPage({
               <a href={`tel:${lead.phone}`} className="btn btn-sm btn-secondary">📞 Call</a>
             )}
             {lead.phone && (
-              <SmsLink phone={lead.phone} body={`Hi ${lead.name?.split(' ')[0] ?? ''},`} mode={smsMode} className="btn btn-sm btn-secondary">💬 Text</SmsLink>
+              <SmsLink phone={lead.phone} body={`Hi ${lead.name?.split(' ')[0] ?? ''}, `} mode={smsMode} className="btn btn-sm btn-secondary">💬 Text</SmsLink>
             )}
             {lead.email && (
               <a href={`mailto:${lead.email}`} className="btn btn-sm btn-secondary">✉ Email</a>
