@@ -43,14 +43,17 @@ export function buildGoogleVoiceThreadUrl(phone: string): string {
 }
 
 /**
- * Android intent:// URL that launches the Google Voice APP directly
- * (Chromium browsers only), falling back to the web thread URL when the
- * app is not installed. Non-Android platforms should use the web URL.
+ * Android intent:// URL that opens the Google Voice APP at its launcher
+ * activity (Chromium browsers only), with the web thread as fallback when
+ * the app is not installed. The GV app does NOT register intent filters
+ * for voice.google.com URLs (field-verified 2026-08-12 — a VIEW intent
+ * falls through to the browser), so the launcher action is the only
+ * reliable way in. Composed messages should prefer the share sheet
+ * (navigator.share) instead — GV accepts shared text pre-filled.
  */
-export function buildGoogleVoiceIntentUrl(phone: string): string {
+export function buildGoogleVoiceAppLaunchUrl(phone: string): string {
   const webUrl = buildGoogleVoiceThreadUrl(phone)
-  const path = webUrl.replace('https://', '')
-  return `intent://${path}#Intent;scheme=https;package=com.google.android.apps.googlevoice;S.browser_fallback_url=${encodeURIComponent(webUrl)};end`
+  return `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.google.android.apps.googlevoice;S.browser_fallback_url=${encodeURIComponent(webUrl)};end`
 }
 
 /** True when the user agent is an Android browser (intent:// supported). */

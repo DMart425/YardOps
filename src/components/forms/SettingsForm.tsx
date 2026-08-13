@@ -36,6 +36,25 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
   const [state, action, pending] = useActionState<FormState, FormData>(saveSettings, { error: null })
   const [businessPhone, setBusinessPhone] = useState(defaults.business_phone)
 
+  // ALL fields are controlled: React 19 resets uncontrolled inputs back to
+  // their defaultValue when a form action completes, which made saved values
+  // appear to revert until a manual page refresh. Controlled state keeps what
+  // the operator entered on screen after Save.
+  const [form, setForm] = useState({
+    home_base_address:     defaults.home_base_address,
+    review_request_url:    defaults.review_request_url,
+    sms_mode:              defaults.sms_mode || 'device',
+    target_hourly_rate:    String(defaults.target_hourly_rate),
+    minimum_price:         String(defaults.minimum_price),
+    round_to_nearest:      String(defaults.round_to_nearest),
+    default_setup_minutes: String(defaults.default_setup_minutes),
+    venmo_handle:          defaults.venmo_handle,
+    time_zone:             defaults.time_zone,
+  })
+  const set = (key: keyof typeof form) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+      setForm(f => ({ ...f, [key]: e.target.value }))
+
   return (
     <form action={action} className="form">
       <Toast message={state.success} triggerKey={state.savedAt} />
@@ -64,7 +83,7 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
           type="text"
           className="form-input"
           placeholder="123 Main St, Newton, AL 36352"
-          defaultValue={defaults.home_base_address}
+          value={form.home_base_address} onChange={set('home_base_address')}
         />
         <p className="form-hint">Where your routes start — daily route ordering and directions begin here.</p>
       </div>
@@ -77,20 +96,21 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
           type="url"
           className="form-input"
           placeholder="https://g.page/r/..."
-          defaultValue={defaults.review_request_url}
+          value={form.review_request_url} onChange={set('review_request_url')}
         />
         <p className="form-hint">Your Google review link. Enables the &quot;Ask for Review&quot; text button on paid jobs.</p>
       </div>
 
       <div className="form-field">
         <label className="form-label" htmlFor="s_smsmode">Text Messaging</label>
-        <select id="s_smsmode" name="sms_mode" className="form-input" defaultValue={defaults.sms_mode || 'device'}>
+        <select id="s_smsmode" name="sms_mode" className="form-input" value={form.sms_mode} onChange={set('sms_mode')}>
           <option value="device">Phone SMS (default messaging app)</option>
           <option value="google_voice">Google Voice</option>
         </select>
         <p className="form-hint">
-          Google Voice mode copies the message to your clipboard and opens the customer&apos;s
-          Voice conversation — paste and send. (Google Voice doesn&apos;t allow pre-filled texts.)
+          Google Voice mode opens your phone&apos;s share menu with the message pre-filled —
+          choose Google Voice, pick the customer, send. The message is also copied to your
+          clipboard as backup. (Google Voice doesn&apos;t support direct pre-filled texts.)
         </p>
       </div>
 
@@ -109,7 +129,7 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
             min="1"
             step="1"
             className="form-input"
-            defaultValue={defaults.target_hourly_rate}
+            value={form.target_hourly_rate} onChange={set('target_hourly_rate')}
           />
           <p className="form-hint">Default rate loaded on new estimates</p>
         </div>
@@ -122,7 +142,7 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
             min="0"
             step="5"
             className="form-input"
-            defaultValue={defaults.minimum_price}
+            value={form.minimum_price} onChange={set('minimum_price')}
           />
           <p className="form-hint">No estimate goes below this amount</p>
         </div>
@@ -138,7 +158,7 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
             min="1"
             step="1"
             className="form-input"
-            defaultValue={defaults.round_to_nearest}
+            value={form.round_to_nearest} onChange={set('round_to_nearest')}
           />
           <p className="form-hint">e.g. 5 rounds to nearest $5</p>
         </div>
@@ -151,7 +171,7 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
             min="0"
             step="5"
             className="form-input"
-            defaultValue={defaults.default_setup_minutes}
+            value={form.default_setup_minutes} onChange={set('default_setup_minutes')}
           />
           <p className="form-hint">Load/unload time added to every job</p>
         </div>
@@ -166,7 +186,7 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
           type="text"
           className="form-input"
           placeholder="WicksburgLS"
-          defaultValue={defaults.venmo_handle}
+          value={form.venmo_handle} onChange={set('venmo_handle')}
         />
         <p className="form-hint">Included as a payment link in invoices/estimates. Don&apos;t include the @ symbol.</p>
       </div>
@@ -178,7 +198,7 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
           id="s_tz"
           name="time_zone"
           className="form-input"
-          defaultValue={defaults.time_zone}
+          value={form.time_zone} onChange={set('time_zone')}
         >
           {US_TIMEZONES.map(tz => (
             <option key={tz.value} value={tz.value}>{tz.label}</option>
