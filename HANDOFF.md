@@ -4,7 +4,7 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-08-06 (b4c1636)
+Last updated: 2026-08-12 (52ff5f5)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-08-06 (b4c1636)
 
 ## Current Checkpoint
 
-- **Latest commit:** `b4c1636` — 2026-08-06 operator feature session complete (see "2026-08-06 Operator Feature Session" below)
+- **Latest commit:** `52ff5f5` — 2026-08-12 Google Voice SMS session complete (see "2026-08-12 Google Voice SMS Session" below)
 - **Branch:** `main`
 - **Supabase project:** `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 - **Deployment:** Vercel, auto-deploys on push to `main`
@@ -1107,6 +1107,23 @@ Field-testing-driven features requested by the operator. All commits lint/typech
 
 ---
 
+### 2026-08-12 Google Voice SMS Session ✅ (`2424064` → `52ff5f5`)
+
+The operator's business number moved to Google Voice; `sms:` deep links couldn't reach it. Iterated against live field tests to the final design:
+
+**Field-verified dead ends (durable AGENTS.md rule — never retry):** VIEW `intent://` to voice.google.com URLs (the GV app registers no filters for its own web URLs → falls to a logged-out browser); MAIN/LAUNCHER `intent://` (Chromium sanitizes intent URIs to BROWSABLE-only resolution; GV has no browsable activities); web GV on mobile (drops the `?itemId` thread param — lands on Calls — and renders a desktop-only layout).
+
+**Final design (`2424064`, `47ae648`, `ce13699`, `52ff5f5`):**
+- Migration `20260812100000`: `pricing_settings.sms_mode` (`'device'`|`'google_voice'`, NULL = device). Settings → Text Messaging selector.
+- `src/lib/sms.ts` (pure, tested) + `SmsLink`/`launchSms()` — all operator SMS surfaces route through them (Today reminders, invoice/receipts/pay reminders, Add Work confirmation, review ask, balance reminders, estimate Send via Text, all Text buttons).
+- google_voice mode: clipboard copy + Android share sheet — GV opens with the text pre-filled; operator picks the customer and sends. **Field-confirmed working.** Desktop falls back to the web thread URL.
+- Bare Text buttons carry a per-customer greeting `"Hi <first>, "` (trailing space so the cursor lands ready to type) — rides the share sheet like composed messages.
+- Completion invoice auto-launch stays device-mode-only (no user gesture = share/intent blocked); the visible Send Invoice button covers GV mode.
+- SettingsForm converted to fully controlled inputs — React 19 resets uncontrolled fields to `defaultValue` when a form action completes, which made saved values appear to revert until refresh (new AGENTS.md rule).
+- Follow-up fix: `/leads/[id]` for promoted/archived leads redirects to `/customers/[id]` instead of 404ing on stale links (last open bug from the 2026-08-03 review).
+
+---
+
 ## Committed Migrations (Full List)
 
 | File | Description |
@@ -1126,6 +1143,8 @@ Field-testing-driven features requested by the operator. All commits lint/typech
 | `20260803120000_security_drop_anon_estimate_read.sql` | 2026-08-03 security hardening: drop anon estimate-read policy, revoke PUBLIC EXECUTE on `handle_new_user()`, add `idx_leads_created_by`. Applied via `npx supabase db query --linked --file` and verified live. Same drift caveat. |
 | `20260806120000_create_customer_alert_snoozes.sql` | Today alert snoozes: per-customer per-alert-type 7-day snooze table with business-member RLS. Applied via `npx supabase db query --linked --file`. Same drift caveat. |
 | `20260806150000_add_home_base_and_review_request.sql` | `pricing_settings` gains `home_base_address`/`latitude`/`longitude` + `review_request_url`; `message_logs.message_type` check constraint gains `'review_request'`. Applied via `npx supabase db query --linked --file`. Same drift caveat. |
+| `20260807090000_drop_schedule_upcoming_view.sql` | Drop unused SECURITY DEFINER view (Supabase Advisor CRITICAL — anon-readable RLS bypass). Applied and verified live. Same drift caveat. |
+| `20260812100000_add_sms_mode.sql` | `pricing_settings.sms_mode` (`'device'`\|`'google_voice'`, NULL = device) for the Google Voice SMS handoff mode. Applied via `npx supabase db query --linked --file`. Same drift caveat. |
 
 ---
 
@@ -1133,6 +1152,12 @@ Field-testing-driven features requested by the operator. All commits lint/typech
 
 | Hash | Description |
 |------|-------------|
+| `52ff5f5` | Add trailing space to Text button greetings |
+| `ce13699` | Unify Google Voice mode on the share sheet; personalized Text greetings |
+| `47ae648` | Google Voice mode: share sheet with pre-filled text; fix Settings form revert |
+| `2424064` | Add Google Voice SMS mode setting |
+| `1a2ff3f` | Drop unused schedule_upcoming SECURITY DEFINER view (applied 2026-08-07) |
+| `db183aa` | Update docs for 2026-08-06 operator feature session |
 | `b4c1636` | Add Today route button, home base, time-window routing, and review-request SMS |
 | `4f8b089` | Fix property geocoding: parcel GIS coordinates first, working centroid fallback, re-geocode on address change |
 | `d482195` | Add one-time work to upcoming visits (Add Work panel) |

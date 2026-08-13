@@ -8,7 +8,7 @@ YardOps is the private operations app for Wicksburg Lawn Service.
 
 Current verified YardOps checkpoint commit:
 
-`b4c1636` (2026-08-06 operator feature session: alert snooze/inactive customers, archive recall, Add Work panel, parcel-first geocoding, time-window routing + home base, review requests)
+`52ff5f5` (2026-08-12 Google Voice SMS session: sms_mode setting, share-sheet handoff into the GV app, all SMS surfaces through SmsLink, personalized Text greetings)
 
 The public website repo is separate:
 

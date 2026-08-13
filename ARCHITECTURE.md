@@ -4,8 +4,8 @@
 > workflows, major feature behavior, migrations, deployment assumptions, or project status changes.
 > Any handoff to a new chat must reference this file and include a reminder to keep it updated.
 
-Last updated: 2026-08-06
-Current checkpoint commit: `b4c1636` (2026-08-06 operator feature session — see §22)
+Last updated: 2026-08-12
+Current checkpoint commit: `52ff5f5` (2026-08-12 Google Voice SMS session — see §23)
 Approved Supabase project: `lewzqavgvltzwfeypvam` (Wicksburg Lawn Service)
 
 ---
@@ -111,6 +111,7 @@ src/
 │   ├── jobScope.ts               # Shared job scope helpers (Phase 5T): parseJobInputs(), formatCoreServicesForCustomer(), formatAddonsForCustomer(), resolveServiceLabel(), buildDefaultCompletionNotes() — pure TypeScript; no React; used by portal server components and JobActions client component
 │   ├── date.ts                   # Timezone-aware date helpers: getLocalDateStr(), addDays(), localMidnightUtcIso(), localDateEndUtc(), getClosestWeekdayNearDate(), getLocalMonthKey()
 │   ├── route.ts                  # Route ordering (pure, unit-tested): time-window buckets → nearest-neighbor seeded from home base; buildRouteUrl() for Google Maps directions. Used by /today and the Jobs week view.
+│   ├── sms.ts                    # SMS handoff (pure, unit-tested): resolveSmsMode(), buildSmsHref(), Google Voice thread URL builders. Paired with components/SmsLink.tsx (SmsLink + launchSms) — ALL operator SMS surfaces route through these.
 │   ├── readError.ts              # firstReadError() — surfaces Supabase read failures on list/dashboard pages (paired with components/ReadErrorNotice.tsx)
 │   ├── *.test.ts                 # Vitest unit tests for date/frequency/jobScope/pricing (run with npm test)
 │   └── push.ts                   # Web push helper
@@ -2123,3 +2124,20 @@ Eight commits (`cb69c77` → `b4c1636`); per-commit detail in HANDOFF.md. Archit
 | Coordinates | Parcel GIS lat/lon first everywhere; centroid fallback chain repaired; address edits re-resolve; failures never clobber good coords (see §14). |
 | Routing | `src/lib/route.ts` — time-window buckets beat geometry, nearest-neighbor within, seeded from `pricing_settings.home_base_*`. `/today` cards render in drive order with a Route button; Jobs week view uses the same lib. |
 | Reviews | `pricing_settings.review_request_url` + ⭐ Ask for a Review on paid jobs; logged as `message_logs.message_type = 'review_request'`; one ask per customer ever; never attached to receipts. |
+
+---
+
+## 23. 2026-08-12 Google Voice SMS Session
+
+The operator's business number moved to Google Voice, which `sms:` deep links cannot reach. Field testing established that the GV app is unreachable from the web by URL or intent (full do-not-retry list in the AGENTS.md durable rule and `src/lib/sms.ts`); the Android share sheet is the only reliable handoff, and GV pre-fills shared text.
+
+| Area | Change |
+|------|--------|
+| Setting | `pricing_settings.sms_mode` (`'device'` \| `'google_voice'`, NULL = device) — Settings → Text Messaging. Migration `20260812100000`. |
+| Plumbing | `src/lib/sms.ts` (pure, tested) + `SmsLink` component / `launchSms()`. Every operator SMS surface routes through them — never emit raw `sms:` links for operator-sent messages. |
+| device mode | Original one-tap `sms:` deep link (unchanged behavior). |
+| google_voice mode | Message copied to clipboard + Android share sheet (`navigator.share`) → GV app opens with the text pre-filled; operator picks the customer and sends. Desktop falls back to the web thread URL (`?itemId=t.+E164`). |
+| Bare Text buttons | Carry a per-customer starter greeting (`"Hi <first>, "` — trailing space intentional) so they ride the share sheet too. |
+| Gesture constraint | Completion invoice auto-launch is device-mode-only — share/intent launches are blocked without a user gesture; the visible Send Invoice button covers GV mode. Portal's text-the-business link stays native (customer's phone). |
+| Forms lesson | `SettingsForm` is fully controlled — React 19 resets uncontrolled inputs to `defaultValue` when a form action completes, making saved values appear to revert (AGENTS.md rule: stay-on-page action forms use controlled inputs). |
+| Bug fix | `/leads/[id]` for a promoted (or archived) lead now redirects to `/customers/[id]` instead of 404ing on stale links. |

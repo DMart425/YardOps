@@ -2,7 +2,7 @@
 
 Private operations app for Wicksburg Lawn Service.
 
-Verified checkpoint commit: `b4c1636` (2026-08-06 operator feature session — alert snoozes, archive recall, Add Work panel, parcel-first geocoding, time-window routing, review requests).
+Verified checkpoint commit: `52ff5f5` (2026-08-12 Google Voice SMS session — sms_mode setting, share-sheet handoff, all SMS surfaces unified through SmsLink).
 
 ## Read First
 

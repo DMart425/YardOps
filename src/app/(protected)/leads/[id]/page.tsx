@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { LeadActions } from './LeadActions'
 import { ApplyParcelButton } from './ApplyParcelButton'
 import { normalizeFrequency, parseWebsiteServiceInterests, formatFrequencyLabel } from '@/lib/frequency'
@@ -108,7 +108,20 @@ export default async function LeadDetailPage({
     .eq('status', 'lead')
     .single()
 
-  if (!customer) notFound()
+  if (!customer) {
+    // Old /leads/[id] links live on in history, bookmarks, and the Converted
+    // tab after a lead is promoted (or archived). If the record exists as a
+    // customer with any other status, send the operator there instead of a
+    // dead 404.
+    const { data: promoted } = await supabase
+      .from('customers')
+      .select('id')
+      .eq('id', id)
+      .eq('business_id', businessId)
+      .maybeSingle()
+    if (promoted) redirect(`/customers/${id}`)
+    notFound()
+  }
 
   const props = customer.properties as Array<{
     id: string
