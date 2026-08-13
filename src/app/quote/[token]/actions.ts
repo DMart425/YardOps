@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { sendPushToUser } from '@/lib/push'
 import { applyPropertyDefaultsFromEstimate } from '@/lib/propertyDefaultsFromEstimate'
 import { localDateEndUtc, resolveTimeZone } from '@/lib/date'
+import { logError } from '@/lib/log'
 
 type QuoteEstimate = {
   id: string
@@ -169,10 +170,10 @@ export async function acceptEstimate(
         })
 
       if (error && error.code !== '23505') {
-        console.error('Failed to create estimate approval notification', error)
+        logError('quote:notification', error)
       }
     } catch (error) {
-      console.error('Failed to create estimate approval notification', error)
+      logError('quote:notification', error)
     }
 
     // 6. Push notification to the owner

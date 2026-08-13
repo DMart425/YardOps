@@ -8,6 +8,7 @@ import { requireBusinessContext } from '@/lib/business/context'
 import { getLocalDateStr, resolveTimeZone } from '@/lib/date'
 import type { Json } from '@/types/supabase'
 import { parseJobInputs as parseStoredJobInputs } from '@/lib/jobScope'
+import { logError } from '@/lib/log'
 
 // ---------------------------------------------------------------------------
 // Job Inputs: structured service scope stored in jobs.job_inputs (Phase 5Q.2+)
@@ -237,7 +238,7 @@ export async function createJob(
         .eq('business_id', businessId)
         .is('next_job_created_id', null)
       if (linkErr) {
-        console.error('[createJob] Failed to link source job follow-up:', linkErr)
+        logError('createJob:follow-up-link', linkErr)
       }
     }
 

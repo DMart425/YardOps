@@ -2,6 +2,8 @@
 // Used by both protected estimates/actions.ts and public quote/[token]/actions.ts
 // to apply property default service agreement when an estimate is approved.
 
+import { logError } from './log'
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnySupabaseClient = { from: (table: string) => any }
 
@@ -85,6 +87,6 @@ export async function applyPropertyDefaultsFromEstimate(
     .eq('business_id', businessId)
 
   if (error) {
-    console.error('[applyPropertyDefaultsFromEstimate] Failed to update property defaults:', error)
+    logError('applyPropertyDefaultsFromEstimate', error)
   }
 }

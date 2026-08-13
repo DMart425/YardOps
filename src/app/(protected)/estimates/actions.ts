@@ -7,6 +7,7 @@ import type { FormState } from '@/types/database'
 import { calculateEstimate, formatMinutes, type EstimateInputs } from '@/lib/pricing'
 import { requireBusinessContext } from '@/lib/business/context'
 import { applyPropertyDefaultsFromEstimate } from '@/lib/propertyDefaultsFromEstimate'
+import { logError } from '@/lib/log'
 import type { Database, Json } from '@/types/supabase'
 
 type EstimateUpdate = Database['public']['Tables']['estimates']['Update']
@@ -486,7 +487,7 @@ export async function convertToJob(
       .eq('business_id', businessId)
       .is('next_job_created_id', null)
     if (linkErr) {
-      console.error('[convertToJob] Failed to link source job follow-up:', linkErr)
+      logError('convertToJob:follow-up-link', linkErr)
     }
   }
 
