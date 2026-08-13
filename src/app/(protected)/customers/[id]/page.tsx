@@ -9,6 +9,8 @@ import { requireBusinessContext } from '@/lib/business/context'
 import { CustomerDangerZone } from './CustomerDangerZone'
 import { LeadStatusActions } from './LeadStatusActions'
 import { resolveSmsMode } from '@/lib/sms'
+import { calcJobBalance, formatCurrency } from '@/lib/money'
+import { buildBalanceReminderSms } from '@/lib/smsTemplates'
 import { SmsLink } from '@/components/SmsLink'
 import { CustomerInfoSection } from './CustomerInfoSection'
 import { getOrCreatePortalToken } from './portal-actions'
@@ -106,7 +108,7 @@ export default async function CustomerDetailPage({
     .filter(j => j.payment_status !== 'not_billable')
     .reduce((s, j) => s + Number(j.price ?? 0), 0)
   const outstandingJobs = completedStatsRows
-    .filter(j => (j.payment_status === 'unpaid' || j.payment_status === 'partial') && Math.max(0, Number(j.price ?? 0) - Number(j.amount_paid ?? 0)) > 0)
+    .filter(j => (j.payment_status === 'unpaid' || j.payment_status === 'partial') && (calcJobBalance(j) ?? 0) > 0)
     .sort((a, b) => {
       if (!a.completed_at && !b.completed_at) return 0
       if (!a.completed_at) return 1
@@ -116,7 +118,7 @@ export default async function CustomerDetailPage({
   // Derived from outstandingJobs so the stat, the section total, and the SMS body
   // can never disagree with the itemized list (excludes not_billable and null-price jobs).
   const totalUnpaid = outstandingJobs
-    .reduce((s, j) => s + Math.max(0, Number(j.price ?? 0) - Number(j.amount_paid ?? 0)), 0)
+    .reduce((s, j) => s + (calcJobBalance(j) ?? 0), 0)
   // Unpaid/partial jobs with no price set — cannot calculate a balance, shown separately as a note.
   const noPriceUnpaidJobs = completedStatsRows.filter(
     j => (j.payment_status === 'unpaid' || j.payment_status === 'partial') && j.price == null
@@ -134,30 +136,23 @@ export default async function CustomerDetailPage({
   const businessName = (businessRow as { name?: string | null } | null)?.name ?? 'your lawn service'
 
   // Build balance reminder SMS body (computed server-side; only meaningful when outstandingJobs > 0)
-  const balanceSmsBody = (() => {
-    if (!outstandingJobs.length) return ''
-    const firstName = customerRow.first_name
-    const totalStr = `$${totalUnpaid % 1 === 0 ? totalUnpaid.toFixed(0) : totalUnpaid.toFixed(2)}`
-    const lines = [
-      `Hi ${firstName}, this is ${businessName}. Your current outstanding balance is ${totalStr}.`,
-      '',
-      'Balance details:',
-      ...outstandingJobs.slice(0, 5).map(j => {
-        const bal = Math.max(0, Number(j.price ?? 0) - Number(j.amount_paid ?? 0))
-        const dateStr = j.completed_at
-          ? formatTimestampDate(j.completed_at, timeZone, { month: 'short', day: 'numeric', year: 'numeric' })
-          : 'No date'
-        return `- ${dateStr}: $${bal % 1 === 0 ? bal.toFixed(0) : bal.toFixed(2)} remaining`
-      }),
-      ...(outstandingJobs.length > 5 ? [`+ ${outstandingJobs.length - 5} more`] : []),
-      '',
-      ...(portalUrl ? [`View your account: ${portalUrl}`, ''] : []),
-      venmoHandle
-        ? `Pay via Venmo @${venmoHandle} or cash. Thank you!`
-        : 'You can pay by cash or check. Thank you!',
-    ]
-    return lines.join('\n')
-  })()
+  const balanceSmsBody = outstandingJobs.length
+    ? buildBalanceReminderSms({
+        firstName: customerRow.first_name,
+        businessName,
+        total: totalUnpaid,
+        itemLines: outstandingJobs.slice(0, 5).map(j => {
+          const bal = calcJobBalance(j) ?? 0
+          const dateStr = j.completed_at
+            ? formatTimestampDate(j.completed_at, timeZone, { month: 'short', day: 'numeric', year: 'numeric' })
+            : 'No date'
+          return `- ${dateStr}: ${formatCurrency(bal)} remaining`
+        }),
+        moreCount: Math.max(0, outstandingJobs.length - 5),
+        portalUrl,
+        venmoHandle,
+      })
+    : ''
   const lastVisit = lastCompletedJob?.completed_at ?? null
   const propertyRows = (properties as Pick<Property, 'id' | 'property_name' | 'service_address' | 'city' | 'service_frequency' | 'preferred_service_day' | 'default_price' | 'default_service_package' | 'default_mowing_enabled' | 'default_weed_eating_enabled' | 'default_edging_enabled' | 'default_blow_off_enabled' | 'status'>[] | null) ?? []
   const activeProperties = propertyRows.filter(p => p.status !== 'archived')
@@ -272,7 +267,7 @@ export default async function CustomerDetailPage({
             )}
           </div>
           {outstandingJobs.map((j) => {
-            const balance = Math.max(0, Number(j.price ?? 0) - Number(j.amount_paid ?? 0))
+            const balance = calcJobBalance(j) ?? 0
             return (
               <Link key={j.id} href={`/jobs/${j.id}`} style={{ display: 'block' }}>
                 <div className="card">

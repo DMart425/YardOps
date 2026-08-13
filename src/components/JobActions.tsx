@@ -8,6 +8,8 @@ import { buildDefaultCompletionNotes } from '@/lib/jobScope'
 import { Toast } from '@/components/Toast'
 import { SmsLink, launchSms } from '@/components/SmsLink'
 import type { SmsMode } from '@/lib/sms'
+import { calcJobBalance } from '@/lib/money'
+import { buildInvoiceSms, buildPaymentReceiptSms, buildPayReminderSms } from '@/lib/smsTemplates'
 
 export function JobActions({ job, venmoHandle, customerPhone, customerFirstName, businessName, businessPhone, portalInvoiceUrl, smsMode = 'device' }: { job: Job; venmoHandle?: string | null; customerPhone?: string | null; customerFirstName?: string | null; businessName?: string | null; businessPhone?: string | null; portalInvoiceUrl?: string | null; smsMode?: SmsMode }) {
   const [panel,          setPanel]         = useState<'complete' | 'skip' | 'paid' | 'partial' | 'reschedule' | null>(null)
@@ -36,7 +38,9 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
   const isActive         = job.status === 'scheduled' || job.status === 'in_progress'
   const canReschedule    = isActive || job.status === 'needs_reschedule'
   const isCompleted      = job.status === 'completed'
-  const partialRemaining = Math.max(0, Number(job.price ?? 0) - Number(job.amount_paid ?? 0))
+  // calcJobBalance is the single balance authority; coalesce to 0 only for
+  // local gating math (buttons below independently suppress null-price flows).
+  const partialRemaining = calcJobBalance(job) ?? 0
 
   // Build invoice SMS body using completion-time state so partial amounts are accurate
   // even before router.refresh() updates stale job props.
@@ -334,7 +338,7 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
           {venmoHandle && customerPhone && job.price && (
             <SmsLink
               phone={customerPhone}
-              body={`Hi ${customerFirstName ?? ''}, friendly reminder for $${Number(job.price).toFixed(0)} for the lawn service. Pay via Venmo: https://venmo.com/${venmoHandle}?txn=pay&amount=${Number(job.price).toFixed(0)}&note=${encodeURIComponent('Lawn service')}\n\nThanks!${businessName ? ` — ${businessName}` : ''}`}
+              body={buildPayReminderSms(customerFirstName, Number(job.price), venmoHandle, businessName, false)}
               mode={smsMode}
               className="btn btn-secondary btn-full"
             >
@@ -436,7 +440,7 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
           {venmoHandle && customerPhone && partialRemaining > 0 && (
             <SmsLink
               phone={customerPhone}
-              body={`Hi ${customerFirstName ?? ''}, friendly reminder for the remaining $${partialRemaining.toFixed(0)} balance for your lawn service. Pay via Venmo: https://venmo.com/${venmoHandle}?txn=pay&amount=${partialRemaining.toFixed(0)}&note=${encodeURIComponent('Lawn service')}\n\nThanks!${businessName ? ` — ${businessName}` : ''}`}
+              body={buildPayReminderSms(customerFirstName, partialRemaining, venmoHandle, businessName, true)}
               mode={smsMode}
               className="btn btn-secondary btn-full"
             >
@@ -494,7 +498,7 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
                   className="form-input"
                   placeholder={
                     job.price != null
-                      ? String(Math.max(0, Number(job.price) - Number(job.amount_paid ?? 0)).toFixed(0))
+                      ? String((calcJobBalance(job) ?? 0).toFixed(0))
                       : '0'
                   }
                   value={laterPartialAmt}
@@ -543,90 +547,4 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
       )}
     </div>
   )
-}
-
-function buildInvoiceSms(
-  firstName: string | null | undefined,
-  job: Job,
-  venmoHandle: string | null | undefined,
-  amountPaidOverride?: number | null,
-  businessPhone?: string | null,
-  portalInvoiceUrl?: string | null,
-): string {
-  const name          = firstName ?? 'there'
-  const jobPrice      = job.price != null ? Number(job.price) : null
-  const effectivePaid = amountPaidOverride != null ? Math.max(0, amountPaidOverride) : null
-  const isPaidInFull  = effectivePaid != null && jobPrice != null && effectivePaid >= jobPrice
-  const isPartial     = effectivePaid != null && jobPrice != null && effectivePaid > 0 && !isPaidInFull
-  const remaining     = (isPartial && jobPrice != null && effectivePaid != null)
-    ? Math.max(0, jobPrice - effectivePaid)
-    : null
-
-  const lines: string[] = []
-
-  if (isPaidInFull) {
-    lines.push(`Hi ${name}, your lawn service is complete and paid in full. Thank you! 🙏`)
-    if (portalInvoiceUrl) {
-      lines.push('', 'View your receipt:', portalInvoiceUrl)
-    }
-  } else {
-    lines.push(`Hi ${name}, your lawn service is complete.`)
-    if (jobPrice != null) {
-      lines.push('')
-      lines.push(`Total: $${jobPrice.toFixed(0)}`)
-      if (isPartial && effectivePaid != null) {
-        lines.push(`Paid: $${effectivePaid.toFixed(0)}`)
-        lines.push(`Balance due: $${remaining!.toFixed(0)}`)
-      } else {
-        lines.push(`Balance due: $${jobPrice.toFixed(0)}`)
-      }
-    }
-    const venmoAmt = isPartial ? remaining : jobPrice
-    if (venmoHandle && venmoAmt != null && venmoAmt > 0) {
-      const venmoUrl = `https://venmo.com/${venmoHandle}?txn=pay&amount=${venmoAmt.toFixed(0)}&note=${encodeURIComponent('Lawn service')}`
-      lines.push('', `Pay via Venmo: ${venmoUrl}`)
-      lines.push('Cash is also accepted.')
-    } else {
-      lines.push('', 'Payment accepted via cash.')
-    }
-    if (portalInvoiceUrl) {
-      lines.push('', 'View your invoice:', portalInvoiceUrl)
-    }
-  }
-
-  lines.push('', 'Thank you for your business! 🌿')
-  if (businessPhone) {
-    lines.push(`Questions? Call or text ${businessPhone}`)
-  }
-  return lines.join('\n')
-}
-
-function buildPaymentReceiptSms(
-  firstName: string | null | undefined,
-  amtReceived: number,
-  isPaidInFull: boolean,
-  remainingBalance: number,
-  portalInvoiceUrl?: string | null,
-  businessPhone?: string | null,
-): string {
-  const name  = firstName ?? 'there'
-  const lines: string[] = []
-
-  if (isPaidInFull) {
-    lines.push(`Hi ${name}, we received your $${amtReceived.toFixed(0)} payment for your lawn service. You're all paid up — thank you! 🙏`)
-    if (portalInvoiceUrl) {
-      lines.push('', 'View your receipt:', portalInvoiceUrl)
-    }
-  } else {
-    lines.push(`Hi ${name}, we received your $${amtReceived.toFixed(0)} payment for your lawn service. Your remaining balance is $${remainingBalance.toFixed(0)}.`)
-    if (portalInvoiceUrl) {
-      lines.push('', 'View your invoice:', portalInvoiceUrl)
-    }
-  }
-
-  lines.push('', 'Thank you for your business! 🌿')
-  if (businessPhone) {
-    lines.push(`Questions? Call or text ${businessPhone}`)
-  }
-  return lines.join('\n')
 }

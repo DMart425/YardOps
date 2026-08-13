@@ -5,6 +5,7 @@ import FinancesExportButton from './FinancesExportButton'
 import { requireBusinessContext } from '@/lib/business/context'
 import { firstReadError } from '@/lib/readError'
 import { ReadErrorNotice } from '@/components/ReadErrorNotice'
+import { calcJobBalance } from '@/lib/money'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const CATEGORY_LABELS: Record<string, string> = {
@@ -71,7 +72,7 @@ export default async function FinancesPage({
   // Fetch all-time completed jobs that still carry an uncollected balance
   const { data: uncollectedJobs, error: uncollectedError } = await supabase
     .from('jobs')
-    .select('price, amount_paid')
+    .select('price, amount_paid, payment_status')
     .eq('business_id', businessId)
     .eq('status', 'completed')
     .in('payment_status', ['unpaid', 'partial'])
@@ -113,7 +114,7 @@ export default async function FinancesPage({
   let uncollectedBalance = 0
   let uncollectedCount = 0
   for (const j of uncollectedJobs ?? []) {
-    const balance = Math.max(0, Number(j.price ?? 0) - Number(j.amount_paid ?? 0))
+    const balance = calcJobBalance(j) ?? 0
     if (balance > 0) {
       uncollectedBalance += balance
       uncollectedCount++

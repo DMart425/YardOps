@@ -6,6 +6,7 @@ import { formatFrequencyLabel } from '@/lib/frequency'
 import { requireBusinessContext } from '@/lib/business/context'
 import { firstReadError } from '@/lib/readError'
 import { ReadErrorNotice } from '@/components/ReadErrorNotice'
+import { calcJobBalance } from '@/lib/money'
 
 type PropertySummary = {
   id: string
@@ -117,7 +118,7 @@ export default async function CustomersPage({
         .order('scheduled_date', { ascending: true }),
       supabase
         .from('jobs')
-        .select('customer_id, price, amount_paid')
+        .select('customer_id, price, amount_paid, payment_status')
         .eq('business_id', businessId)
         .eq('status', 'completed')
         .in('payment_status', ['unpaid', 'partial'])
@@ -125,7 +126,7 @@ export default async function CustomersPage({
     ])
     upcomingJobs = (jobs ?? []) as UpcomingJob[]
     for (const j of unpaidJobsData ?? []) {
-      const balance = Math.max(0, Number(j.price ?? 0) - Number(j.amount_paid ?? 0))
+      const balance = calcJobBalance(j) ?? 0
       if (balance > 0) {
         const cid = j.customer_id as string
         unpaidBalanceMap.set(cid, (unpaidBalanceMap.get(cid) ?? 0) + balance)

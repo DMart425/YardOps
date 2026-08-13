@@ -12,6 +12,8 @@ import type { AppNotification } from '@/types/database'
 import { snoozeCustomerAlert } from './actions'
 import { orderStopsForRoute, buildRouteUrl } from '@/lib/route'
 import { resolveSmsMode } from '@/lib/sms'
+import { calcJobBalance } from '@/lib/money'
+import { buildOnMyWaySms, buildEstimateVisitReminderSms, buildTomorrowReminderSms, buildBalanceNudgeSms } from '@/lib/smsTemplates'
 import { SmsLink } from '@/components/SmsLink'
 
 function dateOnlyToUtcMs(dateStr: string) {
@@ -451,7 +453,7 @@ export default async function TodayPage() {
   }
 
   const todayTotal = (todayJobs ?? []).reduce((s, j) => s + (j.price ?? 0), 0)
-  const unpaidTotal = (unpaidJobs ?? []).reduce((s, j) => s + Math.max(0, (j.price ?? 0) - (j.amount_paid ?? 0)), 0)
+  const unpaidTotal = (unpaidJobs ?? []).reduce((s, j) => s + (calcJobBalance(j) ?? 0), 0)
   // Collected today: sum amount_paid from completed-today jobs (not_billable contributes 0 naturally)
   const collectedTodayRevenue = (completedTodayJobs ?? []).reduce((s, j) => s + Number(j.amount_paid ?? 0), 0)
   // This week expected revenue: sum price from scheduled/in-progress/needs-reschedule jobs this week
@@ -684,7 +686,7 @@ export default async function TodayPage() {
                   {customer?.phone && (
                     <SmsLink
                       phone={customer.phone}
-                      body={`Hey ${customer.first_name}, I'm on my way to service your lawn now.`}
+                      body={buildOnMyWaySms(customer.first_name)}
                       mode={smsMode}
                       className="btn btn-sm btn-secondary"
                     >
@@ -737,7 +739,7 @@ export default async function TodayPage() {
                   {customer?.phone && (
                     <SmsLink
                       phone={customer.phone}
-                      body={`Hi ${customer?.first_name ?? 'there'}, just a reminder that I have an estimate visit scheduled at your property today. I'll be in touch with your quote shortly!`}
+                      body={buildEstimateVisitReminderSms(customer?.first_name)}
                       mode={smsMode}
                       className="btn btn-sm btn-secondary"
                     >
@@ -802,9 +804,7 @@ export default async function TodayPage() {
           {completedTodayJobs!.map((job) => {
             const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null } | null
             const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
-            const balance = job.price != null
-              ? Math.max(0, Number(job.price) - Number(job.amount_paid ?? 0))
-              : null
+            const balance = calcJobBalance(job)
             return (
               <Link key={job.id} href={`/jobs/${job.id}`} style={{ display: 'block' }}>
                 <div className="card">
@@ -838,7 +838,7 @@ export default async function TodayPage() {
             const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null; phone: string | null } | null
             const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null; default_mowing_enabled: boolean | null; default_weed_eating_enabled: boolean | null; default_edging_enabled: boolean | null; default_blow_off_enabled: boolean | null } | null
             const svcLabel = deriveServiceLabel(job.service_package, property)
-            const smsBody = `Hi ${customer?.first_name ?? 'there'}, just a reminder that we have you scheduled for ${svcLabel} tomorrow. See you then! — ${formatDateOnly(tomorrowStr, { weekday: 'long', month: 'long', day: 'numeric' })}`
+            const smsBody = buildTomorrowReminderSms(customer?.first_name, svcLabel, formatDateOnly(tomorrowStr, { weekday: 'long', month: 'long', day: 'numeric' }))
             return (
               <div key={job.id} className="card">
                 <div className="card-row">
@@ -984,9 +984,7 @@ export default async function TodayPage() {
           </div>
           {unpaidJobs!.map((job) => {
             const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null; phone: string | null } | null
-            const balance = job.price != null
-              ? Math.max(0, Number(job.price) - Number(job.amount_paid ?? 0))
-              : null
+            const balance = calcJobBalance(job)
             return (
               <div key={job.id} className="card">
                 <div className="card-row">
@@ -1006,7 +1004,7 @@ export default async function TodayPage() {
                   {customer?.phone && balance != null && (
                     <SmsLink
                       phone={customer.phone}
-                      body={`Hey ${customer.first_name}, just a quick reminder that your lawn service balance of $${balance.toFixed(0)} is still open. Thanks`}
+                      body={buildBalanceNudgeSms(customer.first_name, balance)}
                       mode={smsMode}
                       className="btn btn-sm btn-secondary"
                     >

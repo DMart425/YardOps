@@ -7,6 +7,7 @@ import { formatDateOnly, formatTimestampDate, getLocalDateStr, resolveTimeZone }
 import { estimateMowableAcres } from '@/lib/pricing'
 import { formatFrequencyLabel } from '@/lib/frequency'
 import { requireBusinessContext } from '@/lib/business/context'
+import { calcJobBalance } from '@/lib/money'
 import { PropertyDangerZone } from './PropertyDangerZone'
 import { PropertyAssignmentSection } from './PropertyAssignmentSection'
 import { PropertyEditSection } from './PropertyEditSection'
@@ -99,10 +100,14 @@ export default async function PropertyDetailPage({
 
   const completedCount = completedJobsCount ?? 0
   const completedStatsRows = completedJobsStats ?? []
-  const propRevenue  = completedStatsRows.reduce((s, j) => s + Number(j.price ?? 0), 0)
+  // not_billable carries no charge — excluded from billed totals, and
+  // calcJobBalance keeps it (and unknown prices) out of the unpaid sum.
+  const propRevenue  = completedStatsRows
+    .filter(j => j.payment_status !== 'not_billable')
+    .reduce((s, j) => s + Number(j.price ?? 0), 0)
   const propUnpaid   = completedStatsRows
-    .filter(j => j.payment_status !== 'paid')
-    .reduce((s, j) => s + Math.max(0, Number(j.price ?? 0) - Number(j.amount_paid ?? 0)), 0)
+    .filter(j => j.payment_status === 'unpaid' || j.payment_status === 'partial')
+    .reduce((s, j) => s + (calcJobBalance(j) ?? 0), 0)
   const lastPropVisit = lastCompletedJob?.completed_at ?? null
 
   const p = property as Property

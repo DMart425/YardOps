@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { logReviewRequest } from '@/app/(protected)/jobs/actions'
 import { launchSms } from '@/components/SmsLink'
 import type { SmsMode } from '@/lib/sms'
+import { buildReviewRequestSms } from '@/lib/smsTemplates'
 
 // Discretionary post-payment review ask. Shown only on paid jobs, only when a
 // review link is configured, and only for customers who have never been asked
@@ -31,10 +32,7 @@ export function ReviewRequestButton({
     return <p className="text-small text-muted" style={{ margin: 0 }}>Review request sent — this customer won&apos;t be asked again.</p>
   }
 
-  const body =
-    `Hi ${customerFirstName ?? ''}, glad you're happy with the yard! ` +
-    `If you have a minute, a quick Google review would mean a lot: ${reviewUrl}` +
-    `${businessName ? ` — ${businessName}` : ''}`
+  const body = buildReviewRequestSms(customerFirstName, reviewUrl, businessName)
 
   function handleClick() {
     // Log first (fire-and-forget) so the ask is recorded even if the SMS

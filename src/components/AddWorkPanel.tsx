@@ -6,6 +6,7 @@ import { addWorkToJob } from '@/app/(protected)/jobs/actions'
 import { parseJobInputs, type ParsedJobInputs } from '@/lib/jobScope'
 import { SmsLink } from '@/components/SmsLink'
 import type { SmsMode } from '@/lib/sms'
+import { buildAddWorkConfirmationSms } from '@/lib/smsTemplates'
 
 // "Add work to this visit" — one-time add-ons on an upcoming job (e.g. the
 // customer asks for hedge trimming on their next regular visit). Updates the
@@ -62,11 +63,7 @@ export function AddWorkPanel({
     const work = selectedWorkLabels()
     if (work.length === 0) return null
     const priceNum = parseFloat(newPrice)
-    const priceLine = Number.isFinite(priceNum) ? ` New visit total: $${priceNum.toFixed(0)}.` : ''
-    return (
-      `Hi ${customerFirstName ?? ''}, confirming the added work for your upcoming visit: ${work.join(', ')}.` +
-      `${priceLine} Reply YES to confirm. — ${businessName ?? 'Your lawn service'}`
-    )
+    return buildAddWorkConfirmationSms(customerFirstName, work, Number.isFinite(priceNum) ? priceNum : null, businessName)
   }
 
   const smsBody = state.success && customerPhone ? confirmationSmsBody() : null

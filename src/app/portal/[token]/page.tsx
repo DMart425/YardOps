@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { formatTimestampDate, resolveTimeZone } from '@/lib/date'
 import { formatPhoneInput } from '@/lib/format'
 import { parseJobInputs, resolveServiceLabel, formatAddonsForCustomer } from '@/lib/jobScope'
+import { calcJobBalance } from '@/lib/money'
 
 function fmtDate(d: string) {
   return new Date(d + 'T12:00:00').toLocaleDateString('en-US', {
@@ -70,7 +71,7 @@ export default async function CustomerPortalPage({
     // the filter; null-price jobs are excluded below (unknown ≠ $0).
     supabase
       .from('jobs')
-      .select('price, amount_paid')
+      .select('price, amount_paid, payment_status')
       .eq('customer_id', customer_id)
       .eq('business_id', business_id)
       .eq('status', 'completed')
@@ -97,8 +98,7 @@ export default async function CustomerPortalPage({
     .sort((a, b) => (b.completed_at ?? '').localeCompare(a.completed_at ?? ''))
     .slice(0, 10)
   const totalUnpaid = (outstandingRows ?? [])
-    .filter(j => j.price != null)
-    .reduce((s, j) => s + Math.max(0, Number(j.price) - Number(j.amount_paid ?? 0)), 0)
+    .reduce((s, j) => s + (calcJobBalance(j) ?? 0), 0)
 
   return (
     <div style={{
@@ -260,7 +260,7 @@ export default async function CustomerPortalPage({
           {history.map(j => {
             const price         = Number(j.price ?? 0)
             const amtPaid       = Number(j.amount_paid ?? 0)
-            const remaining     = Math.max(0, price - amtPaid)
+            const remaining     = calcJobBalance(j) ?? 0
             const ps            = j.payment_status as string | null
             const parsedInputs  = parseJobInputs(j.job_inputs as Record<string, unknown> | null)
             const addonsLine    = parsedInputs ? formatAddonsForCustomer(parsedInputs) : null
