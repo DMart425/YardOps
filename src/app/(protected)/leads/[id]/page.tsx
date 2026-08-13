@@ -5,6 +5,8 @@ import { LeadActions } from './LeadActions'
 import { ApplyParcelButton } from './ApplyParcelButton'
 import { normalizeFrequency, parseWebsiteServiceInterests, formatFrequencyLabel } from '@/lib/frequency'
 import { requireBusinessContext } from '@/lib/business/context'
+import { resolveSmsMode } from '@/lib/sms'
+import { SmsLink } from '@/components/SmsLink'
 
 const SERVICE_INTEREST_LABELS: Record<string, string> = {
   mowing: 'Lawn mowing',
@@ -86,7 +88,14 @@ export default async function LeadDetailPage({
 }) {
   const { id } = await params
   const supabase = await createClient()
-  const { businessId } = await requireBusinessContext()
+  const { userId, businessId } = await requireBusinessContext()
+
+  const { data: leadSmsSettings } = await supabase
+    .from('pricing_settings')
+    .select('sms_mode')
+    .eq('user_id', userId)
+    .maybeSingle()
+  const smsMode = resolveSmsMode(leadSmsSettings?.sms_mode)
 
   const { data: customer } = await supabase
     .from('customers')
@@ -323,7 +332,7 @@ export default async function LeadDetailPage({
                   <a href={`tel:${customer.phone}`} className="btn btn-sm btn-secondary">📞 Call</a>
                 )}
                 {customer.phone && (
-                  <a href={`sms:${customer.phone}`} className="btn btn-sm btn-secondary">💬 Text</a>
+                  <SmsLink phone={customer.phone} mode={smsMode} className="btn btn-sm btn-secondary">💬 Text</SmsLink>
                 )}
                 {customer.email && (
                   <a href={`mailto:${customer.email}`} className="btn btn-sm btn-secondary">✉ Email</a>

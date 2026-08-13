@@ -1,6 +1,8 @@
 'use client'
 
 import { logSmsSent, markEstimateSent } from './actions'
+import { launchSms } from '@/components/SmsLink'
+import type { SmsMode } from '@/lib/sms'
 
 interface Props {
   phone: string
@@ -8,15 +10,16 @@ interface Props {
   estimateId: string
   customerId: string
   currentStatus: string
+  smsMode?: SmsMode
 }
 
-export default function SendSmsButton({ phone, smsBody, estimateId, customerId, currentStatus }: Props) {
+export default function SendSmsButton({ phone, smsBody, estimateId, customerId, currentStatus, smsMode = 'device' }: Props) {
   function handleClick() {
     logSmsSent(estimateId, customerId, smsBody).catch(() => {})
     if (currentStatus === 'draft') {
       markEstimateSent(estimateId).catch(() => {})
     }
-    window.location.href = 'sms:' + phone + '?body=' + encodeURIComponent(smsBody)
+    launchSms(phone, smsBody, smsMode)
   }
 
   return (

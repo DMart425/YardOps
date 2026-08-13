@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { EstimateStatusActions } from '@/components/EstimateStatusActions'
 import { calculateEstimate, formatMinutes, DEFAULT_SETTINGS } from '@/lib/pricing'
 import { addDays, formatDateOnly, formatTimestampDate, getClosestWeekdayNearDate, getLocalDateStr, resolveTimeZone } from '@/lib/date'
+import { resolveSmsMode } from '@/lib/sms'
 import type { EstimateInputs } from '@/lib/pricing'
 import type { Estimate } from '@/types/database'
 import { requireBusinessContext } from '@/lib/business/context'
@@ -42,7 +43,7 @@ export default async function EstimateDetailPage({
 
   const { data: settings } = await supabase
     .from('pricing_settings')
-    .select('venmo_handle, minimum_price, time_zone')
+    .select('venmo_handle, minimum_price, time_zone, sms_mode')
     .eq('user_id', userId)
     .maybeSingle()
   const venmoHandle = (settings?.venmo_handle as string | null) ?? null
@@ -450,6 +451,7 @@ export default async function EstimateDetailPage({
             estimateId={estimate.id}
             customerId={estimate.customer_id}
             currentStatus={estimate.status}
+            smsMode={resolveSmsMode(settings?.sms_mode)}
           />
         </div>
       )}

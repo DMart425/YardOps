@@ -35,6 +35,8 @@ export async function saveSettings(
     return { error: 'Review link must be a full URL starting with http(s)://' }
   }
   const review_request_url    = rawReviewUrl || null
+  const rawSmsMode            = (formData.get('sms_mode') as string ?? '').trim()
+  const sms_mode              = rawSmsMode === 'google_voice' ? 'google_voice' : 'device'
 
   // Geocode the home base when it's set and changed (or has no coords yet).
   // Failure keeps any previously good coordinates; clearing the address
@@ -72,6 +74,7 @@ export async function saveSettings(
         home_base_latitude,
         home_base_longitude,
         review_request_url,
+        sms_mode,
       }, { onConflict: 'user_id' }),
     supabase
       .from('businesses')

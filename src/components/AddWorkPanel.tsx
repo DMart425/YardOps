@@ -4,6 +4,8 @@ import { useActionState, useState } from 'react'
 import type { FormState } from '@/types/database'
 import { addWorkToJob } from '@/app/(protected)/jobs/actions'
 import { parseJobInputs, type ParsedJobInputs } from '@/lib/jobScope'
+import { SmsLink } from '@/components/SmsLink'
+import type { SmsMode } from '@/lib/sms'
 
 // "Add work to this visit" — one-time add-ons on an upcoming job (e.g. the
 // customer asks for hedge trimming on their next regular visit). Updates the
@@ -17,6 +19,7 @@ export function AddWorkPanel({
   customerPhone,
   customerFirstName,
   businessName,
+  smsMode = 'device',
 }: {
   jobId: string
   rawJobInputs: Record<string, unknown> | null
@@ -24,6 +27,7 @@ export function AddWorkPanel({
   customerPhone: string | null
   customerFirstName: string | null
   businessName: string | null
+  smsMode?: SmsMode
 }) {
   const current: ParsedJobInputs | null = parseJobInputs(rawJobInputs)
   const [open, setOpen] = useState(false)
@@ -54,19 +58,18 @@ export function AddWorkPanel({
     return labels
   }
 
-  function confirmationSmsHref(): string | null {
-    if (!customerPhone) return null
+  function confirmationSmsBody(): string | null {
     const work = selectedWorkLabels()
     if (work.length === 0) return null
     const priceNum = parseFloat(newPrice)
     const priceLine = Number.isFinite(priceNum) ? ` New visit total: $${priceNum.toFixed(0)}.` : ''
-    const body =
+    return (
       `Hi ${customerFirstName ?? ''}, confirming the added work for your upcoming visit: ${work.join(', ')}.` +
       `${priceLine} Reply YES to confirm. — ${businessName ?? 'Your lawn service'}`
-    return `sms:${customerPhone}?&body=${encodeURIComponent(body)}`
+    )
   }
 
-  const smsHref = state.success ? confirmationSmsHref() : null
+  const smsBody = state.success && customerPhone ? confirmationSmsBody() : null
 
   const selectStyle = { minWidth: 0 }
 
@@ -86,10 +89,10 @@ export function AddWorkPanel({
         <form action={action} className="form" style={{ marginTop: '12px' }}>
           {state.error && <div className="alert alert-error">{state.error}</div>}
           {state.success && <div className="alert alert-success">{state.success}</div>}
-          {smsHref && (
-            <a href={smsHref} className="btn btn-secondary btn-full" style={{ marginBottom: '8px' }}>
+          {smsBody && customerPhone && (
+            <SmsLink phone={customerPhone} body={smsBody} mode={smsMode} className="btn btn-secondary btn-full" style={{ marginBottom: '8px' }}>
               📲 Send Confirmation Text
-            </a>
+            </SmsLink>
           )}
 
           <div className="form-row">

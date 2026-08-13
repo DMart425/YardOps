@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { logReviewRequest } from '@/app/(protected)/jobs/actions'
+import { launchSms } from '@/components/SmsLink'
+import type { SmsMode } from '@/lib/sms'
 
 // Discretionary post-payment review ask. Shown only on paid jobs, only when a
 // review link is configured, and only for customers who have never been asked
@@ -14,6 +16,7 @@ export function ReviewRequestButton({
   customerFirstName,
   businessName,
   reviewUrl,
+  smsMode = 'device',
 }: {
   customerId: string
   jobId: string
@@ -21,6 +24,7 @@ export function ReviewRequestButton({
   customerFirstName: string | null
   businessName: string | null
   reviewUrl: string
+  smsMode?: SmsMode
 }) {
   const [asked, setAsked] = useState(false)
   if (asked) {
@@ -37,7 +41,7 @@ export function ReviewRequestButton({
     // compose is abandoned; then open the operator's messaging app.
     logReviewRequest(customerId, jobId, body).catch(() => {})
     setAsked(true)
-    window.location.href = `sms:${customerPhone}?&body=${encodeURIComponent(body)}`
+    launchSms(customerPhone, body, smsMode)
   }
 
   return (

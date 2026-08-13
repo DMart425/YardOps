@@ -8,6 +8,8 @@ import { formatFrequencyLabel } from '@/lib/frequency'
 import { requireBusinessContext } from '@/lib/business/context'
 import { CustomerDangerZone } from './CustomerDangerZone'
 import { LeadStatusActions } from './LeadStatusActions'
+import { resolveSmsMode } from '@/lib/sms'
+import { SmsLink } from '@/components/SmsLink'
 import { CustomerInfoSection } from './CustomerInfoSection'
 import { getOrCreatePortalToken } from './portal-actions'
 
@@ -24,10 +26,11 @@ export default async function CustomerDetailPage({
 
   const { data: settings } = await supabase
     .from('pricing_settings')
-    .select('time_zone, venmo_handle')
+    .select('time_zone, venmo_handle, sms_mode')
     .eq('user_id', userId)
     .maybeSingle()
   const timeZone = resolveTimeZone(settings?.time_zone ?? null)
+  const smsMode = resolveSmsMode(settings?.sms_mode)
   const venmoHandle = (settings?.venmo_handle as string | null) ?? null
   const today = getLocalDateStr(timeZone)
 
@@ -202,7 +205,7 @@ export default async function CustomerDetailPage({
         </div>
       )}
 
-      <CustomerInfoSection customer={customerRow} mapsAddress={mapsAddress} />
+      <CustomerInfoSection customer={customerRow} mapsAddress={mapsAddress} smsMode={smsMode} />
 
       <div className="detail-section">
         <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
@@ -302,12 +305,9 @@ export default async function CustomerDetailPage({
           )}
           {outstandingJobs.length > 0 && customerRow.phone && (
             <div style={{ marginTop: '12px' }}>
-              <a
-                href={`sms:${customerRow.phone}?body=${encodeURIComponent(balanceSmsBody)}`}
-                className="btn btn-sm btn-secondary"
-              >
+              <SmsLink phone={customerRow.phone} body={balanceSmsBody} mode={smsMode} className="btn btn-sm btn-secondary">
                 📱 Send Balance Reminder
-              </a>
+              </SmsLink>
             </div>
           )}
         </div>

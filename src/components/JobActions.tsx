@@ -6,8 +6,10 @@ import type { FormState, Job } from '@/types/database'
 import { completeJob, markInProgress, skipJob, cancelJob, markPaid, markPartial, rescheduleJob } from '@/app/(protected)/jobs/actions'
 import { buildDefaultCompletionNotes } from '@/lib/jobScope'
 import { Toast } from '@/components/Toast'
+import { SmsLink, launchSms } from '@/components/SmsLink'
+import type { SmsMode } from '@/lib/sms'
 
-export function JobActions({ job, venmoHandle, customerPhone, customerFirstName, businessName, businessPhone, portalInvoiceUrl }: { job: Job; venmoHandle?: string | null; customerPhone?: string | null; customerFirstName?: string | null; businessName?: string | null; businessPhone?: string | null; portalInvoiceUrl?: string | null }) {
+export function JobActions({ job, venmoHandle, customerPhone, customerFirstName, businessName, businessPhone, portalInvoiceUrl, smsMode = 'device' }: { job: Job; venmoHandle?: string | null; customerPhone?: string | null; customerFirstName?: string | null; businessName?: string | null; businessPhone?: string | null; portalInvoiceUrl?: string | null; smsMode?: SmsMode }) {
   const [panel,          setPanel]         = useState<'complete' | 'skip' | 'paid' | 'partial' | 'reschedule' | null>(null)
   const [completionPayStatus,  setCompletionPayStatus]  = useState('unpaid')
   const [completionPartialAmt, setCompletionPartialAmt] = useState('')
@@ -56,7 +58,10 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
   useEffect(() => {
     if (justCompleted) {
       router.refresh()
-      if (customerPhone && invoiceSmsBody) {
+      // Auto-launch only in device mode. Google Voice mode needs a user
+      // gesture (intent:// navigation is blocked without one) — the visible
+      // "Send Invoice to Customer" button below handles it instead.
+      if (customerPhone && invoiceSmsBody && smsMode !== 'google_voice') {
         window.location.href = `sms:${customerPhone}?&body=${encodeURIComponent(invoiceSmsBody)}`
       }
     }
@@ -82,7 +87,7 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
           type="button"
           className={`btn btn-full ${pendingReceipt.isPaidInFull ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => {
-            window.location.href = `sms:${customerPhone}?&body=${encodeURIComponent(pendingReceipt.smsBody)}`
+            launchSms(customerPhone, pendingReceipt.smsBody, smsMode)
             setPendingReceipt(null)
           }}
         >
@@ -92,12 +97,9 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
 
       {/* ── Completion SMS prompt (fallback / re-send) ── */}
       {justCompleted && customerPhone && invoiceSmsBody && (
-        <a
-          href={`sms:${customerPhone}?&body=${encodeURIComponent(invoiceSmsBody)}`}
-          className="btn btn-primary btn-full"
-        >
+        <SmsLink phone={customerPhone} body={invoiceSmsBody} mode={smsMode} className="btn btn-primary btn-full">
           📱 Send Invoice to Customer
-        </a>
+        </SmsLink>
       )}
 
       {/* ── Active job actions ── */}
@@ -330,12 +332,14 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
       {isCompleted && job.payment_status === 'unpaid' && (
         <>
           {venmoHandle && customerPhone && job.price && (
-            <a
-              href={`sms:${customerPhone}?&body=${encodeURIComponent(`Hi ${customerFirstName ?? ''}, friendly reminder for $${Number(job.price).toFixed(0)} for the lawn service. Pay via Venmo: https://venmo.com/${venmoHandle}?txn=pay&amount=${Number(job.price).toFixed(0)}&note=${encodeURIComponent('Lawn service')}\n\nThanks!${businessName ? ` — ${businessName}` : ''}`)}`}
+            <SmsLink
+              phone={customerPhone}
+              body={`Hi ${customerFirstName ?? ''}, friendly reminder for $${Number(job.price).toFixed(0)} for the lawn service. Pay via Venmo: https://venmo.com/${venmoHandle}?txn=pay&amount=${Number(job.price).toFixed(0)}&note=${encodeURIComponent('Lawn service')}\n\nThanks!${businessName ? ` — ${businessName}` : ''}`}
+              mode={smsMode}
               className="btn btn-secondary btn-full"
             >
               📲 Send Pay Reminder
-            </a>
+            </SmsLink>
           )}
           <button type="button" className="btn btn-primary btn-full" onClick={() => setPanel(panel === 'paid' ? null : 'paid')}>
             $ Mark Paid
@@ -430,12 +434,14 @@ export function JobActions({ job, venmoHandle, customerPhone, customerFirstName,
       {isCompleted && job.payment_status === 'partial' && (
         <>
           {venmoHandle && customerPhone && partialRemaining > 0 && (
-            <a
-              href={`sms:${customerPhone}?&body=${encodeURIComponent(`Hi ${customerFirstName ?? ''}, friendly reminder for the remaining $${partialRemaining.toFixed(0)} balance for your lawn service. Pay via Venmo: https://venmo.com/${venmoHandle}?txn=pay&amount=${partialRemaining.toFixed(0)}&note=${encodeURIComponent('Lawn service')}\n\nThanks!${businessName ? ` — ${businessName}` : ''}`)}`}
+            <SmsLink
+              phone={customerPhone}
+              body={`Hi ${customerFirstName ?? ''}, friendly reminder for the remaining $${partialRemaining.toFixed(0)} balance for your lawn service. Pay via Venmo: https://venmo.com/${venmoHandle}?txn=pay&amount=${partialRemaining.toFixed(0)}&note=${encodeURIComponent('Lawn service')}\n\nThanks!${businessName ? ` — ${businessName}` : ''}`}
+              mode={smsMode}
               className="btn btn-secondary btn-full"
             >
               📲 Send Pay Reminder
-            </a>
+            </SmsLink>
           )}
           <button type="button" className="btn btn-primary btn-full" onClick={() => setPanel(panel === 'paid' ? null : 'paid')}>
             $ Mark Remaining Paid

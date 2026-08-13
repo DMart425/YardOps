@@ -29,6 +29,7 @@ interface Defaults {
   business_phone:        string
   home_base_address:     string
   review_request_url:    string
+  sms_mode:              string
 }
 
 export function SettingsForm({ defaults }: { defaults: Defaults }) {
@@ -79,6 +80,18 @@ export function SettingsForm({ defaults }: { defaults: Defaults }) {
           defaultValue={defaults.review_request_url}
         />
         <p className="form-hint">Your Google review link. Enables the &quot;Ask for Review&quot; text button on paid jobs.</p>
+      </div>
+
+      <div className="form-field">
+        <label className="form-label" htmlFor="s_smsmode">Text Messaging</label>
+        <select id="s_smsmode" name="sms_mode" className="form-input" defaultValue={defaults.sms_mode || 'device'}>
+          <option value="device">Phone SMS (default messaging app)</option>
+          <option value="google_voice">Google Voice</option>
+        </select>
+        <p className="form-hint">
+          Google Voice mode copies the message to your clipboard and opens the customer&apos;s
+          Voice conversation — paste and send. (Google Voice doesn&apos;t allow pre-filled texts.)
+        </p>
       </div>
 
       <div className="form-section-label">Pricing Defaults</div>

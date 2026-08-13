@@ -36,6 +36,7 @@ export default async function SettingsPage() {
     business_phone:        formatPhoneInput((businessRow?.phone as string | null) ?? ''),
     home_base_address:     settings?.home_base_address     ?? '',
     review_request_url:    settings?.review_request_url    ?? '',
+    sms_mode:              settings?.sms_mode              ?? 'device',
   }
 
   const blackoutDates: string[] = (settings?.blackout_dates as string[] | null) ?? []

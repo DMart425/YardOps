@@ -5,6 +5,8 @@ import { addDays, formatDateOnly, formatTimestampDate, resolveTimeZone, getLocal
 import { JobActions } from '@/components/JobActions'
 import { AddWorkPanel } from '@/components/AddWorkPanel'
 import { ReviewRequestButton } from '@/components/ReviewRequestButton'
+import { resolveSmsMode } from '@/lib/sms'
+import { SmsLink } from '@/components/SmsLink'
 import { JobPhotos } from '@/components/JobPhotos'
 import { DownloadInvoiceButton } from '@/components/DownloadInvoiceButton'
 import { ScheduleFollowUpCard } from '@/components/ScheduleFollowUpCard'
@@ -162,10 +164,11 @@ export default async function JobDetailPage({
 
   const { data: settings } = await supabase
     .from('pricing_settings')
-    .select('venmo_handle, time_zone, review_request_url')
+    .select('venmo_handle, time_zone, review_request_url, sms_mode')
     .eq('user_id', userId)
     .maybeSingle()
   const venmoHandle = (settings?.venmo_handle as string | null) ?? null
+  const smsMode = resolveSmsMode(settings?.sms_mode)
   const reviewRequestUrl = (settings?.review_request_url as string | null) ?? null
 
   // One review ask per customer, ever — checked against the message log.
@@ -379,7 +382,7 @@ export default async function JobDetailPage({
             <div className="divider" />
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               <a href={`tel:${customer.phone}`} className="btn btn-sm btn-secondary">📞 Call</a>
-              <a href={`sms:${customer.phone}`} className="btn btn-sm btn-secondary">💬 Text</a>
+              <SmsLink phone={customer.phone} mode={smsMode} className="btn btn-sm btn-secondary">💬 Text</SmsLink>
               <a
                 href={`https://maps.google.com/?q=${encodeURIComponent(address)}`}
                 target="_blank"
@@ -525,7 +528,7 @@ export default async function JobDetailPage({
       {/* Actions */}
       <div className="card">
         <div className="section-heading" style={{ marginBottom: '0.75rem' }}>Actions</div>
-        <JobActions job={job} venmoHandle={venmoHandle} customerPhone={customer.phone} customerFirstName={customer.first_name} businessName={businessName} businessPhone={businessPhone} portalInvoiceUrl={portalInvoiceUrl} />
+        <JobActions job={job} venmoHandle={venmoHandle} customerPhone={customer.phone} customerFirstName={customer.first_name} businessName={businessName} businessPhone={businessPhone} portalInvoiceUrl={portalInvoiceUrl} smsMode={smsMode} />
       </div>
 
       {/* Discretionary review ask — paid jobs, review link configured, never asked before */}
@@ -538,6 +541,7 @@ export default async function JobDetailPage({
             customerFirstName={customer.first_name}
             businessName={businessName}
             reviewUrl={reviewRequestUrl}
+            smsMode={smsMode}
           />
         </div>
       )}
@@ -551,6 +555,7 @@ export default async function JobDetailPage({
           customerPhone={customer.phone}
           customerFirstName={customer.first_name}
           businessName={businessName}
+          smsMode={smsMode}
         />
       )}
 

@@ -4,6 +4,8 @@ import { notFound } from 'next/navigation'
 import { RestoreWebsiteLeadButton, WebsiteLeadDangerZone, WebsiteLeadStatusActions } from './WebsiteLeadActions'
 import { estimateMowableAcres } from '@/lib/pricing'
 import { requireBusinessContext } from '@/lib/business/context'
+import { resolveSmsMode } from '@/lib/sms'
+import { SmsLink } from '@/components/SmsLink'
 import { formatFrequencyLabel, parseWebsiteServiceInterests, formatServiceInterestLabel } from '@/lib/frequency'
 
 export default async function WebsiteLeadDetailPage({
@@ -13,7 +15,14 @@ export default async function WebsiteLeadDetailPage({
 }) {
   const { id } = await params
   const supabase = await createClient()
-  const { businessId } = await requireBusinessContext()
+  const { userId, businessId } = await requireBusinessContext()
+
+  const { data: leadSmsSettings } = await supabase
+    .from('pricing_settings')
+    .select('sms_mode')
+    .eq('user_id', userId)
+    .maybeSingle()
+  const smsMode = resolveSmsMode(leadSmsSettings?.sms_mode)
 
   // No status filter — archived and converted leads must stay viewable
   // (recallable), not 404. The action cards below render per-status.
@@ -151,7 +160,7 @@ export default async function WebsiteLeadDetailPage({
               <a href={`tel:${lead.phone}`} className="btn btn-sm btn-secondary">📞 Call</a>
             )}
             {lead.phone && (
-              <a href={`sms:${lead.phone}`} className="btn btn-sm btn-secondary">💬 Text</a>
+              <SmsLink phone={lead.phone} mode={smsMode} className="btn btn-sm btn-secondary">💬 Text</SmsLink>
             )}
             {lead.email && (
               <a href={`mailto:${lead.email}`} className="btn btn-sm btn-secondary">✉ Email</a>

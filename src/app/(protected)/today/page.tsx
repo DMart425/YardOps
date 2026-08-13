@@ -11,6 +11,8 @@ import { ReadErrorNotice } from '@/components/ReadErrorNotice'
 import type { AppNotification } from '@/types/database'
 import { snoozeCustomerAlert } from './actions'
 import { orderStopsForRoute, buildRouteUrl } from '@/lib/route'
+import { resolveSmsMode } from '@/lib/sms'
+import { SmsLink } from '@/components/SmsLink'
 
 function dateOnlyToUtcMs(dateStr: string) {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -61,7 +63,7 @@ export default async function TodayPage() {
 
   const { data: settings } = await supabase
     .from('pricing_settings')
-    .select('time_zone, home_base_address, home_base_latitude, home_base_longitude')
+    .select('time_zone, home_base_address, home_base_latitude, home_base_longitude, sms_mode')
     .eq('user_id', userId)
     .maybeSingle()
   const timeZone = resolveTimeZone(settings?.time_zone)
@@ -70,6 +72,7 @@ export default async function TodayPage() {
     : null
   const homeBaseOrigin = settings?.home_base_address
     ?? (homeBaseCoord ? `${homeBaseCoord.latitude},${homeBaseCoord.longitude}` : null)
+  const smsMode = resolveSmsMode(settings?.sms_mode)
   const today = getLocalDateStr(timeZone)
   const todayStartMs = dateOnlyToUtcMs(today)
   const tomorrowForCompletedStr = addDays(today, 1)
@@ -679,12 +682,14 @@ export default async function TodayPage() {
                     </a>
                   )}
                   {customer?.phone && (
-                    <a
-                      href={`sms:${customer.phone}?body=${encodeURIComponent(`Hey ${customer.first_name}, I'm on my way to service your lawn now.`)}`}
+                    <SmsLink
+                      phone={customer.phone}
+                      body={`Hey ${customer.first_name}, I'm on my way to service your lawn now.`}
+                      mode={smsMode}
                       className="btn btn-sm btn-secondary"
                     >
                       On My Way
-                    </a>
+                    </SmsLink>
                   )}
                   <Link href={`/jobs/${job.id}`} className="btn btn-sm btn-primary">
                     View Job
@@ -730,12 +735,14 @@ export default async function TodayPage() {
                     </a>
                   )}
                   {customer?.phone && (
-                    <a
-                      href={`sms:${customer.phone}?body=${encodeURIComponent(`Hi ${customer?.first_name ?? 'there'}, just a reminder that I have an estimate visit scheduled at your property today. I'll be in touch with your quote shortly!`)}`}
+                    <SmsLink
+                      phone={customer.phone}
+                      body={`Hi ${customer?.first_name ?? 'there'}, just a reminder that I have an estimate visit scheduled at your property today. I'll be in touch with your quote shortly!`}
+                      mode={smsMode}
                       className="btn btn-sm btn-secondary"
                     >
                       📱 Remind
-                    </a>
+                    </SmsLink>
                   )}
                   <Link href={`/estimates/${visit.id}`} className="btn btn-sm btn-primary">View Estimate</Link>
                 </div>
@@ -858,12 +865,9 @@ export default async function TodayPage() {
                     </a>
                   )}
                   {customer?.phone && (
-                    <a
-                      href={`sms:${customer.phone}?&body=${encodeURIComponent(smsBody)}`}
-                      className="btn btn-sm btn-secondary"
-                    >
+                    <SmsLink phone={customer.phone} body={smsBody} mode={smsMode} className="btn btn-sm btn-secondary">
                       📱 Send Reminder
-                    </a>
+                    </SmsLink>
                   )}
                   <a
                     href={`/jobs/${job.id}`}
@@ -1000,12 +1004,14 @@ export default async function TodayPage() {
                 </div>
                 <div className="card-actions">
                   {customer?.phone && balance != null && (
-                    <a
-                      href={`sms:${customer.phone}?body=${encodeURIComponent(`Hey ${customer.first_name}, just a quick reminder that your lawn service balance of $${balance.toFixed(0)} is still open. Thanks`)}`}
+                    <SmsLink
+                      phone={customer.phone}
+                      body={`Hey ${customer.first_name}, just a quick reminder that your lawn service balance of $${balance.toFixed(0)} is still open. Thanks`}
+                      mode={smsMode}
                       className="btn btn-sm btn-secondary"
                     >
                       Send Reminder
-                    </a>
+                    </SmsLink>
                   )}
                   <Link href={`/jobs/${job.id}`} className="btn btn-sm btn-primary">View &amp; Pay</Link>
                 </div>

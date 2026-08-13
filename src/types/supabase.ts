@@ -1204,6 +1204,7 @@ export type Database = {
           review_request_url: string | null
           round_to_nearest: number
           settings_json: Json | null
+          sms_mode: string | null
           target_hourly_rate: number
           time_zone: string
           updated_at: string
@@ -1223,6 +1224,7 @@ export type Database = {
           review_request_url?: string | null
           round_to_nearest?: number
           settings_json?: Json | null
+          sms_mode?: string | null
           target_hourly_rate?: number
           time_zone?: string
           updated_at?: string
@@ -1242,6 +1244,7 @@ export type Database = {
           review_request_url?: string | null
           round_to_nearest?: number
           settings_json?: Json | null
+          sms_mode?: string | null
           target_hourly_rate?: number
           time_zone?: string
           updated_at?: string

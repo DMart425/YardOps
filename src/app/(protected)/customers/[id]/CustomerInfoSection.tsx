@@ -4,10 +4,12 @@ import { useState } from 'react'
 import type { Customer } from '@/types/database'
 import { CustomerEditForm } from './_form'
 import { CustomerStatusToggle } from './CustomerStatusToggle'
+import { SmsLink } from '@/components/SmsLink'
+import type { SmsMode } from '@/lib/sms'
 
 type CustomerWithTags = Customer & { tags?: string[] | null }
 
-export function CustomerInfoSection({ customer, mapsAddress }: { customer: CustomerWithTags; mapsAddress?: string | null }) {
+export function CustomerInfoSection({ customer, mapsAddress, smsMode = 'device' }: { customer: CustomerWithTags; mapsAddress?: string | null; smsMode?: SmsMode }) {
   const [isEditing, setIsEditing] = useState(false)
 
   const tags = customer.tags ?? []
@@ -60,7 +62,7 @@ export function CustomerInfoSection({ customer, mapsAddress }: { customer: Custo
               <a href={`tel:${customer.phone}`} className="btn btn-sm btn-secondary">📞 Call</a>
             )}
             {customer.phone && (
-              <a href={`sms:${customer.phone}`} className="btn btn-sm btn-secondary">💬 Text</a>
+              <SmsLink phone={customer.phone} mode={smsMode} className="btn btn-sm btn-secondary">💬 Text</SmsLink>
             )}
             {customer.email && (
               <a href={`mailto:${customer.email}`} className="btn btn-sm btn-secondary">✉ Email</a>
