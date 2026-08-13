@@ -1,63 +1,27 @@
 import { createClient } from '@/lib/supabase/server'
-import Link from 'next/link'
-import { getTodayForecastForCoords, coordKey } from '@/lib/weather'
+import { getTodayForecastForCoords } from '@/lib/weather'
 import { geocodeAddress } from '@/lib/geocode'
 import { EstimateApprovalNotifications } from '@/components/EstimateApprovalNotifications'
-import { addDays, formatDateOnly, formatTimestampDate, getLocalDateStr, localMidnightUtcIso, resolveTimeZone } from '@/lib/date'
-import { formatFrequencyLabel } from '@/lib/frequency'
+import { addDays, formatDateOnly, getLocalDateStr, localMidnightUtcIso, resolveTimeZone } from '@/lib/date'
 import { requireBusinessContext } from '@/lib/business/context'
 import { firstReadError } from '@/lib/readError'
 import { ReadErrorNotice } from '@/components/ReadErrorNotice'
 import type { AppNotification } from '@/types/database'
-import { snoozeCustomerAlert } from './actions'
 import { orderStopsForRoute, buildRouteUrl } from '@/lib/route'
 import { resolveSmsMode } from '@/lib/sms'
 import { calcJobBalance } from '@/lib/money'
-import { buildOnMyWaySms, buildEstimateVisitReminderSms, buildTomorrowReminderSms, buildBalanceNudgeSms } from '@/lib/smsTemplates'
-import { SmsLink } from '@/components/SmsLink'
-
-function dateOnlyToUtcMs(dateStr: string) {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  return Date.UTC(y, m - 1, d)
-}
-
-const SERVICE_LABELS: Record<string, string> = {
-  mow_only:      'Mow Only',
-  mow_trim_blow: 'Mow, Trim & Blow',
-  trim_cleanup:  'Trim & Cleanup',
-  full_service:  'Full Service',
-}
-
-function servicePackageLabel(value: string | null | undefined): string {
-  if (!value) return 'Service'
-  return SERVICE_LABELS[value] ?? value.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
-}
-
-function statusLabel(value: string | null | undefined): string {
-  if (!value) return ''
-  return value.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-}
-
-function deriveServiceLabel(
-  pkg: string | null | undefined,
-  prop: {
-    default_mowing_enabled?: boolean | null
-    default_weed_eating_enabled?: boolean | null
-    default_edging_enabled?: boolean | null
-    default_blow_off_enabled?: boolean | null
-  } | null
-): string {
-  // Property booleans are more accurate than legacy package codes — prefer them first.
-  const parts: string[] = []
-  if (prop?.default_mowing_enabled)      parts.push('Mowing')
-  if (prop?.default_weed_eating_enabled) parts.push('Weed Eating')
-  if (prop?.default_edging_enabled)      parts.push('Edging')
-  if (prop?.default_blow_off_enabled)    parts.push('Blow Off')
-  if (parts.length > 0) return parts.join(', ')
-  // Fall back to legacy service_package code for old jobs/properties without booleans.
-  if (pkg) return servicePackageLabel(pkg)
-  return 'Lawn Service'
-}
+import { dateOnlyToUtcMs } from './sections/shared'
+import { RainBanner } from './sections/RainBanner'
+import { RecurringGapAlert, DormantCustomersAlert } from './sections/RetentionAlerts'
+import { StatsGrid } from './sections/StatsGrid'
+import { TodayJobsSection } from './sections/TodayJobsSection'
+import { EstimateVisitsSection } from './sections/EstimateVisitsSection'
+import { OverdueSection } from './sections/OverdueSection'
+import { CompletedTodaySection } from './sections/CompletedTodaySection'
+import { TomorrowSection } from './sections/TomorrowSection'
+import { NeedsFollowUpSection } from './sections/NeedsFollowUpSection'
+import { ApprovedEstimatesSection } from './sections/ApprovedEstimatesSection'
+import { UnpaidSection } from './sections/UnpaidSection'
 
 export default async function TodayPage() {
   const supabase = await createClient()
@@ -479,551 +443,57 @@ export default async function TodayPage() {
 
       <EstimateApprovalNotifications notifications={(approvalNotifications ?? []) as AppNotification[]} />
 
-      {/* Rain warning banner */}
-      {anyRainToday && (
-        <div className="card" style={{ marginBottom: '1rem', background: 'rgba(80,140,255,0.12)', borderLeft: '3px solid #4a90e2' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '1.5rem' }}>🌧</span>
-            <div>
-              <div className="font-bold">Rain expected today</div>
-              <div className="text-small text-muted">Consider rescheduling jobs at higher-risk locations.</div>
-            </div>
-          </div>
-        </div>
-      )}
+      <RainBanner show={anyRainToday} />
 
-      {/* Recurring gap alert */}
-      {gapCustomers.length > 0 && (
-        <div className="card" style={{ marginBottom: '1rem', borderLeft: '3px solid var(--color-warning, #f59e0b)', background: 'rgba(245,158,11,0.08)' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-            <span style={{ fontSize: '1.25rem', flexShrink: 0 }}>🔁</span>
-            <div>
-              <div className="font-bold" style={{ marginBottom: '4px' }}>Recurring customers with no upcoming job</div>
-              <div className="text-small text-muted" style={{ marginBottom: '6px' }}>No job scheduled in the next 14 days:</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {gapCustomers.map(c => (
-                  <span key={c.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
-                    <Link href={`/customers/${c.id}`} className="pill pill-lead" style={{ textDecoration: 'none' }}>{c.name}</Link>
-                    <form action={snoozeCustomerAlert.bind(null, c.id, 'recurring_gap')} style={{ display: 'inline-flex' }}>
-                      <button
-                        type="submit"
-                        className="pill"
-                        title="Snooze for 7 days"
-                        aria-label={`Snooze ${c.name} for 7 days`}
-                        style={{ cursor: 'pointer', border: '1px solid var(--color-border, #333)', background: 'transparent', color: 'var(--color-text-muted)' }}
-                      >
-                        ✕
-                      </button>
-                    </form>
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <RecurringGapAlert customers={gapCustomers} />
 
-      {/* Retention alert */}
-      {dormantCustomers.length > 0 && (
-        <div className="card" style={{ marginBottom: '1rem', borderLeft: '3px solid var(--color-unpaid, #f97316)', background: 'rgba(249,115,22,0.07)' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-            <span style={{ fontSize: '1.25rem', flexShrink: 0 }}>💤</span>
-            <div>
-              <div className="font-bold" style={{ marginBottom: '4px' }}>Customers you haven&apos;t visited recently</div>
-              <div className="text-small text-muted" style={{ marginBottom: '6px' }}>No completed job in 60+ days:</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                {dormantCustomers.map(c => (
-                  <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                    <Link href={`/customers/${c.id}`} style={{ display: 'flex', flex: 1, minWidth: 0, justifyContent: 'space-between', alignItems: 'center', textDecoration: 'none' }}>
-                      <span className="text-small">{c.name}</span>
-                      <span className="pill pill-overdue" style={{ fontSize: '0.7rem' }}>{c.daysSince}d ago</span>
-                    </Link>
-                    <form action={snoozeCustomerAlert.bind(null, c.id, 'dormant')} style={{ display: 'inline-flex', flexShrink: 0 }}>
-                      <button
-                        type="submit"
-                        className="pill"
-                        title="Snooze for 7 days"
-                        aria-label={`Snooze ${c.name} for 7 days`}
-                        style={{ cursor: 'pointer', border: '1px solid var(--color-border, #333)', background: 'transparent', color: 'var(--color-text-muted)' }}
-                      >
-                        ✕
-                      </button>
-                    </form>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <DormantCustomersAlert customers={dormantCustomers} />
 
-      {/* Stats */}
-      <div className="stat-grid" style={{ marginBottom: '1.5rem' }}>
-        <Link href="/jobs?view=scheduled&filter=today" className="stat-card" style={{ textDecoration: 'none' }}>
-          <div className="stat-value">{todayJobs?.length ?? 0} · ${todayTotal.toFixed(0)}</div>
-          <div className="stat-label">Jobs today</div>
-        </Link>
-        <Link href="/leads" className="stat-card" style={{ textDecoration: 'none' }}>
-          <div className="stat-value" style={{ color: (newLeadsCount > 0) ? 'var(--color-lead)' : undefined }}>
-            {newLeadsCount}
-          </div>
-          <div className="stat-label">New leads</div>
-        </Link>
-        <Link href="/jobs?view=scheduled&filter=overdue" className="stat-card" style={{ textDecoration: 'none' }}>
-          <div className="stat-value" style={{ color: overdueJobs?.length ? 'var(--color-overdue)' : undefined }}>
-            {overdueDisplayCount}
-          </div>
-          <div className="stat-label">Overdue</div>
-        </Link>
-        <Link href="/jobs?view=completed&filter=today&page=1" className="stat-card" style={{ textDecoration: 'none' }}>
-          <div className="stat-value" style={{ color: (completedTodayJobs?.length ?? 0) > 0 ? 'var(--color-primary)' : undefined }}>
-            {completedTodayJobs?.length ?? 0}
-          </div>
-          <div className="stat-label">Completed today</div>
-        </Link>
-        {collectedTodayRevenue > 0 && (
-          <Link href="/jobs?view=completed&filter=today&page=1" className="stat-card" style={{ textDecoration: 'none' }}>
-            <div className="stat-value" style={{ color: 'var(--color-primary)' }}>
-              ${collectedTodayRevenue.toFixed(0)}
-            </div>
-            <div className="stat-label">Collected today</div>
-          </Link>
-        )}
-        <Link href="/jobs?filter=week" className="stat-card" style={{ textDecoration: 'none' }}>
-          <div className="stat-value">{weekJobsCount} · ${expectedWeekRevenue.toFixed(0)}</div>
-          <div className="stat-label">This week</div>
-        </Link>
-        <Link href="/jobs?view=completed&filter=unpaid&page=1" className="stat-card" style={{ textDecoration: 'none' }}>
-          <div className="stat-value" style={{ color: unpaidTotal > 0 ? 'var(--color-unpaid)' : undefined }}>
-            ${unpaidTotal.toFixed(0)}
-          </div>
-          <div className="stat-label">Unpaid balance</div>
-        </Link>
-      </div>
+      <StatsGrid
+        todayJobsCount={todayJobs?.length ?? 0}
+        todayTotal={todayTotal}
+        newLeadsCount={newLeadsCount}
+        overdueCount={overdueJobs?.length ?? 0}
+        overdueDisplayCount={overdueDisplayCount}
+        completedTodayCount={completedTodayJobs?.length ?? 0}
+        collectedTodayRevenue={collectedTodayRevenue}
+        weekJobsCount={weekJobsCount}
+        expectedWeekRevenue={expectedWeekRevenue}
+        unpaidTotal={unpaidTotal}
+      />
 
-      {/* Today's Jobs */}
-      <div className="detail-section">
-        <div className="card-row" style={{ marginBottom: '8px' }}>
-          <div className="section-heading" style={{ marginBottom: 0 }}>Today&apos;s Jobs ({todayJobs?.length ?? 0})</div>
-          {todayRouteUrl && (todayJobs?.length ?? 0) > 0 && (
-            <a href={todayRouteUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-secondary">
-              🗺 Route
-            </a>
-          )}
-        </div>
-        {!todayJobs?.length ? (
-          <div className="card">
-            <p className="text-muted text-small">No jobs scheduled for today.</p>
-            <div style={{ marginTop: '12px' }}>
-              <Link href="/jobs/new" className="btn btn-sm btn-secondary">Schedule a job</Link>
-            </div>
-          </div>
-        ) : (
-          orderedTodayJobs.map((job) => {
-            const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null; phone: string | null } | null
-            const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null; state: string | null; postal_code: string | null; pet_warning: string | null; gate_code: string | null; access_notes: string | null; obstacle_notes: string | null; latitude: number | null; longitude: number | null; default_mowing_enabled: boolean | null; default_weed_eating_enabled: boolean | null; default_edging_enabled: boolean | null; default_blow_off_enabled: boolean | null } | null
-            const warnings = [property?.pet_warning, property?.gate_code ? `Gate: ${property.gate_code}` : null, property?.access_notes, property?.obstacle_notes].filter(Boolean)
-            const effectiveCoord = jobCoordMap.get(job.id as string)
-            const fc = effectiveCoord
-              ? weatherMap.get(coordKey(effectiveCoord.lat, effectiveCoord.lon))
-              : undefined
-            const wetRisk = fc && (fc.precipChance >= 40 || fc.precipInches >= 0.05)
+      <TodayJobsSection
+        jobs={orderedTodayJobs}
+        routeUrl={todayRouteUrl}
+        jobCoordMap={jobCoordMap}
+        weatherMap={weatherMap}
+        smsMode={smsMode}
+      />
 
-            return (
-              <div key={job.id} className="card">
-                <div className="card-row">
-                  <div>
-                    <div className="card-title">{job.title}</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
-                      <div className="card-meta">👤 {customer?.first_name} {customer?.last_name}</div>
-                      <div className="card-meta">📍 {property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
-                      {job.scheduled_time_window && <div className="card-meta">🗓 {job.scheduled_time_window}</div>}
-                      <div className="card-meta">🌿 {deriveServiceLabel(job.service_package, property)}</div>
-                      {job.price != null && <div className="card-meta">💵 ${Number(job.price).toFixed(0)}</div>}
-                      {effectiveCoord != null && (
-                        fc ? (
-                          <div className="card-meta" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span>{fc.currentEmoji}</span>
-                            <span>{fc.currentTemp}° now · {fc.currentSummary} · High {fc.tempHi}°</span>
-                            {fc.precipChance > 0 && (
-                              <span style={{ color: wetRisk ? 'var(--color-overdue)' : undefined, fontWeight: wetRisk ? 600 : undefined }}>
-                                · {fc.precipChance}% rain
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="card-meta" style={{ color: 'var(--color-text-muted)', fontSize: '0.8125rem' }}>
-                            Weather unavailable for this property.
-                          </div>
-                        )
-                      )}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <span className={`pill pill-${job.status}`}>{statusLabel(job.status)}</span>
-                  </div>
-                </div>
+      <EstimateVisitsSection visits={estimateVisits ?? []} smsMode={smsMode} />
 
-                {warnings.length > 0 && (
-                  <div className="property-warnings">
-                    {warnings.map((w, i) => (
-                      <div key={i} className="warning-banner">⚠ {w}</div>
-                    ))}
-                  </div>
-                )}
+      <OverdueSection
+        jobs={overdueJobs ?? []}
+        displayCount={overdueDisplayCount}
+        todayStartMs={todayStartMs}
+        today={today}
+      />
 
-                <div className="card-actions">
-                  {property?.service_address && (
-                    <a
-                      href={`https://maps.google.com/?q=${encodeURIComponent([property.service_address, property.city].filter(Boolean).join(', '))}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn btn-sm btn-secondary"
-                    >
-                      Open Maps
-                    </a>
-                  )}
-                  {customer?.phone && (
-                    <SmsLink
-                      phone={customer.phone}
-                      body={buildOnMyWaySms(customer.first_name)}
-                      mode={smsMode}
-                      className="btn btn-sm btn-secondary"
-                    >
-                      On My Way
-                    </SmsLink>
-                  )}
-                  <Link href={`/jobs/${job.id}`} className="btn btn-sm btn-primary">
-                    View Job
-                  </Link>
-                </div>
-              </div>
-            )
-          })
-        )}
-      </div>
+      <CompletedTodaySection jobs={completedTodayJobs ?? []} timeZone={timeZone} />
 
-      {/* Estimate Visits */}
-      {(estimateVisits?.length ?? 0) > 0 && (
-        <div className="detail-section">
-          <div className="section-heading">Estimate Visits ({estimateVisits!.length})</div>
-          {estimateVisits!.map((visit) => {
-            const customer = (Array.isArray(visit.customers) ? visit.customers[0] : visit.customers) as { first_name: string; last_name: string | null; phone: string | null } | null
-            const property = (Array.isArray(visit.properties) ? visit.properties[0] : visit.properties) as { service_address: string; city: string | null } | null
-            return (
-              <div key={visit.id} className="card">
-                <div className="card-row">
-                  <div>
-                    <div className="card-title">{customer?.first_name} {customer?.last_name}</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
-                      <div className="card-meta">📍 {property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
-                      {visit.visit_scheduled_time && <div className="card-meta">🕐 {visit.visit_scheduled_time}</div>}
-                      {visit.total != null && <div className="card-meta">💵 ~${Number(visit.total).toFixed(0)}</div>}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <span className="pill pill-draft">Estimate Visit</span>
-                  </div>
-                </div>
-                <div className="card-actions">
-                  {property?.service_address && (
-                    <a
-                      href={`https://maps.google.com/?q=${encodeURIComponent([property.service_address, property.city].filter(Boolean).join(', '))}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn btn-sm btn-secondary"
-                    >
-                      Open Maps
-                    </a>
-                  )}
-                  {customer?.phone && (
-                    <SmsLink
-                      phone={customer.phone}
-                      body={buildEstimateVisitReminderSms(customer?.first_name)}
-                      mode={smsMode}
-                      className="btn btn-sm btn-secondary"
-                    >
-                      📱 Remind
-                    </SmsLink>
-                  )}
-                  <Link href={`/estimates/${visit.id}`} className="btn btn-sm btn-primary">View Estimate</Link>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
+      <TomorrowSection jobs={tomorrowJobs ?? []} tomorrowStr={tomorrowStr} smsMode={smsMode} />
 
-      {/* Overdue */}
-      {(overdueJobs?.length ?? 0) > 0 && (
-        <div className="detail-section" id="overdue-section">
-          <div className="section-heading" style={{ color: 'var(--color-overdue)' }}>
-            Overdue ({overdueDisplayCount})
-          </div>
-          {overdueJobs!.map((job) => {
-            const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null } | null
-            const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
-            const daysLate = Math.floor((todayStartMs - dateOnlyToUtcMs(job.scheduled_date ?? today)) / 86400000)
-            return (
-              <Link key={job.id} href={`/jobs/${job.id}`} style={{ display: 'block' }}>
-                <div className="card">
-                  <div className="card-row">
-                    <div>
-                      <div className="card-title">{job.title}</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
-                        <div className="card-meta">👤 {customer?.first_name} {customer?.last_name}</div>
-                        <div className="card-meta">📍 {property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
-                        {job.scheduled_date && <div className="card-meta">🗓 {formatDateOnly(job.scheduled_date, { weekday: 'short', month: 'short', day: 'numeric' })}</div>}
-                        {job.price != null && <div className="card-meta">💵 ${Number(job.price).toFixed(0)}</div>}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
-                      <span className={`pill pill-${job.status}`}>{statusLabel(job.status)}</span>
-                      <span className="pill pill-overdue">{daysLate}d late</span>
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            )
-          })}
-          {overdueJobs!.length === 10 && (
-            <p className="text-small text-muted" style={{ marginTop: '8px', paddingLeft: '2px' }}>
-              Showing first 10.{' '}
-              <Link href="/jobs?view=scheduled&filter=overdue">Open Jobs</Link> to see the full list.
-            </p>
-          )}
-        </div>
-      )}
+      <NeedsFollowUpSection jobs={needsFollowUpJobs} todayStartMs={todayStartMs} timeZone={timeZone} />
 
-      {/* Completed Today */}
-      {(completedTodayJobs?.length ?? 0) > 0 && (
-        <div className="detail-section" id="completed-today">
-          <div className="section-heading" style={{ color: 'var(--color-primary)' }}>
-            Completed Today ({completedTodayJobs!.length})
-          </div>
-          {completedTodayJobs!.map((job) => {
-            const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null } | null
-            const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null } | null
-            const balance = calcJobBalance(job)
-            return (
-              <Link key={job.id} href={`/jobs/${job.id}`} style={{ display: 'block' }}>
-                <div className="card">
-                  <div className="card-row">
-                    <div>
-                      <div className="card-title">{job.title}</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
-                        <div className="card-meta">👤 {customer?.first_name} {customer?.last_name}</div>
-                        <div className="card-meta">📍 {property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
-                        {job.completed_at && <div className="card-meta">✅ {formatTimestampDate(job.completed_at, timeZone, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      {job.price != null && <div style={{ fontWeight: 700 }}>${Number(job.price).toFixed(0)}</div>}
-                      <span className={`pill pill-${job.payment_status}`}>{statusLabel(job.payment_status)}</span>
-                      {balance != null && balance > 0 && job.payment_status !== 'not_billable' && <div className="text-small" style={{ color: 'var(--color-unpaid)', marginTop: '4px' }}>${balance.toFixed(0)} owed</div>}
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            )
-          })}
-        </div>
-      )}
+      <ApprovedEstimatesSection estimates={approvedEstimates} timeZone={timeZone} />
 
-      {/* Tomorrow's Jobs */}
-      {(tomorrowJobs?.length ?? 0) > 0 && (
-        <div className="detail-section">
-          <div className="section-heading">Tomorrow ({tomorrowJobs!.length})</div>
-          {tomorrowJobs!.map((job) => {
-            const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null; phone: string | null } | null
-            const property = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string; city: string | null; default_mowing_enabled: boolean | null; default_weed_eating_enabled: boolean | null; default_edging_enabled: boolean | null; default_blow_off_enabled: boolean | null } | null
-            const svcLabel = deriveServiceLabel(job.service_package, property)
-            const smsBody = buildTomorrowReminderSms(customer?.first_name, svcLabel, formatDateOnly(tomorrowStr, { weekday: 'long', month: 'long', day: 'numeric' }))
-            return (
-              <div key={job.id} className="card">
-                <div className="card-row">
-                  <div style={{ flex: 1 }}>
-                    <div className="card-title">{job.title}</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
-                      <div className="card-meta">👤 {customer?.first_name} {customer?.last_name}</div>
-                      <div className="card-meta">📍 {property?.service_address}{property?.city ? `, ${property.city}` : ''}</div>
-                      <div className="card-meta">🗓 {formatDateOnly(tomorrowStr, { weekday: 'short', month: 'short', day: 'numeric' })}{job.scheduled_time_window ? ` · ${job.scheduled_time_window}` : ''}</div>
-                      <div className="card-meta">🌿 {svcLabel}</div>
-                      {job.price != null && <div className="card-meta">💵 ${Number(job.price).toFixed(0)}</div>}
-                    </div>
-                  </div>
-                </div>
-                <div className="card-actions">
-                  {property?.service_address && (
-                    <a
-                      href={`https://maps.google.com/?q=${encodeURIComponent([property.service_address, property.city].filter(Boolean).join(', '))}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn btn-sm btn-secondary"
-                    >
-                      Open Maps
-                    </a>
-                  )}
-                  {customer?.phone && (
-                    <SmsLink phone={customer.phone} body={smsBody} mode={smsMode} className="btn btn-sm btn-secondary">
-                      📱 Send Reminder
-                    </SmsLink>
-                  )}
-                  <a
-                    href={`/jobs/${job.id}`}
-                    className="btn btn-sm btn-primary"
-                  >
-                    View Job
-                  </a>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Needs Follow-up */}
-      {needsFollowUpJobs.length > 0 && (
-        <div className="detail-section">
-          <div className="section-heading">
-            Needs Follow-up ({needsFollowUpJobs.length})
-          </div>
-          <p className="text-small text-muted" style={{ marginBottom: '8px' }}>
-            Recurring jobs completed without a next visit scheduled.
-          </p>
-          {needsFollowUpJobs.map((job) => {
-            const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null } | null
-            const prop = (Array.isArray(job.properties) ? job.properties[0] : job.properties) as { service_address: string | null; city: string | null; service_frequency: string | null } | null
-            const daysSince = job.completed_at
-              ? Math.max(0, Math.floor((todayStartMs - dateOnlyToUtcMs(getLocalDateStr(timeZone, new Date(job.completed_at)))) / 86400000))
-              : null
-            return (
-              <div key={job.id} className="card">
-                <div className="card-row">
-                  <div>
-                    <div className="card-title">{job.title}</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
-                      <div className="card-meta">👤 {customer?.first_name} {customer?.last_name}</div>
-                      {prop?.service_address && (
-                        <div className="card-meta">📍 {prop.service_address}{prop.city ? `, ${prop.city}` : ''}</div>
-                      )}
-                      {job.completed_at && (
-                        <div className="card-meta">
-                          ✅ Completed {formatTimestampDate(job.completed_at, timeZone, { month: 'short', day: 'numeric' })}
-                          {daysSince !== null && <span className="text-muted"> · {daysSince === 0 ? 'today' : `${daysSince}d ago`}</span>}
-                        </div>
-                      )}
-                      {prop?.service_frequency && (
-                        <div className="card-meta">🔁 {formatFrequencyLabel(prop.service_frequency)}</div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="card-actions">
-                  <Link href={`/jobs/${job.id}`} className="btn btn-sm btn-primary">
-                    Schedule Follow-up
-                  </Link>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Approved Estimates Waiting */}
-      {approvedEstimates.length > 0 && (
-        <div className="detail-section">
-          <div className="section-heading">
-            Approved Estimates Waiting ({approvedEstimates.length})
-          </div>
-          <p className="text-small text-muted" style={{ marginBottom: '8px' }}>
-            Customer-approved estimates ready to convert to a job.
-          </p>
-          {approvedEstimates.map((est) => {
-            const customer = (Array.isArray(est.customers) ? est.customers[0] : est.customers) as { first_name: string; last_name: string | null } | null
-            const prop = (Array.isArray(est.properties) ? est.properties[0] : est.properties) as { service_address: string | null; city: string | null } | null
-            return (
-              <div key={est.id} className="card">
-                <div className="card-row">
-                  <div>
-                    <div className="card-title">
-                      {customer?.first_name} {customer?.last_name}
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
-                      {prop?.service_address && (
-                        <div className="card-meta">📍 {prop.service_address}{prop.city ? `, ${prop.city}` : ''}</div>
-                      )}
-                      {est.total != null && (
-                        <div className="card-meta">💵 ${Number(est.total).toFixed(0)} estimate</div>
-                      )}
-                      {est.created_at && (
-                        <div className="card-meta">🗓 Created {formatTimestampDate(est.created_at, timeZone, { month: 'short', day: 'numeric' })}</div>
-                      )}
-                    </div>
-                  </div>
-                  <div style={{ flexShrink: 0 }}>
-                    <span className="pill pill-approved">Approved</span>
-                  </div>
-                </div>
-                <div className="card-actions">
-                  <Link href={`/estimates/${est.id}`} className="btn btn-sm btn-primary">
-                    Schedule Job
-                  </Link>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Unpaid */}
-      {(unpaidJobs?.length ?? 0) > 0 && (
-        <div className="detail-section">
-          <div className="section-heading" style={{ color: 'var(--color-unpaid)' }}>
-            Unpaid ({unpaidDisplayCount}) — ${unpaidTotal.toFixed(0)} owed
-          </div>
-          {unpaidJobs!.map((job) => {
-            const customer = (Array.isArray(job.customers) ? job.customers[0] : job.customers) as { first_name: string; last_name: string | null; phone: string | null } | null
-            const balance = calcJobBalance(job)
-            return (
-              <div key={job.id} className="card">
-                <div className="card-row">
-                  <div>
-                    <div className="card-title">{job.title}</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
-                      <div className="card-meta">👤 {customer?.first_name} {customer?.last_name}</div>
-                      <div className="card-meta">💵 {balance != null ? `$${balance.toFixed(0)} due` : 'No price set'}</div>
-                      {job.completed_at && <div className="card-meta">🗓 {formatTimestampDate(job.completed_at, timeZone, { month: 'short', day: 'numeric', year: 'numeric' })}</div>}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <span className={`pill pill-${job.payment_status}`}>{statusLabel(job.payment_status)}</span>
-                  </div>
-                </div>
-                <div className="card-actions">
-                  {customer?.phone && balance != null && (
-                    <SmsLink
-                      phone={customer.phone}
-                      body={buildBalanceNudgeSms(customer.first_name, balance)}
-                      mode={smsMode}
-                      className="btn btn-sm btn-secondary"
-                    >
-                      Send Reminder
-                    </SmsLink>
-                  )}
-                  <Link href={`/jobs/${job.id}`} className="btn btn-sm btn-primary">View &amp; Pay</Link>
-                </div>
-              </div>
-            )
-          })}
-          {unpaidJobs!.length === 10 && (
-            <p className="text-small text-muted" style={{ marginTop: '8px', paddingLeft: '2px' }}>
-              Showing first 10.{' '}
-              <Link href="/jobs?view=completed&filter=unpaid&page=1">Open Jobs</Link> to see the full list.
-            </p>
-          )}
-        </div>
-      )}
+      <UnpaidSection
+        jobs={unpaidJobs ?? []}
+        displayCount={unpaidDisplayCount}
+        unpaidTotal={unpaidTotal}
+        timeZone={timeZone}
+        smsMode={smsMode}
+      />
     </div>
   )
 }
